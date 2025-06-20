@@ -1,0 +1,174 @@
+import express from 'express';
+import { databaseService } from '../db/database-service.js';
+import { CreateProjectInput, CreateTaskInput, CreateSubtaskInput } from '../../src/types/types.js';
+
+export const projectRoutes = express.Router();
+
+// Projects
+projectRoutes.get('/', async (req, res) => {
+  try {
+    const projects = await databaseService.getProjects();
+    res.json(projects);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch projects' });
+  }
+});
+
+projectRoutes.get('/:id', async (req, res) => {
+  try {
+    const project = await databaseService.getProject(req.params.id);
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+    res.json(project);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch project' });
+  }
+});
+
+projectRoutes.post('/', async (req, res) => {
+  try {
+    const input: CreateProjectInput = req.body;
+    if (!input.name) {
+      return res.status(400).json({ error: 'Project name is required' });
+    }
+    
+    const project = await databaseService.createProject(input);
+    res.status(201).json(project);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create project' });
+  }
+});
+
+projectRoutes.put('/:id', async (req, res) => {
+  try {
+    const updates = req.body;
+    const project = await databaseService.updateProject(req.params.id, updates);
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+    res.json(project);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update project' });
+  }
+});
+
+projectRoutes.delete('/:id', async (req, res) => {
+  try {
+    const deleted = await databaseService.deleteProject(req.params.id);
+    if (!deleted) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+    res.status(204).send();
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete project' });
+  }
+});
+
+// Tasks
+projectRoutes.post('/:projectId/tasks', async (req, res) => {
+  try {
+    const input: CreateTaskInput = {
+      ...req.body,
+      projectId: req.params.projectId
+    };
+    
+    if (!input.title) {
+      return res.status(400).json({ error: 'Task title is required' });
+    }
+    
+    const task = await databaseService.createTask(input);
+    if (!task) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+    
+    res.status(201).json(task);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create task' });
+  }
+});
+
+projectRoutes.get('/:projectId/tasks/:taskId', async (req, res) => {
+  try {
+    const task = await databaseService.getTask(req.params.projectId, req.params.taskId);
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+    res.json(task);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch task' });
+  }
+});
+
+projectRoutes.put('/:projectId/tasks/:taskId', async (req, res) => {
+  try {
+    const updates = req.body;
+    const task = await databaseService.updateTask(req.params.projectId, req.params.taskId, updates);
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+    res.json(task);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update task' });
+  }
+});
+
+projectRoutes.delete('/:projectId/tasks/:taskId', async (req, res) => {
+  try {
+    const deleted = await databaseService.deleteTask(req.params.projectId, req.params.taskId);
+    if (!deleted) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+    res.status(204).send();
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete task' });
+  }
+});
+
+// Subtasks
+projectRoutes.post('/:projectId/tasks/:taskId/subtasks', async (req, res) => {
+  try {
+    const input: CreateSubtaskInput = {
+      ...req.body,
+      taskId: req.params.taskId
+    };
+    
+    if (!input.title) {
+      return res.status(400).json({ error: 'Subtask title is required' });
+    }
+    
+    const subtask = await databaseService.createSubtask(input);
+    if (!subtask) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+    
+    res.status(201).json(subtask);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create subtask' });
+  }
+});
+
+projectRoutes.put('/tasks/:taskId/subtasks/:subtaskId', async (req, res) => {
+  try {
+    const updates = req.body;
+    const subtask = await databaseService.updateSubtask(req.params.taskId, req.params.subtaskId, updates);
+    if (!subtask) {
+      return res.status(404).json({ error: 'Subtask not found' });
+    }
+    res.json(subtask);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update subtask' });
+  }
+});
+
+projectRoutes.delete('/tasks/:taskId/subtasks/:subtaskId', async (req, res) => {
+  try {
+    const deleted = await databaseService.deleteSubtask(req.params.taskId, req.params.subtaskId);
+    if (!deleted) {
+      return res.status(404).json({ error: 'Subtask not found' });
+    }
+    res.status(204).send();
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete subtask' });
+  }
+});

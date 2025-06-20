@@ -1,0 +1,74 @@
+/* This file is now minimal - styles are handled with Tailwind CSS classes directly in components */
+
+/* Any custom animations or utilities can be added here */
+@keyframes typing {
+  0%, 80%, 100% {
+    transform: scale(0);
+  }
+  40% {
+    transform: scale(1);
+  }
+}
+
+.typing-indicator span {
+  animation: typing 1.4s infinite ease-in-out;
+}
+
+.typing-indicator span:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.typing-indicator span:nth-child(2) {
+  animation-delay: -0.16s;
+}
+
+/* Details arrow rotation */
+details[open] .details-arrow {
+  transform: rotate(180deg);
+}
+
+/* Chat window animations */
+@keyframes chatAppear {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes chatDisappear {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+}
+
+@keyframes bubbleAppear {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.chat-appear {
+  animation: chatAppear 0.3s ease-out;
+}
+
+.chat-disappear {
+  animation: chatDisappear 0.3s ease-out;
+}
+
+.bubble-appear {
+  animation: bubbleAppear 0.3s ease-out;
+}
