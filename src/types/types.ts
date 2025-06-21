@@ -1,20 +1,27 @@
-export enum TaskStatus {
-  TODO = 'todo',
-  IN_PROGRESS = 'in_progress', 
-  COMPLETED = 'completed'
-}
+export const TaskStatus = {
+  BACKLOG: 'backlog',
+  IN_PROGRESS: 'in_progress', 
+  COMPLETED: 'completed'
+} as const
 
-export enum ProjectStatus {
-  ACTIVE = 'active',
-  COMPLETED = 'completed',
-  ARCHIVED = 'archived'
-}
+export type TaskStatus = typeof TaskStatus[keyof typeof TaskStatus]
 
-export enum Priority {
-  LOW = 'low',
-  MEDIUM = 'medium',
-  HIGH = 'high'
-}
+export const ProjectStatus = {
+  ACTIVE: 'active',
+  BACKLOG: 'backlog',
+  COMPLETED: 'completed',
+  ARCHIVED: 'archived'
+} as const
+
+export type ProjectStatus = typeof ProjectStatus[keyof typeof ProjectStatus]
+
+export const Priority = {
+  LOW: 'low',
+  MEDIUM: 'medium',
+  HIGH: 'high'
+} as const
+
+export type Priority = typeof Priority[keyof typeof Priority]
 
 export interface Subtask {
   id: string;
@@ -32,10 +39,12 @@ export interface Task {
   projectId: string;
   title: string;
   description?: string;
+  details?: string;
   status: TaskStatus;
   priority: Priority;
   dueDate?: string;
-  subtasks: Subtask[];
+  subtasks?: Subtask[];
+  comments?: Comment[];
   createdAt: string;
   updatedAt: string;
 }
@@ -64,11 +73,11 @@ export interface CreateTaskInput {
 }
 
 export interface CreateSubtaskInput {
-  taskId: string;
   title: string;
   description?: string;
   priority?: Priority;
 }
+
 
 export interface ChatMessage {
   id: string;
@@ -87,4 +96,19 @@ export interface ToolInvocation {
     message: string;
     data?: unknown;
   };
+}
+
+export interface Comment {
+  id: string;
+  taskId: string;
+  content: string;
+  author: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateCommentInput {
+  taskId: string;
+  content: string;
+  author: string;
 }

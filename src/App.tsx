@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react'
 import { ProjectProvider } from '@/context/ProjectContext'
+import { ThemeProvider } from '@/context/ThemeContext'
 import { SidebarProvider } from '@/components/ui/sidebar'
 import { AppSidebar } from '@/components/app-sidebar'
 import { ProjectView } from '@/components/project-view'
 import { TaskView } from '@/components/task-view'
+import { SettingsView } from '@/components/settings-view'
 import { ChatInterface } from '@/components/ChatInterface'
 import { CommandMenu } from '@/components/command-menu'
 
-type View = 'all-issues' | 'active' | 'backlog' | 'project' | 'tasks'
+type View = 'all-issues' | 'active' | 'backlog' | 'archived' | 'project' | 'tasks' | 'settings'
 
 function App() {
   const [currentView, setCurrentView] = useState<View>('all-issues')
@@ -46,9 +48,31 @@ function App() {
     }
   }, [])
 
+  // Global keyboard shortcut for command menu
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.key === 'k' && (e.metaKey || e.ctrlKey)) || e.key === '/') {
+        if (
+          (e.target instanceof HTMLElement && e.target.isContentEditable) ||
+          e.target instanceof HTMLInputElement ||
+          e.target instanceof HTMLTextAreaElement ||
+          e.target instanceof HTMLSelectElement
+        ) {
+          return
+        }
+
+        e.preventDefault()
+        setCommandMenuOpen(true)
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
   return (
-    <ProjectProvider>
-      <div className="dark">
+    <ThemeProvider>
+      <ProjectProvider>
         <SidebarProvider defaultOpen={true}>
           <div className="flex h-screen w-full">
             <AppSidebar 
@@ -60,6 +84,8 @@ function App() {
             <main className="flex-1 overflow-hidden">
               {currentView === 'tasks' && selectedProjectId ? (
                 <TaskView projectId={selectedProjectId} />
+              ) : currentView === 'settings' ? (
+                <SettingsView />
               ) : (
                 <ProjectView view={currentView} onProjectSelect={handleProjectSelect} />
               )}
@@ -71,8 +97,8 @@ function App() {
             onOpenChange={setCommandMenuOpen} 
           />
         </SidebarProvider>
-      </div>
-    </ProjectProvider>
+      </ProjectProvider>
+    </ThemeProvider>
   )
 }
 

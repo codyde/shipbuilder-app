@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { KanbanBoard } from './KanbanBoard'
+import { TaskDetailPanel } from './TaskDetailPanel'
 import { 
   Table,
   TableBody,
@@ -29,13 +31,13 @@ import {
   Plus, 
   Circle, 
   MoreHorizontal,
-  Filter,
   Search,
-  ChevronDown,
   ArrowLeft,
   CheckCircle2,
   Clock,
-  AlertCircle
+  AlertCircle,
+  List,
+  Kanban
 } from 'lucide-react'
 import { useProjects } from '@/context/ProjectContext'
 import { TaskStatus, Priority } from '@/types/types'
@@ -51,8 +53,23 @@ const getStatusIcon = (status: TaskStatus) => {
       return <CheckCircle2 className="h-4 w-4 text-green-500" />
     case TaskStatus.IN_PROGRESS:
       return <Clock className="h-4 w-4 text-blue-500" />
+    case TaskStatus.BACKLOG:
+      return <Circle className="h-4 w-4 text-amber-500" />
     default:
-      return <Circle className="h-4 w-4 text-gray-400" />
+      return <Circle className="h-4 w-4 text-amber-500" />
+  }
+}
+
+const getStatusColor = (status: TaskStatus) => {
+  switch (status) {
+    case TaskStatus.COMPLETED:
+      return 'text-green-500'
+    case TaskStatus.IN_PROGRESS:
+      return 'text-blue-500'
+    case TaskStatus.BACKLOG:
+      return 'text-amber-500'
+    default:
+      return 'text-amber-500'
   }
 }
 
@@ -82,17 +99,22 @@ const getPriorityIcon = (priority: Priority) => {
   }
 }
 
+type ViewMode = 'list' | 'kanban'
+
 export function TaskView({ projectId }: TaskViewProps) {
   const { projects, createTask, updateTask } = useProjects()
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [viewMode, setViewMode] = useState<ViewMode>('list')
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [newTask, setNewTask] = useState({
     title: '',
     description: '',
-    priority: Priority.MEDIUM,
+    priority: Priority.MEDIUM as Priority,
     dueDate: '',
   })
 
   const project = projects.find(p => p.id === projectId)
+  const selectedTask = selectedTaskId ? project?.tasks.find(t => t.id === selectedTaskId) : null
 
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -107,7 +129,7 @@ export function TaskView({ projectId }: TaskViewProps) {
       setNewTask({
         title: '',
         description: '',
-        priority: Priority.MEDIUM,
+        priority: Priority.MEDIUM as Priority,
         dueDate: '',
       })
       setIsCreateDialogOpen(false)
@@ -115,7 +137,13 @@ export function TaskView({ projectId }: TaskViewProps) {
   }
 
   const handleStatusChange = async (taskId: string, status: TaskStatus) => {
-    await updateTask(projectId, taskId, { status })
+    try {
+      // Make the API call - the context already handles optimistic updates
+      await updateTask(projectId, taskId, { status })
+    } catch (error) {
+      console.error('Failed to update task status:', error)
+      // The context will handle rollback if needed
+    }
   }
 
   if (!project) {
@@ -127,8 +155,9 @@ export function TaskView({ projectId }: TaskViewProps) {
   }
 
   return (
-    <div className="flex h-full flex-col bg-background">
-      {/* Header */}
+    <div className="flex h-full bg-background">
+      <div className={cn("flex-1 flex flex-col", selectedTaskId && "mr-96")}>
+        {/* Header */}
       <div className="border-b px-6 py-4">
         <div className="flex items-center gap-4 mb-4">
           <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
@@ -142,20 +171,39 @@ export function TaskView({ projectId }: TaskViewProps) {
           </div>
         </div>
 
+        {/* View Mode Tabs */}
+        <div className="flex items-center gap-1 mb-4">
+          <div className="inline-flex h-9 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground">
+            <button
+              onClick={() => setViewMode('list')}
+              className={cn(
+                "inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                viewMode === 'list' && "bg-background text-foreground shadow-sm"
+              )}
+            >
+              <List className="h-4 w-4 mr-2" />
+              List
+            </button>
+            <button
+              onClick={() => setViewMode('kanban')}
+              className={cn(
+                "inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                viewMode === 'kanban' && "bg-background text-foreground shadow-sm"
+              )}
+            >
+              <Kanban className="h-4 w-4 mr-2" />
+              Board
+            </button>
+          </div>
+        </div>
+
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search tasks..."
-                className="pl-8 w-64"
-              />
-            </div>
-            <Button variant="outline" size="sm">
-              <Filter className="h-4 w-4 mr-2" />
-              Filter
-              <ChevronDown className="h-4 w-4 ml-2" />
-            </Button>
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search tasks..."
+              className="pl-8 w-64"
+            />
           </div>
           
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
@@ -251,6 +299,13 @@ export function TaskView({ projectId }: TaskViewProps) {
               </Dialog>
             </div>
           </div>
+        ) : viewMode === 'kanban' ? (
+          <div className="px-6 pb-6">
+            <KanbanBoard 
+              tasks={project.tasks} 
+              onTaskStatusChange={(taskId, newStatus) => handleStatusChange(taskId, newStatus)}
+            />
+          </div>
         ) : (
           <Table>
             <TableHeader>
@@ -260,23 +315,21 @@ export function TaskView({ projectId }: TaskViewProps) {
                 <TableHead>Status</TableHead>
                 <TableHead>Priority</TableHead>
                 <TableHead>Due date</TableHead>
-                <TableHead>Subtasks</TableHead>
                 <TableHead className="w-[40px]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {project.tasks.map((task) => {
-                const completedSubtasks = task.subtasks.filter(st => st.status === TaskStatus.COMPLETED).length
-                const totalSubtasks = task.subtasks.length
-
                 return (
                   <TableRow 
                     key={task.id}
                     className="cursor-pointer hover:bg-muted/50 border-b"
+                    onClick={() => setSelectedTaskId(task.id)}
                   >
                     <TableCell>
                       <button
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation()
                           const newStatus = task.status === TaskStatus.COMPLETED 
                             ? TaskStatus.BACKLOG 
                             : TaskStatus.COMPLETED
@@ -303,19 +356,21 @@ export function TaskView({ projectId }: TaskViewProps) {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Select
-                        value={task.status}
-                        onValueChange={(value: TaskStatus) => handleStatusChange(task.id, value)}
-                      >
-                        <SelectTrigger className="w-32 h-7 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={TaskStatus.BACKLOG}>Backlog</SelectItem>
-                          <SelectItem value={TaskStatus.IN_PROGRESS}>In Progress</SelectItem>
-                          <SelectItem value={TaskStatus.COMPLETED}>Completed</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <Select
+                          value={task.status}
+                          onValueChange={(value: TaskStatus) => handleStatusChange(task.id, value)}
+                        >
+                          <SelectTrigger className={cn("w-32 h-7 text-xs capitalize", getStatusColor(task.status))}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={TaskStatus.BACKLOG}>Backlog</SelectItem>
+                            <SelectItem value={TaskStatus.IN_PROGRESS}>In Progress</SelectItem>
+                            <SelectItem value={TaskStatus.COMPLETED}>Completed</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className={cn('flex items-center gap-1 text-sm', getPriorityColor(task.priority))}>
@@ -327,15 +382,6 @@ export function TaskView({ projectId }: TaskViewProps) {
                       {task.dueDate ? (
                         <span className="text-sm text-muted-foreground">
                           {new Date(task.dueDate).toLocaleDateString()}
-                        </span>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {totalSubtasks > 0 ? (
-                        <span className="text-sm text-muted-foreground">
-                          {completedSubtasks}/{totalSubtasks}
                         </span>
                       ) : (
                         <span className="text-sm text-muted-foreground">—</span>
@@ -360,7 +406,17 @@ export function TaskView({ projectId }: TaskViewProps) {
             </TableBody>
           </Table>
         )}
+        </div>
       </div>
+
+      {/* Task Detail Panel */}
+      {selectedTask && (
+        <TaskDetailPanel
+          task={selectedTask}
+          isOpen={!!selectedTaskId}
+          onClose={() => setSelectedTaskId(null)}
+        />
+      )}
     </div>
   )
 }

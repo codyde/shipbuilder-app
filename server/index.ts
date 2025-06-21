@@ -4,6 +4,8 @@ import express from 'express';
 import cors from 'cors';
 import { projectRoutes } from './routes/projects.js';
 import { chatRoutes } from './routes/chat.js';
+import { migrateRoutes } from './routes/migrate.js';
+import { aiRoutes } from './routes/ai.js';
 import { setupSwagger } from './swagger.js';
 import * as Sentry from "@sentry/node";
 
@@ -20,6 +22,8 @@ Sentry.setupExpressErrorHandler(app);
 
 app.use('/api/projects', projectRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/migrate', migrateRoutes);
+app.use('/api/ai', aiRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

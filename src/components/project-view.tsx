@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { 
   Table,
   TableBody,
@@ -18,19 +18,27 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { 
   Plus, 
   Circle, 
   MoreHorizontal,
   Filter,
   Search,
-  ChevronDown
+  ChevronDown,
+  Trash2
 } from 'lucide-react'
 import { useProjects } from '@/context/ProjectContext'
-import { TaskStatus } from '@/types/types'
+import { TaskStatus, ProjectStatus } from '@/types/types'
 import { cn } from '@/lib/utils'
 
-type View = 'all-issues' | 'active' | 'backlog' | 'project' | 'tasks'
+type View = 'all-issues' | 'active' | 'backlog' | 'archived' | 'project' | 'tasks'
 
 interface ProjectViewProps {
   view: View
@@ -41,10 +49,12 @@ const getStatusColor = (status: string) => {
   switch (status) {
     case 'active':
       return 'text-blue-500'
+    case 'backlog':
+      return 'text-orange-500'
     case 'completed':
       return 'text-green-500'
-    case 'on_hold':
-      return 'text-yellow-500'
+    case 'archived':
+      return 'text-gray-500'
     default:
       return 'text-gray-500'
   }
@@ -60,12 +70,32 @@ const getStatusIcon = (status: string) => {
 }
 
 export function ProjectView({ view, onProjectSelect }: ProjectViewProps) {
-  const { projects, createProject, loading } = useProjects()
+  const { projects, createProject, updateProject, deleteProject, loading } = useProjects()
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [projectToDelete, setProjectToDelete] = useState<{ id: string; name: string } | null>(null)
   const [newProject, setNewProject] = useState({
     name: '',
     description: '',
   })
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setActiveDropdown(null)
+      }
+    }
+
+    if (activeDropdown) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [activeDropdown])
 
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -82,14 +112,34 @@ export function ProjectView({ view, onProjectSelect }: ProjectViewProps) {
   const getViewTitle = () => {
     switch (view) {
       case 'all-issues':
-        return 'All issues'
+        return 'All Projects'
       case 'active':
         return 'Active'
       case 'backlog':
         return 'Backlog'
+      case 'archived':
+        return 'Archive'
       default:
         return 'Projects'
     }
+  }
+
+  const handleDeleteProject = (projectId: string, projectName: string) => {
+    setProjectToDelete({ id: projectId, name: projectName })
+    setDeleteConfirmOpen(true)
+    setActiveDropdown(null)
+  }
+
+  const confirmDeleteProject = async () => {
+    if (projectToDelete) {
+      await deleteProject(projectToDelete.id)
+      setDeleteConfirmOpen(false)
+      setProjectToDelete(null)
+    }
+  }
+
+  const handleStatusChange = async (projectId: string, newStatus: ProjectStatus) => {
+    await updateProject(projectId, { status: newStatus })
   }
 
   const filteredProjects = projects.filter(project => {
@@ -97,9 +147,14 @@ export function ProjectView({ view, onProjectSelect }: ProjectViewProps) {
       case 'active':
         return project.status === 'active'
       case 'backlog':
-        return project.tasks.some(task => task.status === TaskStatus.BACKLOG)
+        return project.status === 'backlog'
+      case 'archived':
+        return project.status === 'archived'
+      case 'all-issues':
+        // Hide archived projects from main view
+        return project.status !== 'archived'
       default:
-        return true
+        return project.status !== 'archived'
     }
   })
 
@@ -248,10 +303,26 @@ export function ProjectView({ view, onProjectSelect }: ProjectViewProps) {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell>
-                      <span className={cn('text-sm capitalize', getStatusColor(project.status))}>
-                        {project.status.replace('_', ' ')}
-                      </span>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <Select
+                        value={project.status}
+                        onValueChange={(value: ProjectStatus) => handleStatusChange(project.id, value)}
+                      >
+                        <SelectTrigger className={cn(
+                          "w-fit h-auto py-1 px-2 border-none bg-transparent hover:bg-muted/50 text-sm capitalize",
+                          getStatusColor(project.status)
+                        )}>
+                          <SelectValue>
+                            {project.status.replace('_', ' ')}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={ProjectStatus.ACTIVE}>Active</SelectItem>
+                          <SelectItem value={ProjectStatus.BACKLOG}>Backlog</SelectItem>
+                          <SelectItem value={ProjectStatus.COMPLETED}>Completed</SelectItem>
+                          <SelectItem value={ProjectStatus.ARCHIVED}>Archived</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </TableCell>
                     <TableCell>
                       <span className="text-sm">
@@ -277,17 +348,36 @@ export function ProjectView({ view, onProjectSelect }: ProjectViewProps) {
                       </span>
                     </TableCell>
                     <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          // Handle more actions
-                        }}
-                      >
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
+                      <div className="relative">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setActiveDropdown(activeDropdown === project.id ? null : project.id)
+                          }}
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                        {activeDropdown === project.id && (
+                          <div 
+                            ref={dropdownRef}
+                            className="absolute right-0 top-8 z-50 min-w-[180px] rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
+                          >
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleDeleteProject(project.id, project.name)
+                              }}
+                              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-destructive/10 hover:text-destructive text-left"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              Delete project
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 )
@@ -296,6 +386,37 @@ export function ProjectView({ view, onProjectSelect }: ProjectViewProps) {
           </Table>
         )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete Project</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to delete <strong>"{projectToDelete?.name}"</strong>? 
+              This action cannot be undone and will permanently remove the project and all its tasks.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => setDeleteConfirmOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button 
+                type="button" 
+                variant="destructive" 
+                onClick={confirmDeleteProject}
+              >
+                Delete Project
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import { databaseService } from '../db/database-service.js';
-import { Priority, TaskStatus, ProjectStatus } from '../../src/types/types.js';
+import { Priority, TaskStatus } from '../../src/types/types.js';
 
 export const taskTools = {
   createProject: {
@@ -155,7 +155,7 @@ export const taskTools = {
         },
         status: {
           type: 'string',
-          enum: ['todo', 'in_progress', 'completed'],
+          enum: ['backlog', 'in_progress', 'completed'],
           description: 'The new status for the task'
         }
       },
@@ -212,7 +212,7 @@ export const taskTools = {
   },
 
   getProject: {
-    description: 'Get details of a specific project including all its tasks and subtasks',
+    description: 'Get details of a specific project including all its tasks',
     parameters: {
       type: 'object',
       properties: {
@@ -243,6 +243,58 @@ export const taskTools = {
           success: false,
           error: 'Failed to get project',
           message: 'An error occurred while retrieving the project'
+        };
+      }
+    }
+  },
+
+  deleteTask: {
+    description: 'Delete a task from a project',
+    parameters: {
+      type: 'object',
+      properties: {
+        projectId: {
+          type: 'string',
+          description: 'The ID of the project containing the task'
+        },
+        taskId: {
+          type: 'string',
+          description: 'The ID of the task to delete'
+        }
+      },
+      required: ['projectId', 'taskId']
+    },
+    execute: async (args: { projectId: string; taskId: string }) => {
+      try {
+        // Get task details before deleting so we can include the name in the response
+        const task = await databaseService.getTask(args.projectId, args.taskId);
+        if (!task) {
+          return {
+            success: false,
+            error: 'Task not found',
+            message: `Could not find task with ID ${args.taskId} in project ${args.projectId}`
+          };
+        }
+        
+        const deleted = await databaseService.deleteTask(args.projectId, args.taskId);
+        if (!deleted) {
+          return {
+            success: false,
+            error: 'Failed to delete task',
+            message: 'Task could not be deleted'
+          };
+        }
+        
+        return {
+          success: true,
+          data: { id: args.taskId, title: task.title },
+          message: `Successfully deleted task "${task.title}" from project ${args.projectId}`
+        };
+      } catch (error) {
+        return {
+          success: false,
+          error: 'Failed to delete task',
+          message: 'An error occurred while deleting the task'
         };
       }
     }

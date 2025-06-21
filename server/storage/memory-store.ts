@@ -56,7 +56,7 @@ class MemoryStore {
       projectId: input.projectId,
       title: input.title,
       description: input.description,
-      status: TaskStatus.TODO,
+      status: TaskStatus.BACKLOG,
       priority: input.priority || Priority.MEDIUM,
       dueDate: input.dueDate,
       subtasks: [],
@@ -127,7 +127,7 @@ class MemoryStore {
       taskId: input.taskId,
       title: input.title,
       description: input.description,
-      status: TaskStatus.TODO,
+      status: TaskStatus.BACKLOG,
       priority: input.priority || Priority.MEDIUM,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()

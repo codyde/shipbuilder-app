@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import {
   CommandDialog,
   CommandEmpty,
@@ -28,26 +28,6 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
   const { projects } = useProjects()
   const [search, setSearch] = useState('')
 
-  useEffect(() => {
-    const down = (e: KeyboardEvent) => {
-      if ((e.key === 'k' && (e.metaKey || e.ctrlKey)) || e.key === '/') {
-        if (
-          (e.target instanceof HTMLElement && e.target.isContentEditable) ||
-          e.target instanceof HTMLInputElement ||
-          e.target instanceof HTMLTextAreaElement ||
-          e.target instanceof HTMLSelectElement
-        ) {
-          return
-        }
-
-        e.preventDefault()
-        onOpenChange(true)
-      }
-    }
-
-    document.addEventListener('keydown', down)
-    return () => document.removeEventListener('keydown', down)
-  }, [onOpenChange])
 
   const runCommand = (command: () => void) => {
     onOpenChange(false)
@@ -87,11 +67,11 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
 
         <CommandGroup heading="Navigation">
           <CommandItem onSelect={() => runCommand(() => {
-            // Navigate to all issues
+            // Navigate to all projects
             window.dispatchEvent(new CustomEvent('navigate', { detail: 'all-issues' }))
           })}>
             <Circle className="mr-2 h-4 w-4" />
-            <span>All issues</span>
+            <span>All Projects</span>
           </CommandItem>
           <CommandItem onSelect={() => runCommand(() => {
             // Navigate to active
@@ -104,8 +84,15 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
             // Navigate to backlog
             window.dispatchEvent(new CustomEvent('navigate', { detail: 'backlog' }))
           })}>
-            <Archive className="mr-2 h-4 w-4" />
+            <Folder className="mr-2 h-4 w-4" />
             <span>Backlog</span>
+          </CommandItem>
+          <CommandItem onSelect={() => runCommand(() => {
+            // Navigate to archive
+            window.dispatchEvent(new CustomEvent('navigate', { detail: 'archived' }))
+          })}>
+            <Archive className="mr-2 h-4 w-4" />
+            <span>Archive</span>
           </CommandItem>
         </CommandGroup>
 

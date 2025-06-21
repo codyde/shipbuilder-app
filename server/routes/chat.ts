@@ -35,7 +35,7 @@ You have access to these tools:
 - createProject: Create a new project
 - createTask: Create a task within a project
 - createSubtask: Create a subtask within a task
-- updateTaskStatus: Update a task's status (todo, in_progress, completed)
+- updateTaskStatus: Update a task's status (backlog, in_progress, completed)
 - listProjects: List all projects
 - getProject: Get details of a specific project
 
@@ -75,7 +75,7 @@ Be helpful and proactive in suggesting project management best practices.`,
           parameters: z.object({
             projectId: z.string().describe('The ID of the project containing the task'),
             taskId: z.string().describe('The ID of the task to update'),
-            status: z.enum(['todo', 'in_progress', 'completed']).describe('The new status for the task')
+            status: z.enum(['backlog', 'in_progress', 'completed']).describe('The new status for the task')
           }),
           execute: async (args) => taskTools.updateTaskStatus.execute(args)
         }),

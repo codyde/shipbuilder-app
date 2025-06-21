@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { 
   Sidebar,
   SidebarContent,
@@ -11,7 +10,6 @@ import {
   SidebarMenuItem,
   SidebarRail,
   SidebarTrigger,
-  useSidebar,
 } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -23,7 +21,6 @@ import {
   Search,
   Archive,
   Folder,
-  Star,
   Settings,
   HelpCircle,
   Command,
@@ -31,7 +28,7 @@ import {
 } from 'lucide-react'
 import { useProjects } from '@/context/ProjectContext'
 
-type View = 'all-issues' | 'active' | 'backlog' | 'project' | 'tasks'
+type View = 'all-issues' | 'active' | 'backlog' | 'archived' | 'project' | 'tasks' | 'settings'
 
 interface AppSidebarProps {
   currentView: View
@@ -43,7 +40,7 @@ interface AppSidebarProps {
 const navigationItems = [
   {
     id: 'all-issues' as View,
-    title: 'All issues',
+    title: 'All Projects',
     icon: Circle,
     count: null,
   },
@@ -56,6 +53,12 @@ const navigationItems = [
   {
     id: 'backlog' as View,
     title: 'Backlog',
+    icon: Folder,
+    count: null,
+  },
+  {
+    id: 'archived' as View,
+    title: 'Archive',
     icon: Archive,
     count: null,
   },
@@ -76,8 +79,8 @@ export function AppSidebar({ currentView, onViewChange, onProjectSelect, onChatT
       <SidebarHeader className="border-b px-3 py-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="flex h-6 w-6 items-center justify-center rounded bg-primary text-primary-foreground text-xs font-bold">
-              SB
+            <div className="flex h-6 w-6 items-center justify-center rounded overflow-hidden">
+              <img src="/shipbuilder-icon.png" alt="ShipBuilder" className="h-6 w-6 object-contain" />
             </div>
             <span className="font-semibold text-sm group-data-[collapsible=icon]:hidden">ShipBuilder</span>
           </div>
@@ -125,31 +128,6 @@ export function AppSidebar({ currentView, onViewChange, onProjectSelect, onChatT
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup className="group-data-[collapsible=icon]:hidden">
-          <SidebarGroupLabel className="text-xs text-muted-foreground flex items-center justify-between">
-            Your teams
-            <Button variant="ghost" size="sm" className="h-4 w-4 p-0">
-              <Plus className="h-3 w-3" />
-            </Button>
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton className="h-7">
-                  <Star className="h-8 w-8" />
-                  <span className="text-xs">Favorites</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton className="h-7">
-                  <Folder className="h-8 w-8" />
-                  <span className="text-xs">Recent</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
         <SidebarGroup>
           <SidebarGroupLabel className="text-xs text-muted-foreground flex items-center justify-between group-data-[collapsible=icon]:hidden">
             Projects
@@ -176,9 +154,15 @@ export function AppSidebar({ currentView, onViewChange, onProjectSelect, onChatT
                         <span className="text-xs text-muted-foreground">
                           {totalTasks > 0 && `${completedTasks}/${totalTasks}`}
                         </span>
-                        <Button variant="ghost" size="sm" className="h-4 w-4 p-0">
+                        <div 
+                          className="inline-flex items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground h-4 w-4 cursor-pointer transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            // Add menu functionality here
+                          }}
+                        >
                           <MoreHorizontal className="h-3 w-3" />
-                        </Button>
+                        </div>
                       </div>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -202,7 +186,12 @@ export function AppSidebar({ currentView, onViewChange, onProjectSelect, onChatT
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton className="h-7" tooltip="Settings">
+            <SidebarMenuButton 
+              className="h-7" 
+              tooltip="Settings"
+              onClick={() => onViewChange('settings')}
+              isActive={currentView === 'settings'}
+            >
               <Settings className="h-8 w-8" />
               <span className="text-xs">Settings</span>
             </SidebarMenuButton>

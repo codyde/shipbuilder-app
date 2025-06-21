@@ -1,7 +1,7 @@
 import { db } from './connection.js';
-import { projects, tasks, subtasks } from './schema.js';
+import { projects, tasks, comments } from './schema.js';
 import { eq, sql } from 'drizzle-orm';
-import type { Project, Task, Subtask, CreateProjectInput, CreateTaskInput, CreateSubtaskInput, TaskStatus, ProjectStatus, Priority } from '../../src/types/types.js';
+import type { Project, Task, Comment, CreateProjectInput, CreateTaskInput, CreateCommentInput, TaskStatus, ProjectStatus, Priority } from '../../src/types/types.js';
 
 class DatabaseService {
   // Projects
@@ -27,7 +27,7 @@ class DatabaseService {
       with: {
         tasks: {
           with: {
-            subtasks: true,
+            comments: true,
           },
         },
       },
@@ -41,13 +41,11 @@ class DatabaseService {
         status: t.status as TaskStatus,
         priority: t.priority as Priority,
         dueDate: t.dueDate?.toISOString(),
-        subtasks: t.subtasks.map(s => ({
-          ...s,
-          status: s.status as TaskStatus,
-          priority: s.priority as Priority,
-          createdAt: s.createdAt.toISOString(),
-          updatedAt: s.updatedAt.toISOString(),
-        })),
+        comments: t.comments?.map(c => ({
+          ...c,
+          createdAt: c.createdAt.toISOString(),
+          updatedAt: c.updatedAt.toISOString(),
+        })) || [],
         createdAt: t.createdAt.toISOString(),
         updatedAt: t.updatedAt.toISOString(),
       })),
@@ -62,7 +60,7 @@ class DatabaseService {
       with: {
         tasks: {
           with: {
-            subtasks: true,
+            comments: true,
           },
         },
       },
@@ -78,13 +76,11 @@ class DatabaseService {
         status: t.status as TaskStatus,
         priority: t.priority as Priority,
         dueDate: t.dueDate?.toISOString(),
-        subtasks: t.subtasks.map(s => ({
-          ...s,
-          status: s.status as TaskStatus,
-          priority: s.priority as Priority,
-          createdAt: s.createdAt.toISOString(),
-          updatedAt: s.updatedAt.toISOString(),
-        })),
+        comments: t.comments?.map(c => ({
+          ...c,
+          createdAt: c.createdAt.toISOString(),
+          updatedAt: c.updatedAt.toISOString(),
+        })) || [],
         createdAt: t.createdAt.toISOString(),
         updatedAt: t.updatedAt.toISOString(),
       })),
@@ -143,7 +139,6 @@ class DatabaseService {
       status: task.status as TaskStatus,
       priority: task.priority as Priority,
       dueDate: task.dueDate?.toISOString(),
-      subtasks: [],
       createdAt: task.createdAt.toISOString(),
       updatedAt: task.updatedAt.toISOString(),
     };
@@ -153,7 +148,7 @@ class DatabaseService {
     const task = await db.query.tasks.findFirst({
       where: eq(tasks.id, taskId),
       with: {
-        subtasks: true,
+        comments: true,
       },
     });
 
@@ -164,13 +159,11 @@ class DatabaseService {
       status: task.status as TaskStatus,
       priority: task.priority as Priority,
       dueDate: task.dueDate?.toISOString(),
-      subtasks: task.subtasks.map(s => ({
-        ...s,
-        status: s.status as TaskStatus,
-        priority: s.priority as Priority,
-        createdAt: s.createdAt.toISOString(),
-        updatedAt: s.updatedAt.toISOString(),
-      })),
+      comments: task.comments?.map(c => ({
+        ...c,
+        createdAt: c.createdAt.toISOString(),
+        updatedAt: c.updatedAt.toISOString(),
+      })) || [],
       createdAt: task.createdAt.toISOString(),
       updatedAt: task.updatedAt.toISOString(),
     };
@@ -226,8 +219,21 @@ class DatabaseService {
     return false;
   }
 
-  // Subtasks
-  async createSubtask(input: CreateSubtaskInput): Promise<Subtask | null> {
+
+  // Comments
+  async getComments(taskId: string): Promise<Comment[]> {
+    const taskComments = await db.query.comments.findMany({
+      where: eq(comments.taskId, taskId),
+    });
+
+    return taskComments.map(c => ({
+      ...c,
+      createdAt: c.createdAt.toISOString(),
+      updatedAt: c.updatedAt.toISOString(),
+    }));
+  }
+
+  async createComment(input: CreateCommentInput): Promise<Comment | null> {
     // Check if task exists
     const task = await db.query.tasks.findFirst({
       where: eq(tasks.id, input.taskId),
@@ -235,12 +241,11 @@ class DatabaseService {
     
     if (!task) return null;
 
-    const [subtask] = await db.insert(subtasks)
+    const [comment] = await db.insert(comments)
       .values({
         taskId: input.taskId,
-        title: input.title,
-        description: input.description,
-        priority: input.priority || 'medium',
+        content: input.content,
+        author: input.author,
       })
       .returning();
 
@@ -254,87 +259,10 @@ class DatabaseService {
       .where(eq(projects.id, task.projectId));
 
     return {
-      ...subtask,
-      status: subtask.status as TaskStatus,
-      priority: subtask.priority as Priority,
-      createdAt: subtask.createdAt.toISOString(),
-      updatedAt: subtask.updatedAt.toISOString(),
+      ...comment,
+      createdAt: comment.createdAt.toISOString(),
+      updatedAt: comment.updatedAt.toISOString(),
     };
-  }
-
-  async updateSubtask(taskId: string, subtaskId: string, updates: Partial<Omit<Subtask, 'id' | 'taskId' | 'createdAt'>>): Promise<Subtask | null> {
-    // Check if subtask belongs to task
-    const existingSubtask = await db.query.subtasks.findFirst({
-      where: eq(subtasks.id, subtaskId),
-    });
-    
-    if (!existingSubtask || existingSubtask.taskId !== taskId) return null;
-
-    const [updated] = await db.update(subtasks)
-      .set({
-        ...updates,
-        updatedAt: sql`NOW()`,
-      })
-      .where(eq(subtasks.id, subtaskId))
-      .returning();
-
-    if (!updated) return null;
-
-    // Update task and project updatedAt
-    const task = await db.query.tasks.findFirst({
-      where: eq(tasks.id, taskId),
-    });
-    
-    if (task) {
-      await db.update(tasks)
-        .set({ updatedAt: sql`NOW()` })
-        .where(eq(tasks.id, taskId));
-      
-      await db.update(projects)
-        .set({ updatedAt: sql`NOW()` })
-        .where(eq(projects.id, task.projectId));
-    }
-
-    return {
-      ...updated,
-      status: updated.status as TaskStatus,
-      priority: updated.priority as Priority,
-      createdAt: updated.createdAt.toISOString(),
-      updatedAt: updated.updatedAt.toISOString(),
-    };
-  }
-
-  async deleteSubtask(taskId: string, subtaskId: string): Promise<boolean> {
-    // Check if subtask belongs to task
-    const existingSubtask = await db.query.subtasks.findFirst({
-      where: eq(subtasks.id, subtaskId),
-    });
-    
-    if (!existingSubtask || existingSubtask.taskId !== taskId) return false;
-
-    const result = await db.delete(subtasks)
-      .where(eq(subtasks.id, subtaskId));
-
-    if (result.rowCount && result.rowCount > 0) {
-      // Update task and project updatedAt
-      const task = await db.query.tasks.findFirst({
-        where: eq(tasks.id, taskId),
-      });
-      
-      if (task) {
-        await db.update(tasks)
-          .set({ updatedAt: sql`NOW()` })
-          .where(eq(tasks.id, taskId));
-        
-        await db.update(projects)
-          .set({ updatedAt: sql`NOW()` })
-          .where(eq(projects.id, task.projectId));
-      }
-      
-      return true;
-    }
-    
-    return false;
   }
 }
 

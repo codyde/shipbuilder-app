@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
-import { Project, Task, Subtask, CreateProjectInput, CreateTaskInput, CreateSubtaskInput } from '@/types/types';
+import { Project, Task, CreateProjectInput, CreateTaskInput } from '@/types/types';
 
 interface ProjectState {
   projects: Project[];
@@ -16,10 +16,7 @@ type ProjectAction =
   | { type: 'DELETE_PROJECT'; payload: string }
   | { type: 'ADD_TASK'; payload: { projectId: string; task: Task } }
   | { type: 'UPDATE_TASK'; payload: { projectId: string; task: Task } }
-  | { type: 'DELETE_TASK'; payload: { projectId: string; taskId: string } }
-  | { type: 'ADD_SUBTASK'; payload: { projectId: string; taskId: string; subtask: Subtask } }
-  | { type: 'UPDATE_SUBTASK'; payload: { projectId: string; taskId: string; subtask: Subtask } }
-  | { type: 'DELETE_SUBTASK'; payload: { projectId: string; taskId: string; subtaskId: string } };
+  | { type: 'DELETE_TASK'; payload: { projectId: string; taskId: string } };
 
 const initialState: ProjectState = {
   projects: [],
@@ -81,59 +78,6 @@ function projectReducer(state: ProjectState, action: ProjectAction): ProjectStat
             : p
         )
       };
-    case 'ADD_SUBTASK':
-      return {
-        ...state,
-        projects: state.projects.map(p => 
-          p.id === action.payload.projectId 
-            ? { 
-                ...p, 
-                tasks: p.tasks.map(t => 
-                  t.id === action.payload.taskId 
-                    ? { ...t, subtasks: [...t.subtasks, action.payload.subtask] }
-                    : t
-                )
-              }
-            : p
-        )
-      };
-    case 'UPDATE_SUBTASK':
-      return {
-        ...state,
-        projects: state.projects.map(p => 
-          p.id === action.payload.projectId 
-            ? { 
-                ...p, 
-                tasks: p.tasks.map(t => 
-                  t.id === action.payload.taskId 
-                    ? { 
-                        ...t, 
-                        subtasks: t.subtasks.map(st => 
-                          st.id === action.payload.subtask.id ? action.payload.subtask : st
-                        )
-                      }
-                    : t
-                )
-              }
-            : p
-        )
-      };
-    case 'DELETE_SUBTASK':
-      return {
-        ...state,
-        projects: state.projects.map(p => 
-          p.id === action.payload.projectId 
-            ? { 
-                ...p, 
-                tasks: p.tasks.map(t => 
-                  t.id === action.payload.taskId 
-                    ? { ...t, subtasks: t.subtasks.filter(st => st.id !== action.payload.subtaskId) }
-                    : t
-                )
-              }
-            : p
-        )
-      };
     default:
       return state;
   }
@@ -146,9 +90,6 @@ interface ProjectContextValue extends ProjectState {
   createTask: (input: CreateTaskInput) => Promise<void>;
   updateTask: (projectId: string, taskId: string, updates: Partial<Task>) => Promise<void>;
   deleteTask: (projectId: string, taskId: string) => Promise<void>;
-  createSubtask: (input: CreateSubtaskInput) => Promise<void>;
-  updateSubtask: (taskId: string, subtaskId: string, updates: Partial<Subtask>) => Promise<void>;
-  deleteSubtask: (taskId: string, subtaskId: string) => Promise<void>;
   refreshProjects: () => Promise<void>;
 }
 
@@ -211,10 +152,19 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   };
 
   const deleteProject = async (id: string) => {
+    // Find the project before deleting for potential rollback
+    const projectToDelete = state.projects.find(p => p.id === id);
+    
+    // Optimistically remove from UI
+    dispatch({ type: 'DELETE_PROJECT', payload: id });
+    
     try {
       await apiCall(`/api/projects/${id}`, { method: 'DELETE' });
-      dispatch({ type: 'DELETE_PROJECT', payload: id });
     } catch (error) {
+      // Rollback: re-add the project if API call fails
+      if (projectToDelete) {
+        dispatch({ type: 'ADD_PROJECT', payload: projectToDelete });
+      }
       dispatch({ type: 'SET_ERROR', payload: error instanceof Error ? error.message : 'Failed to delete project' });
     }
   };
@@ -252,60 +202,6 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const createSubtask = async (input: CreateSubtaskInput) => {
-    try {
-      // Find the project that contains the task
-      const project = state.projects.find(p => p.tasks.some(t => t.id === input.taskId));
-      if (!project) throw new Error('Project not found for task');
-
-      const subtask = await apiCall(`/api/projects/${project.id}/tasks/${input.taskId}/subtasks`, {
-        method: 'POST',
-        body: JSON.stringify(input),
-      });
-      dispatch({ type: 'ADD_SUBTASK', payload: { 
-        projectId: project.id, 
-        taskId: input.taskId, 
-        subtask 
-      } });
-    } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: error instanceof Error ? error.message : 'Failed to create subtask' });
-    }
-  };
-
-  const updateSubtask = async (taskId: string, subtaskId: string, updates: Partial<Subtask>) => {
-    try {
-      const project = state.projects.find(p => p.tasks.some(t => t.id === taskId));
-      if (!project) throw new Error('Project not found for task');
-
-      const subtask = await apiCall(`/api/projects/tasks/${taskId}/subtasks/${subtaskId}`, {
-        method: 'PUT',
-        body: JSON.stringify(updates),
-      });
-      dispatch({ type: 'UPDATE_SUBTASK', payload: { 
-        projectId: project.id, 
-        taskId, 
-        subtask 
-      } });
-    } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: error instanceof Error ? error.message : 'Failed to update subtask' });
-    }
-  };
-
-  const deleteSubtask = async (taskId: string, subtaskId: string) => {
-    try {
-      const project = state.projects.find(p => p.tasks.some(t => t.id === taskId));
-      if (!project) throw new Error('Project not found for task');
-
-      await apiCall(`/api/projects/tasks/${taskId}/subtasks/${subtaskId}`, { method: 'DELETE' });
-      dispatch({ type: 'DELETE_SUBTASK', payload: { 
-        projectId: project.id, 
-        taskId, 
-        subtaskId 
-      } });
-    } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: error instanceof Error ? error.message : 'Failed to delete subtask' });
-    }
-  };
 
   // Load projects on mount
   useEffect(() => {
@@ -320,9 +216,6 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     createTask,
     updateTask,
     deleteTask,
-    createSubtask,
-    updateSubtask,
-    deleteSubtask,
     refreshProjects,
   };
 

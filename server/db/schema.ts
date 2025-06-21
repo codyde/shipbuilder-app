@@ -2,7 +2,7 @@ import { pgTable, text, timestamp, uuid, pgEnum } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 // Enums
-export const taskStatusEnum = pgEnum('task_status', ['todo', 'in_progress', 'completed']);
+export const taskStatusEnum = pgEnum('task_status', ['backlog', 'in_progress', 'completed']);
 export const projectStatusEnum = pgEnum('project_status', ['active', 'completed', 'archived']);
 export const priorityEnum = pgEnum('priority', ['low', 'medium', 'high']);
 
@@ -21,20 +21,20 @@ export const tasks = pgTable('tasks', {
   projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
   title: text('title').notNull(),
   description: text('description'),
-  status: taskStatusEnum('status').notNull().default('todo'),
+  details: text('details'),
+  status: taskStatusEnum('status').notNull().default('backlog'),
   priority: priorityEnum('priority').notNull().default('medium'),
   dueDate: timestamp('due_date'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
-export const subtasks = pgTable('subtasks', {
+
+export const comments = pgTable('comments', {
   id: uuid('id').primaryKey().defaultRandom(),
   taskId: uuid('task_id').notNull().references(() => tasks.id, { onDelete: 'cascade' }),
-  title: text('title').notNull(),
-  description: text('description'),
-  status: taskStatusEnum('status').notNull().default('todo'),
-  priority: priorityEnum('priority').notNull().default('medium'),
+  content: text('content').notNull(),
+  author: text('author').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
@@ -49,12 +49,13 @@ export const tasksRelations = relations(tasks, ({ one, many }) => ({
     fields: [tasks.projectId],
     references: [projects.id],
   }),
-  subtasks: many(subtasks),
+  comments: many(comments),
 }));
 
-export const subtasksRelations = relations(subtasks, ({ one }) => ({
+
+export const commentsRelations = relations(comments, ({ one }) => ({
   task: one(tasks, {
-    fields: [subtasks.taskId],
+    fields: [comments.taskId],
     references: [tasks.id],
   }),
 }));

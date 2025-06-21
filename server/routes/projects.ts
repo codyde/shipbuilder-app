@@ -1,6 +1,6 @@
 import express from 'express';
 import { databaseService } from '../db/database-service.js';
-import { CreateProjectInput, CreateTaskInput, CreateSubtaskInput } from '../../src/types/types.js';
+import { CreateProjectInput, CreateTaskInput, CreateCommentInput } from '../../src/types/types.js';
 
 export const projectRoutes = express.Router();
 
@@ -125,50 +125,35 @@ projectRoutes.delete('/:projectId/tasks/:taskId', async (req, res) => {
   }
 });
 
-// Subtasks
-projectRoutes.post('/:projectId/tasks/:taskId/subtasks', async (req, res) => {
+
+// Comments
+projectRoutes.get('/:projectId/tasks/:taskId/comments', async (req, res) => {
   try {
-    const input: CreateSubtaskInput = {
+    const comments = await databaseService.getComments(req.params.taskId);
+    res.json(comments);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch comments' });
+  }
+});
+
+projectRoutes.post('/:projectId/tasks/:taskId/comments', async (req, res) => {
+  try {
+    const input: CreateCommentInput = {
       ...req.body,
       taskId: req.params.taskId
     };
     
-    if (!input.title) {
-      return res.status(400).json({ error: 'Subtask title is required' });
+    if (!input.content) {
+      return res.status(400).json({ error: 'Comment content is required' });
     }
     
-    const subtask = await databaseService.createSubtask(input);
-    if (!subtask) {
+    const comment = await databaseService.createComment(input);
+    if (!comment) {
       return res.status(404).json({ error: 'Task not found' });
     }
     
-    res.status(201).json(subtask);
+    res.status(201).json(comment);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to create subtask' });
-  }
-});
-
-projectRoutes.put('/tasks/:taskId/subtasks/:subtaskId', async (req, res) => {
-  try {
-    const updates = req.body;
-    const subtask = await databaseService.updateSubtask(req.params.taskId, req.params.subtaskId, updates);
-    if (!subtask) {
-      return res.status(404).json({ error: 'Subtask not found' });
-    }
-    res.json(subtask);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to update subtask' });
-  }
-});
-
-projectRoutes.delete('/tasks/:taskId/subtasks/:subtaskId', async (req, res) => {
-  try {
-    const deleted = await databaseService.deleteSubtask(req.params.taskId, req.params.subtaskId);
-    if (!deleted) {
-      return res.status(404).json({ error: 'Subtask not found' });
-    }
-    res.status(204).send();
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to delete subtask' });
+    res.status(500).json({ error: 'Failed to create comment' });
   }
 });
