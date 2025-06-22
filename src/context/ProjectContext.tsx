@@ -99,7 +99,7 @@ const ProjectContext = createContext<ProjectContextValue | undefined>(undefined)
 export function ProjectProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(projectReducer, initialState);
 
-  const apiCall = async (url: string, options: RequestInit = {}) => {
+  const apiCall = async (url: string, options: RequestInit = {}, retries = 3) => {
     const startTime = performance.now();
     const token = localStorage.getItem('authToken');
     const method = options.method || 'GET';
@@ -112,48 +112,75 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    try {
-      const response = await fetch(url, {
-        headers: {
-          ...headers,
-          ...options.headers,
-        },
-        ...options,
-      });
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        const response = await fetch(url, {
+          headers: {
+            ...headers,
+            ...options.headers,
+          },
+          ...options,
+        });
 
-      const duration = performance.now() - startTime;
-      
-      // Log the API call
-      logger.apiCall(method, url, response.status, duration, {
-        component: 'ProjectContext',
-        hasToken: !!token,
-      });
+        const duration = performance.now() - startTime;
+        
+        // Log the API call
+        logger.apiCall(method, url, response.status, duration, {
+          component: 'ProjectContext',
+          hasToken: !!token,
+          attempt,
+        });
 
-      // Handle token expiration
-      if (response.status === 401) {
-        const errorData = await response.json().catch(() => ({}));
-        if (errorData.code === 'TOKEN_EXPIRED' || errorData.code === 'INVALID_TOKEN') {
-          // Token expired or invalid, clear auth and redirect to login
-          localStorage.removeItem('authToken');
-          window.location.href = '/login';
-          throw new Error('Session expired. Please log in again.');
+        // Handle token expiration
+        if (response.status === 401) {
+          const errorData = await response.json().catch(() => ({}));
+          if (errorData.code === 'TOKEN_EXPIRED' || errorData.code === 'INVALID_TOKEN') {
+            // Token expired or invalid, clear auth and redirect to login
+            localStorage.removeItem('authToken');
+            window.location.href = '/login';
+            throw new Error('Session expired. Please log in again.');
+          }
         }
-      }
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
 
-      return response.json();
-    } catch (error) {
-      const duration = performance.now() - startTime;
-      logger.apiCall(method, url, undefined, duration, {
-        component: 'ProjectContext',
-        hasToken: !!token,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
-      throw error;
+        return response.json();
+      } catch (error) {
+        const duration = performance.now() - startTime;
+        
+        // Check if this is a connection error that we should retry
+        const isConnectionError = error instanceof TypeError && 
+          (error.message.includes('fetch') || error.message.includes('Failed to fetch'));
+        
+        if (isConnectionError && attempt < retries) {
+          logger.apiCall(method, url, undefined, duration, {
+            component: 'ProjectContext',
+            hasToken: !!token,
+            attempt,
+            willRetry: true,
+            error: error.message,
+          });
+          
+          // Wait before retrying (exponential backoff)
+          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+        
+        logger.apiCall(method, url, undefined, duration, {
+          component: 'ProjectContext',
+          hasToken: !!token,
+          attempt,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+        throw error;
+      }
     }
+    
+    // If we get here, all retries failed
+    throw new Error(`Failed to fetch ${url} after ${retries} attempts`);
   };
 
   const refreshProjects = async () => {
