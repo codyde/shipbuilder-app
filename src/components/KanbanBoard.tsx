@@ -19,6 +19,8 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Task, TaskStatus, Priority, Subtask } from '@/types/types'
 import { cn } from '@/lib/utils'
 import {
@@ -27,6 +29,7 @@ import {
   Circle,
   AlertCircle,
   Calendar,
+  Plus,
 } from 'lucide-react'
 
 interface KanbanBoardProps {
@@ -34,6 +37,7 @@ interface KanbanBoardProps {
   onTaskStatusChange: (taskId: string, newStatus: TaskStatus) => void
   onTaskClick?: (taskId: string) => void
   selectedTaskId?: string | null
+  onQuickAdd?: (status: TaskStatus, title: string) => void
 }
 
 interface KanbanColumnProps {
@@ -43,6 +47,7 @@ interface KanbanColumnProps {
   count: number
   onTaskClick?: (taskId: string) => void
   selectedTaskId?: string | null
+  onQuickAdd?: (status: TaskStatus, title: string) => void
 }
 
 interface KanbanTaskProps {
@@ -54,37 +59,37 @@ interface KanbanTaskProps {
 const getStatusIcon = (status: TaskStatus) => {
   switch (status) {
     case TaskStatus.COMPLETED:
-      return <CheckCircle2 className="h-4 w-4 text-green-500" />
+      return <CheckCircle2 className="h-4 w-4 text-chart-2" />
     case TaskStatus.IN_PROGRESS:
-      return <Clock className="h-4 w-4 text-blue-500" />
+      return <Clock className="h-4 w-4 text-primary" />
     case TaskStatus.BACKLOG:
-      return <Circle className="h-4 w-4 text-amber-500" />
+      return <Circle className="h-4 w-4 text-chart-3" />
     default:
-      return <Circle className="h-4 w-4 text-amber-500" />
+      return <Circle className="h-4 w-4 text-chart-3" />
   }
 }
 
 const getPriorityColor = (priority: Priority) => {
   switch (priority) {
     case Priority.HIGH:
-      return 'border-l-red-500'
+      return 'border-l-destructive'
     case Priority.MEDIUM:
-      return 'border-l-yellow-500'
+      return 'border-l-chart-3'
     case Priority.LOW:
-      return 'border-l-gray-400'
+      return 'border-l-muted-foreground'
     default:
-      return 'border-l-gray-400'
+      return 'border-l-muted-foreground'
   }
 }
 
 const getStatusColor = (status: TaskStatus) => {
   switch (status) {
     case TaskStatus.BACKLOG:
-      return 'border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/20'
+      return 'border-chart-3/30 bg-chart-3/5'
     case TaskStatus.IN_PROGRESS:
-      return 'border-blue-200 bg-blue-50/50 dark:border-blue-800 dark:bg-blue-950/20'
+      return 'border-primary/30 bg-primary/5'
     case TaskStatus.COMPLETED:
-      return 'border-green-200 bg-green-50/50 dark:border-green-800 dark:bg-green-950/20'
+      return 'border-chart-2/30 bg-chart-2/5'
     default:
       return 'border-border bg-card'
   }
@@ -93,13 +98,13 @@ const getStatusColor = (status: TaskStatus) => {
 const getPriorityIcon = (priority: Priority) => {
   switch (priority) {
     case Priority.HIGH:
-      return <AlertCircle className="h-3 w-3 text-red-500" />
+      return <AlertCircle className="h-3 w-3 text-destructive" />
     case Priority.MEDIUM:
-      return <Circle className="h-3 w-3 text-yellow-500" />
+      return <Circle className="h-3 w-3 text-chart-3" />
     case Priority.LOW:
-      return <Circle className="h-3 w-3 text-gray-500" />
+      return <Circle className="h-3 w-3 text-muted-foreground" />
     default:
-      return <Circle className="h-3 w-3 text-gray-500" />
+      return <Circle className="h-3 w-3 text-muted-foreground" />
   }
 }
 
@@ -135,10 +140,13 @@ function KanbanTask({ task, onTaskClick, isSelected }: KanbanTaskProps) {
     >
       <Card 
         className={cn(
-          'mb-3 border-l-4 transition-all duration-200 hover:shadow-md cursor-pointer',
+          'mb-3 border-l-4 transition-all duration-300 cursor-pointer group',
+          'hover:shadow-lg hover:shadow-primary/10 hover:-translate-y-0.5',
+          'hover:border-l-primary/70 hover:bg-card/80 backdrop-blur-sm',
           getPriorityColor(task.priority),
           getStatusColor(task.status),
-          isSelected && 'ring-2 ring-primary ring-offset-2 shadow-lg'
+          isSelected && 'ring-2 ring-primary ring-offset-2 shadow-lg scale-[1.02]',
+          isDragging && 'rotate-2 shadow-2xl shadow-primary/20'
         )}
         onClick={(e) => {
           e.stopPropagation()
@@ -189,12 +197,30 @@ function KanbanTask({ task, onTaskClick, isSelected }: KanbanTaskProps) {
   )
 }
 
-function KanbanColumn({ title, status, tasks, count, onTaskClick, selectedTaskId }: KanbanColumnProps) {
+function KanbanColumn({ title, status, tasks, count, onTaskClick, selectedTaskId, onQuickAdd }: KanbanColumnProps) {
   const taskIds = tasks.map(task => task.id)
+  const [showQuickAdd, setShowQuickAdd] = useState(false)
+  const [quickAddTitle, setQuickAddTitle] = useState('')
   
   const { setNodeRef, isOver } = useDroppable({
     id: status,
   })
+
+  const handleQuickAdd = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (quickAddTitle.trim() && onQuickAdd) {
+      onQuickAdd(status, quickAddTitle.trim())
+      setQuickAddTitle('')
+      setShowQuickAdd(false)
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      setShowQuickAdd(false)
+      setQuickAddTitle('')
+    }
+  }
 
   return (
     <div className="flex flex-col h-full min-w-80">
@@ -207,12 +233,12 @@ function KanbanColumn({ title, status, tasks, count, onTaskClick, selectedTaskId
         </CardTitle>
       </CardHeader>
       
-      <CardContent className="flex-1 pt-0">
+      <CardContent className="flex-1 pt-0 flex flex-col">
         <div
           ref={setNodeRef}
           className={cn(
-            "min-h-32 rounded-lg transition-colors",
-            isOver && "bg-muted/50"
+            "min-h-32 rounded-lg transition-all duration-300 flex-1",
+            isOver && "bg-primary/10 border-2 border-dashed border-primary/30 shadow-inner"
           )}
         >
           <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
@@ -228,10 +254,55 @@ function KanbanColumn({ title, status, tasks, count, onTaskClick, selectedTaskId
             </div>
           </SortableContext>
           
-          {tasks.length === 0 && (
-            <div className="flex items-center justify-center h-32 border-2 border-dashed border-muted rounded-lg">
-              <p className="text-sm text-muted-foreground">No tasks</p>
+          {tasks.length === 0 && !showQuickAdd && (
+            <div className="flex flex-col items-center justify-center h-32 border-2 border-dashed border-muted rounded-lg hover:border-muted-foreground/50 transition-colors">
+              <Circle className="h-8 w-8 text-muted-foreground/30 mb-2" />
+              <p className="text-sm text-muted-foreground mb-1">No tasks</p>
+              <p className="text-xs text-muted-foreground/70">Drag tasks here or click + to add</p>
             </div>
+          )}
+        </div>
+        
+        {/* Quick Add Section */}
+        <div className="mt-3 pt-2 border-t border-muted/50">
+          {showQuickAdd ? (
+            <form onSubmit={handleQuickAdd} className="space-y-2">
+              <Input
+                value={quickAddTitle}
+                onChange={(e) => setQuickAddTitle(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Task title..."
+                className="text-sm"
+                autoFocus
+              />
+              <div className="flex gap-1">
+                <Button type="submit" size="sm" className="h-7 px-2 text-xs" disabled={!quickAddTitle.trim()}>
+                  Add
+                </Button>
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 px-2 text-xs"
+                  onClick={() => {
+                    setShowQuickAdd(false)
+                    setQuickAddTitle('')
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full h-8 text-xs text-muted-foreground hover:text-foreground border border-dashed border-transparent hover:border-muted-foreground/50 transition-all"
+              onClick={() => setShowQuickAdd(true)}
+            >
+              <Plus className="h-3 w-3 mr-1" />
+              Add task
+            </Button>
           )}
         </div>
       </CardContent>
@@ -239,7 +310,7 @@ function KanbanColumn({ title, status, tasks, count, onTaskClick, selectedTaskId
   )
 }
 
-export function KanbanBoard({ tasks, onTaskStatusChange, onTaskClick, selectedTaskId }: KanbanBoardProps) {
+export function KanbanBoard({ tasks, onTaskStatusChange, onTaskClick, selectedTaskId, onQuickAdd }: KanbanBoardProps) {
   const [activeTask, setActiveTask] = useState<Task | null>(null)
   const [optimisticTasks, setOptimisticTasks] = useState<Task[]>(tasks)
   
@@ -307,6 +378,7 @@ export function KanbanBoard({ tasks, onTaskStatusChange, onTaskClick, selectedTa
             count={backlogTasks.length}
             onTaskClick={onTaskClick}
             selectedTaskId={selectedTaskId}
+            onQuickAdd={onQuickAdd}
           />
         </Card>
         
@@ -318,6 +390,7 @@ export function KanbanBoard({ tasks, onTaskStatusChange, onTaskClick, selectedTa
             count={inProgressTasks.length}
             onTaskClick={onTaskClick}
             selectedTaskId={selectedTaskId}
+            onQuickAdd={onQuickAdd}
           />
         </Card>
         
@@ -329,12 +402,17 @@ export function KanbanBoard({ tasks, onTaskStatusChange, onTaskClick, selectedTa
             count={completedTasks.length}
             onTaskClick={onTaskClick}
             selectedTaskId={selectedTaskId}
+            onQuickAdd={onQuickAdd}
           />
         </Card>
       </div>
 
       <DragOverlay>
-        {activeTask ? <KanbanTask task={activeTask} /> : null}
+        {activeTask ? (
+          <div className="rotate-3 scale-105">
+            <KanbanTask task={activeTask} />
+          </div>
+        ) : null}
       </DragOverlay>
     </DndContext>
   )

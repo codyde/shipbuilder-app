@@ -163,6 +163,42 @@ input, select, textarea, [role="combobox"] {
   }
 }
 
+/* Kanban card animations */
+@keyframes kanban-card-glow {
+  0%, 100% {
+    box-shadow: 0 0 5px hsl(var(--primary) / 0.3);
+  }
+  50% {
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.5), 0 0 30px hsl(var(--primary) / 0.3);
+  }
+}
+
+@keyframes kanban-card-pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+}
+
+/* Theme-specific card hover effects */
+.ocean .group:hover {
+  animation: kanban-card-glow 2s ease-in-out infinite;
+}
+
+.midnight .group:hover {
+  box-shadow: 0 0 15px hsl(var(--primary) / 0.4), 0 5px 15px rgba(0,0,0,0.3);
+}
+
+.sentry .group:hover {
+  box-shadow: 0 0 10px hsl(var(--primary) / 0.3), inset 0 1px 0 hsl(var(--primary) / 0.2);
+}
+
+.sunset .group:hover {
+  box-shadow: 0 5px 20px hsl(var(--primary) / 0.25), 0 0 10px hsl(var(--chart-3) / 0.2);
+}
+
 .task-content-animate {
   animation: task-content-fade-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both;
 }

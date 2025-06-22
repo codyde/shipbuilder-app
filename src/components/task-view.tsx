@@ -52,52 +52,52 @@ interface TaskViewProps {
 const getStatusIcon = (status: TaskStatus) => {
   switch (status) {
     case TaskStatus.COMPLETED:
-      return <CheckCircle2 className="h-4 w-4 text-green-500" />
+      return <CheckCircle2 className="h-4 w-4 text-chart-2" />
     case TaskStatus.IN_PROGRESS:
-      return <Clock className="h-4 w-4 text-blue-500" />
+      return <Clock className="h-4 w-4 text-primary" />
     case TaskStatus.BACKLOG:
-      return <Circle className="h-4 w-4 text-amber-500" />
+      return <Circle className="h-4 w-4 text-chart-3" />
     default:
-      return <Circle className="h-4 w-4 text-amber-500" />
+      return <Circle className="h-4 w-4 text-chart-3" />
   }
 }
 
 const getStatusColor = (status: TaskStatus) => {
   switch (status) {
     case TaskStatus.COMPLETED:
-      return 'text-green-500'
+      return 'text-chart-2'
     case TaskStatus.IN_PROGRESS:
-      return 'text-blue-500'
+      return 'text-primary'
     case TaskStatus.BACKLOG:
-      return 'text-amber-500'
+      return 'text-chart-3'
     default:
-      return 'text-amber-500'
+      return 'text-chart-3'
   }
 }
 
 const getPriorityColor = (priority: Priority) => {
   switch (priority) {
     case Priority.HIGH:
-      return 'text-red-500'
+      return 'text-destructive'
     case Priority.MEDIUM:
-      return 'text-yellow-500'
+      return 'text-chart-3'
     case Priority.LOW:
-      return 'text-gray-500'
+      return 'text-muted-foreground'
     default:
-      return 'text-gray-500'
+      return 'text-muted-foreground'
   }
 }
 
 const getPriorityIcon = (priority: Priority) => {
   switch (priority) {
     case Priority.HIGH:
-      return <AlertCircle className="h-3 w-3" />
+      return <AlertCircle className="h-3 w-3 text-destructive" />
     case Priority.MEDIUM:
-      return <Circle className="h-3 w-3" />
+      return <Circle className="h-3 w-3 text-chart-3" />
     case Priority.LOW:
-      return <Circle className="h-3 w-3" />
+      return <Circle className="h-3 w-3 text-muted-foreground" />
     default:
-      return <Circle className="h-3 w-3" />
+      return <Circle className="h-3 w-3 text-muted-foreground" />
   }
 }
 
@@ -159,6 +159,25 @@ export function TaskView({ projectId, onBack }: TaskViewProps) {
   const handleDeleteTask = async (taskId: string, taskTitle: string) => {
     if (confirm(`Are you sure you want to delete the task "${taskTitle}"? This action cannot be undone.`)) {
       await deleteTask(projectId, taskId)
+    }
+  }
+
+  const handleQuickAdd = async (status: TaskStatus, title: string) => {
+    try {
+      await createTask({
+        projectId,
+        title,
+        status,
+        priority: Priority.MEDIUM as Priority,
+      })
+    } catch (error) {
+      logger.error('Failed to create quick task', {
+        component: 'TaskView',
+        action: 'quickAdd',
+        projectId,
+        status,
+        title,
+      }, error as Error)
     }
   }
 
@@ -313,6 +332,7 @@ export function TaskView({ projectId, onBack }: TaskViewProps) {
               onTaskStatusChange={(taskId, newStatus) => handleStatusChange(taskId, newStatus)}
               onTaskClick={(taskId) => setSelectedTaskId(selectedTaskId === taskId ? null : taskId)}
               selectedTaskId={selectedTaskId}
+              onQuickAdd={handleQuickAdd}
             />
           </div>
         ) : (
