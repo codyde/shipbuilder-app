@@ -11,8 +11,9 @@ export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
   email: text('email').notNull().unique(),
   name: text('name').notNull(),
-  provider: text('provider'), // 'github', 'google', 'fake'
+  provider: text('provider'), // 'github', 'google', 'fake', 'sentry'
   providerId: text('provider_id'),
+  avatar: text('avatar'), // Avatar URL from OAuth provider
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

@@ -5,13 +5,14 @@ import type { Project, Task, Comment, User, CreateProjectInput, CreateTaskInput,
 
 class DatabaseService {
   // Users
-  async createUser(email: string, name: string, provider?: string, providerId?: string): Promise<User> {
+  async createUser(email: string, name: string, provider?: string, providerId?: string, avatar?: string): Promise<User> {
     const [user] = await db.insert(users)
       .values({
         email,
         name,
         provider,
         providerId,
+        avatar,
       })
       .returning();
 
@@ -47,6 +48,24 @@ class DatabaseService {
       ...user,
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString(),
+    };
+  }
+
+  async updateUser(id: string, updates: Partial<Pick<User, 'name' | 'provider' | 'providerId' | 'avatar'>>): Promise<User | null> {
+    const [updated] = await db.update(users)
+      .set({
+        ...updates,
+        updatedAt: sql`NOW()`,
+      })
+      .where(eq(users.id, id))
+      .returning();
+
+    if (!updated) return null;
+
+    return {
+      ...updated,
+      createdAt: updated.createdAt.toISOString(),
+      updatedAt: updated.updatedAt.toISOString(),
     };
   }
 

@@ -13,6 +13,8 @@ import {
 } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { UserProfile } from '@/components/UserProfile'
 import { 
   Circle, 
   CircleCheckBig, 
@@ -25,7 +27,8 @@ import {
   HelpCircle,
   Command,
   MessageCircle,
-  LogOut
+  LogOut,
+  User
 } from 'lucide-react'
 import { useProjects } from '@/context/ProjectContext'
 import { useAuth } from '@/context/AuthContext'
@@ -206,9 +209,39 @@ export function AppSidebar({ currentView, onViewChange, onProjectSelect, onChatT
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
+            <UserProfile>
+              <SidebarMenuButton 
+                className="h-8 justify-start gap-2" 
+                tooltip={`Profile (${user?.name})`}
+              >
+                <Avatar className="h-6 w-6">
+                  <AvatarImage 
+                    src={user?.avatar} 
+                    alt={user?.name}
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                  <AvatarFallback className="text-[10px]">
+                    {user?.name
+                      .split(' ')
+                      .map(n => n[0])
+                      .join('')
+                      .toUpperCase()
+                      .slice(0, 2)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 text-left min-w-0">
+                  <div className="text-xs font-medium truncate">{user?.name}</div>
+                  <div className="text-[10px] text-muted-foreground truncate">{user?.email}</div>
+                </div>
+              </SidebarMenuButton>
+            </UserProfile>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
             <SidebarMenuButton 
               className="h-7 text-red-600 hover:text-red-700" 
-              tooltip={`Logout (${user?.name})`}
+              tooltip="Logout"
               onClick={logout}
             >
               <LogOut className="h-8 w-8" />

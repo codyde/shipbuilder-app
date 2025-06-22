@@ -9,7 +9,9 @@ Sentry.init({
       Sentry.vercelAIIntegration({
         recordInputs: true,
         recordOutputs: true,
-      })
+      }),
+      // Send console.log, console.error, and console.warn calls as logs to Sentry
+      Sentry.consoleLoggingIntegration({ levels: ["log", "error", "warn"] }),
     ],
     // Tracing
     tracesSampleRate: 1.0, //  Capture 100% of the transactions
@@ -25,5 +27,5 @@ Sentry.init({
     // Setting this option to true will send default PII data to Sentry.
     // For example, automatic IP address collection on events
     sendDefaultPii: true,
-    debug: true,
+    debug: false,
   });

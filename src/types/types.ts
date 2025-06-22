@@ -29,6 +29,7 @@ export interface User {
   name: string;
   provider?: string;
   providerId?: string;
+  avatar?: string;
   createdAt: string;
   updatedAt: string;
 }

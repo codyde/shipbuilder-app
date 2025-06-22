@@ -17,6 +17,8 @@ Sentry.init({
       // Additional SDK configuration goes in here, for example:
       colorScheme: "system",
     }),
+    // Send console.log, console.error, and console.warn calls as logs to Sentry
+    Sentry.consoleLoggingIntegration({ levels: ["log", "error", "warn"] }),
   ],
 
   // Enable logs to be sent to Sentry
@@ -37,6 +39,6 @@ Sentry.init({
   // https://docs.sentry.io/platforms/javascript/session-replay/configuration/#general-integration-configuration
   replaysSessionSampleRate: 0.1,
   replaysOnErrorSampleRate: 1.0,
-  debug: true,
+  debug: false,
 });
 
