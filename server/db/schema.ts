@@ -7,8 +7,18 @@ export const projectStatusEnum = pgEnum('project_status', ['active', 'completed'
 export const priorityEnum = pgEnum('priority', ['low', 'medium', 'high']);
 
 // Tables
+export const users = pgTable('users', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  email: text('email').notNull().unique(),
+  name: text('name').notNull(),
+  provider: text('provider'), // 'github', 'google', 'fake'
+  providerId: text('provider_id'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
 export const projects = pgTable('projects', {
   id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().default('00000000-0000-0000-0000-000000000000').references(() => users.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   description: text('description'),
   status: projectStatusEnum('status').notNull().default('active'),
@@ -40,7 +50,15 @@ export const comments = pgTable('comments', {
 });
 
 // Relations
-export const projectsRelations = relations(projects, ({ many }) => ({
+export const usersRelations = relations(users, ({ many }) => ({
+  projects: many(projects),
+}));
+
+export const projectsRelations = relations(projects, ({ one, many }) => ({
+  user: one(users, {
+    fields: [projects.userId],
+    references: [users.id],
+  }),
   tasks: many(tasks),
 }));
 

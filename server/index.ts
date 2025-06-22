@@ -6,6 +6,8 @@ import { projectRoutes } from './routes/projects.js';
 import { chatRoutes } from './routes/chat.js';
 import { migrateRoutes } from './routes/migrate.js';
 import { aiRoutes } from './routes/ai.js';
+import authRoutes from './routes/auth.js';
+import { authenticateUser } from './middleware/auth.js';
 import { setupSwagger } from './swagger.js';
 import * as Sentry from "@sentry/node";
 
@@ -20,10 +22,16 @@ setupSwagger(app);
 
 Sentry.setupExpressErrorHandler(app);
 
-app.use('/api/projects', projectRoutes);
-app.use('/api/chat', chatRoutes);
+// Auth routes (public)
+app.use('/api/auth', authRoutes);
+
+// Protected routes (require authentication)
+app.use('/api/projects', authenticateUser, projectRoutes);
+app.use('/api/chat', authenticateUser, chatRoutes);
+app.use('/api/ai', authenticateUser, aiRoutes);
+
+// Public routes
 app.use('/api/migrate', migrateRoutes);
-app.use('/api/ai', aiRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

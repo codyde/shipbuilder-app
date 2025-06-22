@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { ProjectProvider } from '@/context/ProjectContext'
 import { ThemeProvider } from '@/context/ThemeContext'
+import { AuthProvider, useAuth } from '@/context/AuthContext'
 import { SidebarProvider } from '@/components/ui/sidebar'
 import { AppSidebar } from '@/components/app-sidebar'
 import { ProjectView } from '@/components/project-view'
@@ -8,10 +9,13 @@ import { TaskView } from '@/components/task-view'
 import { SettingsView } from '@/components/settings-view'
 import { ChatInterface } from '@/components/ChatInterface'
 import { CommandMenu } from '@/components/command-menu'
+import { LoginScreen } from '@/components/LoginScreen'
+import { LoadingAnimation } from '@/components/ui/loading-animation'
 
 type View = 'all-issues' | 'active' | 'backlog' | 'archived' | 'project' | 'tasks' | 'settings'
 
-function App() {
+function AppContent() {
+  const { user, loading } = useAuth();
   const [currentView, setCurrentView] = useState<View>('all-issues')
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [commandMenuOpen, setCommandMenuOpen] = useState(false)
@@ -70,36 +74,55 @@ function App() {
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [])
 
+  // Show loading animation while checking authentication
+  if (loading) {
+    return <LoadingAnimation />;
+  }
+
+  // Show login screen if not authenticated
+  if (!user) {
+    return <LoginScreen />;
+  }
+
+  // Show main app if authenticated
+  return (
+    <ProjectProvider>
+      <SidebarProvider defaultOpen={true}>
+        <div className="flex h-screen w-full">
+          <AppSidebar 
+            currentView={currentView}
+            onViewChange={handleViewChange}
+            onProjectSelect={handleProjectSelect}
+            onChatToggle={() => setChatOpen(!chatOpen)}
+          />
+          <main className="flex-1 overflow-hidden">
+            {currentView === 'tasks' && selectedProjectId ? (
+              <TaskView projectId={selectedProjectId} />
+            ) : currentView === 'settings' ? (
+              <SettingsView />
+            ) : (
+              <ProjectView view={currentView} onProjectSelect={handleProjectSelect} />
+            )}
+          </main>
+        </div>
+        {chatOpen && <ChatInterface />}
+        <CommandMenu 
+          open={commandMenuOpen} 
+          onOpenChange={setCommandMenuOpen} 
+        />
+      </SidebarProvider>
+    </ProjectProvider>
+  );
+}
+
+function App() {
   return (
     <ThemeProvider>
-      <ProjectProvider>
-        <SidebarProvider defaultOpen={true}>
-          <div className="flex h-screen w-full">
-            <AppSidebar 
-              currentView={currentView}
-              onViewChange={handleViewChange}
-              onProjectSelect={handleProjectSelect}
-              onChatToggle={() => setChatOpen(!chatOpen)}
-            />
-            <main className="flex-1 overflow-hidden">
-              {currentView === 'tasks' && selectedProjectId ? (
-                <TaskView projectId={selectedProjectId} />
-              ) : currentView === 'settings' ? (
-                <SettingsView />
-              ) : (
-                <ProjectView view={currentView} onProjectSelect={handleProjectSelect} />
-              )}
-            </main>
-          </div>
-          {chatOpen && <ChatInterface />}
-          <CommandMenu 
-            open={commandMenuOpen} 
-            onOpenChange={setCommandMenuOpen} 
-          />
-        </SidebarProvider>
-      </ProjectProvider>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
     </ThemeProvider>
-  )
+  );
 }
 
 export default App

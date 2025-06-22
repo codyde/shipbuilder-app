@@ -23,6 +23,16 @@ export const Priority = {
 
 export type Priority = typeof Priority[keyof typeof Priority]
 
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  provider?: string;
+  providerId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Subtask {
   id: string;
   taskId: string;
@@ -51,6 +61,7 @@ export interface Task {
 
 export interface Project {
   id: string;
+  userId: string;
   name: string;
   description?: string;
   status: ProjectStatus;

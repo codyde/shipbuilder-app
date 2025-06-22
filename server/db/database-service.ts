@@ -1,13 +1,60 @@
 import { db } from './connection.js';
-import { projects, tasks, comments } from './schema.js';
-import { eq, sql } from 'drizzle-orm';
-import type { Project, Task, Comment, CreateProjectInput, CreateTaskInput, CreateCommentInput, TaskStatus, ProjectStatus, Priority } from '../../src/types/types.js';
+import { projects, tasks, comments, users } from './schema.js';
+import { eq, sql, and } from 'drizzle-orm';
+import type { Project, Task, Comment, User, CreateProjectInput, CreateTaskInput, CreateCommentInput, TaskStatus, ProjectStatus, Priority } from '../../src/types/types.js';
 
 class DatabaseService {
+  // Users
+  async createUser(email: string, name: string, provider?: string, providerId?: string): Promise<User> {
+    const [user] = await db.insert(users)
+      .values({
+        email,
+        name,
+        provider,
+        providerId,
+      })
+      .returning();
+
+    return {
+      ...user,
+      createdAt: user.createdAt.toISOString(),
+      updatedAt: user.updatedAt.toISOString(),
+    };
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const user = await db.query.users.findFirst({
+      where: eq(users.email, email),
+    });
+
+    if (!user) return undefined;
+
+    return {
+      ...user,
+      createdAt: user.createdAt.toISOString(),
+      updatedAt: user.updatedAt.toISOString(),
+    };
+  }
+
+  async getUserById(id: string): Promise<User | undefined> {
+    const user = await db.query.users.findFirst({
+      where: eq(users.id, id),
+    });
+
+    if (!user) return undefined;
+
+    return {
+      ...user,
+      createdAt: user.createdAt.toISOString(),
+      updatedAt: user.updatedAt.toISOString(),
+    };
+  }
+
   // Projects
-  async createProject(input: CreateProjectInput): Promise<Project> {
+  async createProject(input: CreateProjectInput, userId: string): Promise<Project> {
     const [project] = await db.insert(projects)
       .values({
+        userId,
         name: input.name,
         description: input.description,
       })
@@ -22,8 +69,9 @@ class DatabaseService {
     };
   }
 
-  async getProjects(): Promise<Project[]> {
+  async getProjects(userId: string): Promise<Project[]> {
     const projectsWithTasks = await db.query.projects.findMany({
+      where: eq(projects.userId, userId),
       with: {
         tasks: {
           with: {
@@ -54,9 +102,9 @@ class DatabaseService {
     }));
   }
 
-  async getProject(id: string): Promise<Project | undefined> {
+  async getProject(id: string, userId: string): Promise<Project | undefined> {
     const project = await db.query.projects.findFirst({
-      where: eq(projects.id, id),
+      where: and(eq(projects.id, id), eq(projects.userId, userId)),
       with: {
         tasks: {
           with: {
@@ -89,32 +137,32 @@ class DatabaseService {
     };
   }
 
-  async updateProject(id: string, updates: Partial<Omit<Project, 'id' | 'createdAt'>>): Promise<Project | null> {
+  async updateProject(id: string, userId: string, updates: Partial<Omit<Project, 'id' | 'userId' | 'createdAt'>>): Promise<Project | null> {
     const [updated] = await db.update(projects)
       .set({
         ...updates,
         updatedAt: sql`NOW()`,
       })
-      .where(eq(projects.id, id))
+      .where(and(eq(projects.id, id), eq(projects.userId, userId)))
       .returning();
 
     if (!updated) return null;
 
-    return this.getProject(id) as Promise<Project>;
+    return this.getProject(id, userId) as Promise<Project>;
   }
 
-  async deleteProject(id: string): Promise<boolean> {
+  async deleteProject(id: string, userId: string): Promise<boolean> {
     const result = await db.delete(projects)
-      .where(eq(projects.id, id));
+      .where(and(eq(projects.id, id), eq(projects.userId, userId)));
     
     return result.rowCount ? result.rowCount > 0 : false;
   }
 
   // Tasks
-  async createTask(input: CreateTaskInput): Promise<Task | null> {
-    // Check if project exists
+  async createTask(input: CreateTaskInput, userId: string): Promise<Task | null> {
+    // Check if project exists and belongs to user
     const project = await db.query.projects.findFirst({
-      where: eq(projects.id, input.projectId),
+      where: and(eq(projects.id, input.projectId), eq(projects.userId, userId)),
     });
     
     if (!project) return null;
@@ -144,7 +192,14 @@ class DatabaseService {
     };
   }
 
-  async getTask(projectId: string, taskId: string): Promise<Task | null> {
+  async getTask(projectId: string, taskId: string, userId: string): Promise<Task | null> {
+    // First verify project belongs to user
+    const project = await db.query.projects.findFirst({
+      where: and(eq(projects.id, projectId), eq(projects.userId, userId)),
+    });
+    
+    if (!project) return null;
+
     const task = await db.query.tasks.findFirst({
       where: eq(tasks.id, taskId),
       with: {
@@ -169,7 +224,14 @@ class DatabaseService {
     };
   }
 
-  async updateTask(projectId: string, taskId: string, updates: Partial<Omit<Task, 'id' | 'projectId' | 'createdAt'>>): Promise<Task | null> {
+  async updateTask(projectId: string, taskId: string, userId: string, updates: Partial<Omit<Task, 'id' | 'projectId' | 'createdAt'>>): Promise<Task | null> {
+    // First verify project belongs to user
+    const project = await db.query.projects.findFirst({
+      where: and(eq(projects.id, projectId), eq(projects.userId, userId)),
+    });
+    
+    if (!project) return null;
+
     // Check if task belongs to project
     const existingTask = await db.query.tasks.findFirst({
       where: eq(tasks.id, taskId),
@@ -193,10 +255,17 @@ class DatabaseService {
       .set({ updatedAt: sql`NOW()` })
       .where(eq(projects.id, projectId));
 
-    return this.getTask(projectId, taskId);
+    return this.getTask(projectId, taskId, userId);
   }
 
-  async deleteTask(projectId: string, taskId: string): Promise<boolean> {
+  async deleteTask(projectId: string, taskId: string, userId: string): Promise<boolean> {
+    // First verify project belongs to user
+    const project = await db.query.projects.findFirst({
+      where: and(eq(projects.id, projectId), eq(projects.userId, userId)),
+    });
+    
+    if (!project) return false;
+
     // Check if task belongs to project
     const existingTask = await db.query.tasks.findFirst({
       where: eq(tasks.id, taskId),
@@ -221,7 +290,17 @@ class DatabaseService {
 
 
   // Comments
-  async getComments(taskId: string): Promise<Comment[]> {
+  async getComments(taskId: string, userId: string): Promise<Comment[]> {
+    // First verify that the task belongs to a project owned by the user
+    const task = await db.query.tasks.findFirst({
+      where: eq(tasks.id, taskId),
+      with: {
+        project: true,
+      },
+    });
+    
+    if (!task || task.project.userId !== userId) return [];
+
     const taskComments = await db.query.comments.findMany({
       where: eq(comments.taskId, taskId),
     });
@@ -233,13 +312,16 @@ class DatabaseService {
     }));
   }
 
-  async createComment(input: CreateCommentInput): Promise<Comment | null> {
-    // Check if task exists
+  async createComment(input: CreateCommentInput, userId: string): Promise<Comment | null> {
+    // Check if task exists and belongs to user's project
     const task = await db.query.tasks.findFirst({
       where: eq(tasks.id, input.taskId),
+      with: {
+        project: true,
+      },
     });
     
-    if (!task) return null;
+    if (!task || task.project.userId !== userId) return null;
 
     const [comment] = await db.insert(comments)
       .values({

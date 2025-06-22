@@ -1,7 +1,7 @@
 import { databaseService } from '../db/database-service.js';
 import { Priority, TaskStatus } from '../../src/types/types.js';
 
-export const taskTools = {
+export const createTaskTools = (userId: string) => ({
   createProject: {
     description: 'Create a new project',
     parameters: {
@@ -20,7 +20,7 @@ export const taskTools = {
     },
     execute: async (args: { name: string; description?: string }) => {
       try {
-        const project = await databaseService.createProject(args);
+        const project = await databaseService.createProject(args, userId);
         return {
           success: true,
           data: project,
@@ -67,7 +67,7 @@ export const taskTools = {
     },
     execute: async (args: { projectId: string; title: string; description?: string; priority?: Priority; dueDate?: string }) => {
       try {
-        const task = await databaseService.createTask(args);
+        const task = await databaseService.createTask(args, userId);
         if (!task) {
           return {
             success: false,
@@ -117,7 +117,7 @@ export const taskTools = {
     },
     execute: async (args: { taskId: string; title: string; description?: string; priority?: Priority }) => {
       try {
-        const subtask = await databaseService.createSubtask(args);
+        const subtask = await databaseService.createSubtask(args, userId);
         if (!subtask) {
           return {
             success: false,
@@ -163,7 +163,7 @@ export const taskTools = {
     },
     execute: async (args: { projectId: string; taskId: string; status: TaskStatus }) => {
       try {
-        const task = await databaseService.updateTask(args.projectId, args.taskId, { status: args.status });
+        const task = await databaseService.updateTask(args.projectId, args.taskId, { status: args.status }, userId);
         if (!task) {
           return {
             success: false,
@@ -195,7 +195,7 @@ export const taskTools = {
     },
     execute: async () => {
       try {
-        const projects = await databaseService.getProjects();
+        const projects = await databaseService.getProjects(userId);
         return {
           success: true,
           data: projects,
@@ -225,7 +225,7 @@ export const taskTools = {
     },
     execute: async (args: { projectId: string }) => {
       try {
-        const project = await databaseService.getProject(args.projectId);
+        const project = await databaseService.getProject(args.projectId, userId);
         if (!project) {
           return {
             success: false,
@@ -267,7 +267,7 @@ export const taskTools = {
     execute: async (args: { projectId: string; taskId: string }) => {
       try {
         // Get task details before deleting so we can include the name in the response
-        const task = await databaseService.getTask(args.projectId, args.taskId);
+        const task = await databaseService.getTask(args.projectId, args.taskId, userId);
         if (!task) {
           return {
             success: false,
@@ -276,7 +276,7 @@ export const taskTools = {
           };
         }
         
-        const deleted = await databaseService.deleteTask(args.projectId, args.taskId);
+        const deleted = await databaseService.deleteTask(args.projectId, args.taskId, userId);
         if (!deleted) {
           return {
             success: false,
@@ -299,4 +299,4 @@ export const taskTools = {
       }
     }
   }
-};
+});

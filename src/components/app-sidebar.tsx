@@ -24,9 +24,11 @@ import {
   Settings,
   HelpCircle,
   Command,
-  MessageCircle
+  MessageCircle,
+  LogOut
 } from 'lucide-react'
 import { useProjects } from '@/context/ProjectContext'
+import { useAuth } from '@/context/AuthContext'
 
 type View = 'all-issues' | 'active' | 'backlog' | 'archived' | 'project' | 'tasks' | 'settings'
 
@@ -66,6 +68,7 @@ const navigationItems = [
 
 export function AppSidebar({ currentView, onViewChange, onProjectSelect, onChatToggle }: AppSidebarProps) {
   const { projects } = useProjects()
+  const { user, logout } = useAuth()
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -80,7 +83,7 @@ export function AppSidebar({ currentView, onViewChange, onProjectSelect, onChatT
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="flex h-6 w-6 items-center justify-center rounded overflow-hidden">
-              <img src="/shipbuilder-icon.png" alt="ShipBuilder" className="h-6 w-6 object-contain" />
+              <img src="/shipbuilder-icon.png" alt="ShipBuilder" className="h-6 w-6 object-contain rounded" />
             </div>
             <span className="font-semibold text-sm group-data-[collapsible=icon]:hidden">ShipBuilder</span>
           </div>
@@ -200,6 +203,16 @@ export function AppSidebar({ currentView, onViewChange, onProjectSelect, onChatT
             <SidebarMenuButton className="h-7" tooltip="Help">
               <HelpCircle className="h-8 w-8" />
               <span className="text-xs">Help</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton 
+              className="h-7 text-red-600 hover:text-red-700" 
+              tooltip={`Logout (${user?.name})`}
+              onClick={logout}
+            >
+              <LogOut className="h-8 w-8" />
+              <span className="text-xs">Logout</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

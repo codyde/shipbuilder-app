@@ -32,6 +32,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import { Task, TaskStatus, Priority, Comment } from '@/types/types'
 import { useProjects } from '@/context/ProjectContext'
+import { useAuth } from '@/context/AuthContext'
 import { cn } from '@/lib/utils'
 
 interface TaskDetailPanelProps {
@@ -99,6 +100,7 @@ function AIGenerateDialog({ onGenerate, isLoading }: AIGenerateDialogProps) {
 
 export function TaskDetailPanel({ task, isOpen, onClose }: TaskDetailPanelProps) {
   const { updateTask } = useProjects()
+  const { user } = useAuth()
   const [editingField, setEditingField] = useState<string | null>(null)
   const [editValues, setEditValues] = useState({
     title: task.title,
@@ -192,6 +194,7 @@ export function TaskDetailPanel({ task, isOpen, onClose }: TaskDetailPanelProps)
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-user-id': user?.id || '',
         },
         body: JSON.stringify({
           content: newComment.trim(),
@@ -219,6 +222,7 @@ export function TaskDetailPanel({ task, isOpen, onClose }: TaskDetailPanelProps)
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-user-id': user?.id || '',
         },
         body: JSON.stringify({
           taskId: task.id,

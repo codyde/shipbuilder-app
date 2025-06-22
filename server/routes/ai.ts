@@ -12,6 +12,13 @@ aiRoutes.post('/generate-details', async (req, res) => {
       return res.status(400).json({ error: 'Prompt is required' });
     }
 
+    if (!process.env.ANTHROPIC_API_KEY) {
+      console.error('ANTHROPIC_API_KEY not set');
+      return res.status(500).json({ 
+        error: 'ANTHROPIC_API_KEY environment variable is not set' 
+      });
+    }
+
     const systemPrompt = `You are a project management assistant helping to generate detailed task information. 
     
 Context:

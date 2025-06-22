@@ -37,7 +37,8 @@ import {
   Clock,
   AlertCircle,
   List,
-  Kanban
+  Kanban,
+  Trash2
 } from 'lucide-react'
 import { useProjects } from '@/context/ProjectContext'
 import { TaskStatus, Priority } from '@/types/types'
@@ -102,7 +103,7 @@ const getPriorityIcon = (priority: Priority) => {
 type ViewMode = 'list' | 'kanban'
 
 export function TaskView({ projectId }: TaskViewProps) {
-  const { projects, createTask, updateTask } = useProjects()
+  const { projects, createTask, updateTask, deleteTask } = useProjects()
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
@@ -143,6 +144,16 @@ export function TaskView({ projectId }: TaskViewProps) {
     } catch (error) {
       console.error('Failed to update task status:', error)
       // The context will handle rollback if needed
+    }
+  }
+
+  const handleDeleteTask = async (taskId: string, taskTitle: string) => {
+    if (confirm(`Are you sure you want to delete the task "${taskTitle}"? This action cannot be undone.`)) {
+      try {
+        await deleteTask(projectId, taskId)
+      } catch (error) {
+        console.error('Failed to delete task:', error)
+      }
     }
   }
 
@@ -391,13 +402,14 @@ export function TaskView({ projectId }: TaskViewProps) {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-6 w-6 p-0"
+                        className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                         onClick={(e) => {
                           e.stopPropagation()
-                          // Handle more actions
+                          handleDeleteTask(task.id, task.title)
                         }}
+                        title="Delete task"
                       >
-                        <MoreHorizontal className="h-4 w-4" />
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </TableCell>
                   </TableRow>

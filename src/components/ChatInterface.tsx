@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { useChat } from 'ai/react';
 import { useProjects } from '@/context/ProjectContext';
+import { useAuth } from '@/context/AuthContext';
 import { ToolInvocation } from '@/types/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -65,10 +66,14 @@ interface ChatInterfaceProps {
 
 export function ChatInterface({ className = '', onClose }: ChatInterfaceProps) {
   const { refreshProjects } = useProjects();
+  const { user } = useAuth();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
     api: '/api/chat/stream',
+    headers: {
+      'x-user-id': user?.id || '',
+    },
     onFinish: () => {
       // Refresh projects when AI tools might have made changes
       refreshProjects();

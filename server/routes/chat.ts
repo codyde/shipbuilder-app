@@ -1,7 +1,7 @@
 import express from 'express';
 import { streamText, tool } from 'ai';
 import { anthropic } from '@ai-sdk/anthropic';
-import { taskTools } from '../tools/task-tools.js';
+import { createTaskTools } from '../tools/task-tools.js';
 import { z } from 'zod';
 
 export const chatRoutes = express.Router();
@@ -19,6 +19,15 @@ chatRoutes.post('/stream', async (req, res) => {
     }
 
     console.log('Processing messages:', messages);
+
+    // Get authenticated user ID
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    // Create task tools with user context
+    const taskTools = createTaskTools(userId);
 
     const result = streamText({
       model: anthropic('claude-sonnet-4-20250514'),

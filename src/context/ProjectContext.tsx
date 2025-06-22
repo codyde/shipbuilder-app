@@ -99,9 +99,18 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(projectReducer, initialState);
 
   const apiCall = async (url: string, options: RequestInit = {}) => {
+    const userId = localStorage.getItem('userId');
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (userId) {
+      headers['x-user-id'] = userId;
+    }
+
     const response = await fetch(url, {
       headers: {
-        'Content-Type': 'application/json',
+        ...headers,
         ...options.headers,
       },
       ...options,
