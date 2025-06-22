@@ -15,6 +15,9 @@ interface SentryTokenResponse {
   token_type: string;
   scope: string;
   refresh_token?: string;
+  user?: any;
+  user_info?: any;
+  profile?: any;
 }
 
 interface SentryUser {

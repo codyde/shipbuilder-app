@@ -4,7 +4,7 @@ import { streamText } from 'ai';
 
 export const aiRoutes = express.Router();
 
-aiRoutes.post('/generate-details', async (req, res) => {
+aiRoutes.post('/generate-details', async (req: any, res: any) => {
   try {
     const { prompt, context } = req.body;
     

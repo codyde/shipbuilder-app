@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 
-export type Theme = 'dark' | 'light' | 'ocean' | 'sunset' | 'glassmorphism' | 'midnight'
+export type Theme = 'dark' | 'light' | 'ocean' | 'sunset' | 'midnight' | 'sentry'
 
 interface ThemeContextType {
   theme: Theme
@@ -33,7 +33,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     const root = document.documentElement
     
     // Remove all theme classes
-    root.classList.remove('dark', 'light', 'ocean', 'sunset', 'glassmorphism', 'midnight')
+    root.classList.remove('dark', 'light', 'ocean', 'sunset', 'midnight', 'sentry')
     
     // Add the current theme class
     root.classList.add(theme)

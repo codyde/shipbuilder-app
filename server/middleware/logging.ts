@@ -19,7 +19,7 @@ export function loggingMiddleware(req: Request, res: Response, next: NextFunctio
     url: req.originalUrl,
     userAgent: req.get('User-Agent'),
     ip: req.ip,
-    userId: req.headers['x-user-id'] as string,
+    userId: req.user?.id,
   })
 
   // Override res.end to capture response
@@ -30,11 +30,12 @@ export function loggingMiddleware(req: Request, res: Response, next: NextFunctio
     // Log completed request
     logger.httpRequest(req, res, duration, {
       requestId: req.headers['x-request-id'] as string,
-      userId: req.headers['x-user-id'] as string,
+      userId: req.user?.id,
     })
     
-    // Call original end method
+    // Call original end method and return this for method chaining
     originalEnd.call(this, chunk, encoding, cb)
+    return this
   }
 
   next()
@@ -48,7 +49,7 @@ export function errorLoggingMiddleware(error: Error, req: Request, res: Response
     requestId: req.headers['x-request-id'] as string,
     method: req.method,
     url: req.originalUrl,
-    userId: req.headers['x-user-id'] as string,
+    userId: req.user?.id,
     userAgent: req.get('User-Agent'),
     ip: req.ip,
     stack: error.stack,

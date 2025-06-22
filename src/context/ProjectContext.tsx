@@ -101,15 +101,15 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
   const apiCall = async (url: string, options: RequestInit = {}) => {
     const startTime = performance.now();
-    const userId = localStorage.getItem('userId');
+    const token = localStorage.getItem('authToken');
     const method = options.method || 'GET';
     
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
     
-    if (userId) {
-      headers['x-user-id'] = userId;
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
 
     try {
@@ -126,8 +126,19 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       // Log the API call
       logger.apiCall(method, url, response.status, duration, {
         component: 'ProjectContext',
-        userId,
+        hasToken: !!token,
       });
+
+      // Handle token expiration
+      if (response.status === 401) {
+        const errorData = await response.json().catch(() => ({}));
+        if (errorData.code === 'TOKEN_EXPIRED' || errorData.code === 'INVALID_TOKEN') {
+          // Token expired or invalid, clear auth and redirect to login
+          localStorage.removeItem('authToken');
+          window.location.href = '/login';
+          throw new Error('Session expired. Please log in again.');
+        }
+      }
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -138,7 +149,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       const duration = performance.now() - startTime;
       logger.apiCall(method, url, undefined, duration, {
         component: 'ProjectContext',
-        userId,
+        hasToken: !!token,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
       throw error;

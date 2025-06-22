@@ -69,6 +69,7 @@ export function ChatInterface({ className = '', onClose }: ChatInterfaceProps) {
   const { refreshProjects } = useProjects();
   const { user } = useAuth();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  
 
   // Initialize draggable functionality with position persistence
   const { ref: dragRef, handleMouseDown, style: dragStyle } = useDraggable({
@@ -84,12 +85,29 @@ export function ChatInterface({ className = '', onClose }: ChatInterfaceProps) {
 
   const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
     api: '/api/chat/stream',
-    headers: {
-      'x-user-id': user?.id || '',
+    fetch: async (url, options) => {
+      const token = localStorage.getItem('authToken');
+      
+      const headers = {
+        ...options?.headers,
+        'Content-Type': 'application/json',
+      };
+      
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      
+      return fetch(url, {
+        ...options,
+        headers,
+      });
     },
     onFinish: () => {
       // Refresh projects when AI tools might have made changes
       refreshProjects();
+    },
+    onError: (error) => {
+      console.error('Chat error:', error);
     },
   });
 
@@ -107,6 +125,18 @@ export function ChatInterface({ className = '', onClose }: ChatInterfaceProps) {
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!user) {
+      alert('Please log in to use the chat feature');
+      return;
+    }
+    
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+      alert('Authentication token missing. Please log in again.');
+      return;
+    }
+    
     handleSubmit(e);
   };
 

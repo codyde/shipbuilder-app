@@ -8,6 +8,7 @@ import { migrateRoutes } from './routes/migrate.js';
 import { aiRoutes } from './routes/ai.js';
 import authRoutes from './routes/auth.js';
 import { authenticateUser } from './middleware/auth.js';
+import { apiRateLimit } from './middleware/rate-limit.js';
 import { loggingMiddleware, errorLoggingMiddleware } from './middleware/logging.js';
 import { setupSwagger } from './swagger.js';
 import { logger } from './lib/logger.js';
@@ -15,6 +16,9 @@ import * as Sentry from "@sentry/node";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// Trust proxy for proper IP detection in rate limiting
+app.set('trust proxy', 1);
 
 app.use(cors());
 app.use(express.json());
@@ -30,10 +34,10 @@ Sentry.setupExpressErrorHandler(app);
 // Auth routes (public)
 app.use('/api/auth', authRoutes);
 
-// Protected routes (require authentication)
-app.use('/api/projects', authenticateUser, projectRoutes);
-app.use('/api/chat', authenticateUser, chatRoutes);
-app.use('/api/ai', authenticateUser, aiRoutes);
+// Protected routes (require authentication and rate limiting)
+app.use('/api/projects', apiRateLimit, authenticateUser, projectRoutes);
+app.use('/api/chat', apiRateLimit, authenticateUser, chatRoutes);
+app.use('/api/ai', apiRateLimit, authenticateUser, aiRoutes);
 
 // Public routes
 app.use('/api/migrate', migrateRoutes);

@@ -234,11 +234,12 @@ export function TaskDetailPanel({ task, isOpen, onClose }: TaskDetailPanelProps)
     setNewComment('')
 
     try {
+      const token = localStorage.getItem('authToken');
       const response = await fetch(`/api/projects/${task.projectId}/tasks/${task.id}/comments`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-id': user.id,
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
           content: commentContent,
@@ -284,11 +285,12 @@ export function TaskDetailPanel({ task, isOpen, onClose }: TaskDetailPanelProps)
     setEditingField('details') // Switch to edit mode to show the streaming text
     
     try {
+      const token = localStorage.getItem('authToken');
       const response = await fetch('/api/ai/generate-details', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-id': user?.id || '',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
           taskId: task.id,

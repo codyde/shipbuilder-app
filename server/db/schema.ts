@@ -3,7 +3,7 @@ import { relations } from 'drizzle-orm';
 
 // Enums
 export const taskStatusEnum = pgEnum('task_status', ['backlog', 'in_progress', 'completed']);
-export const projectStatusEnum = pgEnum('project_status', ['active', 'completed', 'archived']);
+export const projectStatusEnum = pgEnum('project_status', ['active', 'backlog', 'completed', 'archived']);
 export const priorityEnum = pgEnum('priority', ['low', 'medium', 'high']);
 
 // Tables

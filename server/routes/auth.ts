@@ -1,16 +1,19 @@
 import express from 'express';
 import { databaseService } from '../db/database-service.js';
 import { sentryOAuthService } from '../services/sentry-oauth.js';
+import { generateJWT, SecurityEvent, logSecurityEvent, authenticateUser } from '../middleware/auth.js';
+import { authRateLimit, oauthCallbackRateLimit } from '../middleware/rate-limit.js';
 import * as Sentry from '@sentry/node';
 
 const router = express.Router();
 
 // Fake login endpoint - creates or finds user by email
-router.post('/fake-login', async (req, res) => {
+router.post('/fake-login', authRateLimit, async (req, res) => {
   try {
     const { email, name } = req.body;
 
     if (!email || !name) {
+      logSecurityEvent(SecurityEvent.LOGIN_FAILURE, req, { reason: 'missing_credentials' }, 'low');
       return res.status(400).json({ error: 'Email and name are required' });
     }
 
@@ -22,40 +25,49 @@ router.post('/fake-login', async (req, res) => {
       user = await databaseService.createUser(email, name, 'fake');
     }
 
+    // Generate JWT token
+    const token = generateJWT({
+      id: user.id,
+      email: user.email,
+      provider: user.provider || 'fake'
+    });
+
+    logSecurityEvent(SecurityEvent.LOGIN_SUCCESS, req, { 
+      userId: user.id, 
+      provider: 'fake' 
+    }, 'low');
+
     res.json({
       user: {
         id: user.id,
         email: user.email,
         name: user.name,
       },
+      token,
       message: 'Login successful',
     });
   } catch (error) {
+    logSecurityEvent(SecurityEvent.LOGIN_FAILURE, req, { 
+      error: error instanceof Error ? error.message : 'Unknown error' 
+    }, 'medium');
     console.error('Fake login error:', error);
     res.status(500).json({ error: 'Login failed' });
   }
 });
 
-// Get current user endpoint
-router.get('/me', async (req, res) => {
+// Get current user endpoint (now uses JWT authentication)
+router.get('/me', authenticateUser, async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'] as string;
-    
-    if (!userId) {
+    if (!req.user) {
       return res.status(401).json({ error: 'Not authenticated' });
-    }
-
-    const user = await databaseService.getUserById(userId);
-    
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
     }
 
     res.json({
       user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
+        id: req.user.id,
+        email: req.user.email,
+        name: req.user.name,
+        provider: req.user.provider
       },
     });
   } catch (error) {
@@ -64,8 +76,11 @@ router.get('/me', async (req, res) => {
   }
 });
 
-// Logout endpoint (for fake auth, just returns success)
+// Logout endpoint
 router.post('/logout', (req, res) => {
+  if (req.user) {
+    logSecurityEvent(SecurityEvent.LOGOUT, req, { userId: req.user.id }, 'low');
+  }
   res.json({ message: 'Logged out successfully' });
 });
 
@@ -82,7 +97,7 @@ router.get('/sentry', (req, res) => {
 });
 
 // Sentry OAuth callback endpoint
-router.get('/sentry/callback', async (req, res) => {
+router.get('/sentry/callback', oauthCallbackRateLimit, async (req, res) => {
   const { logger } = Sentry;
   
   logger.info('OAuth callback received', {
@@ -217,8 +232,20 @@ router.get('/sentry/callback', async (req, res) => {
       return res.redirect('http://localhost:5173/login?error=user_not_found');
     }
 
-    // Redirect to frontend with user ID
-    const redirectUrl = `http://localhost:5173/login?success=true&userId=${user.id}`;
+    // Generate JWT token for OAuth user
+    const token = generateJWT({
+      id: user.id,
+      email: user.email,
+      provider: user.provider || 'sentry'
+    });
+
+    logSecurityEvent(SecurityEvent.LOGIN_SUCCESS, req, { 
+      userId: user.id, 
+      provider: 'sentry' 
+    }, 'low');
+
+    // Redirect to frontend with JWT token
+    const redirectUrl = `http://localhost:5173/login?success=true&token=${encodeURIComponent(token)}`;
     logger.info('OAuth flow completed successfully', { redirectUrl, userId: user.id });
     res.redirect(redirectUrl);
   } catch (error) {

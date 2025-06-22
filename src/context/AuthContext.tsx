@@ -48,13 +48,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(authReducer, initialState);
 
   const apiCall = async (url: string, options: RequestInit = {}) => {
-    const userId = localStorage.getItem('userId');
+    const token = localStorage.getItem('authToken');
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
     
-    if (userId) {
-      headers['x-user-id'] = userId;
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
 
     const response = await fetch(url, {
@@ -64,6 +64,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       ...options,
     });
+
+    // Handle token expiration
+    if (response.status === 401) {
+      const errorData = await response.json().catch(() => ({}));
+      if (errorData.code === 'TOKEN_EXPIRED' || errorData.code === 'INVALID_TOKEN') {
+        // Token expired or invalid, clear auth and redirect to login
+        localStorage.removeItem('authToken');
+        dispatch({ type: 'LOGOUT' });
+        window.location.href = '/login';
+        throw new Error('Session expired. Please log in again.');
+      }
+    }
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -82,8 +94,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({ email, name }),
       });
 
-      const user = response.user;
-      localStorage.setItem('userId', user.id);
+      const { user, token } = response;
+      localStorage.setItem('authToken', token);
       dispatch({ type: 'SET_USER', payload: user });
     } catch (error) {
       dispatch({ type: 'SET_ERROR', payload: error instanceof Error ? error.message : 'Login failed' });
@@ -94,7 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
-    localStorage.removeItem('userId');
+    localStorage.removeItem('authToken');
     dispatch({ type: 'LOGOUT' });
   };
 
@@ -102,18 +114,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
       
-      const userId = localStorage.getItem('userId');
-      if (!userId) {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
         dispatch({ type: 'SET_USER', payload: null });
         return;
       }
 
       const response = await apiCall('/api/auth/me');
       dispatch({ type: 'SET_USER', payload: response.user });
-    } catch {
-      // If auth check fails, clear stored user
-      localStorage.removeItem('userId');
+    } catch (error) {
+      // If auth check fails, clear stored token
+      localStorage.removeItem('authToken');
       dispatch({ type: 'SET_USER', payload: null });
+      
+      // Don't show error for session expiration as it's handled in apiCall
+      if (error instanceof Error && !error.message.includes('Session expired')) {
+        console.error('Auth check failed:', error);
+      }
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
     }
@@ -124,14 +141,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const urlParams = new URLSearchParams(window.location.search);
     const success = urlParams.get('success');
     const error = urlParams.get('error');
-    const userId = urlParams.get('userId');
+    const token = urlParams.get('token');
 
     // If no OAuth parameters, return false (not an OAuth callback)
     if (!success && !error) {
       return false;
     }
 
-    logger.info('Processing OAuth callback', { success, error, userId });
+    logger.info('Processing OAuth callback', { success, error, hasToken: !!token });
 
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
@@ -163,27 +180,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logger.error(logger.fmt`OAuth callback error: ${errorMessage}`, { 
           error, 
           success, 
-          userId,
+          hasToken: !!token,
           urlParams: Object.fromEntries(urlParams)
         });
         
         Sentry.captureException(new Error(errorMessage), {
           tags: { oauth_step: 'frontend_callback' },
-          extra: { error, success, userId, urlParams: Object.fromEntries(urlParams) }
+          extra: { error, success, hasToken: !!token, urlParams: Object.fromEntries(urlParams) }
         });
         
         dispatch({ type: 'SET_ERROR', payload: errorMessage });
         return true;
       }
 
-      if (success && userId) {
-        logger.info(logger.fmt`OAuth success, setting user ID: ${userId}`);
+      if (success && token) {
+        logger.info('OAuth success, storing JWT token');
         
-        // Handle OAuth success
-        localStorage.setItem('userId', userId);
-        
-        // Fetch user details
         try {
+          // Decode and store the JWT token
+          const decodedToken = decodeURIComponent(token);
+          localStorage.setItem('authToken', decodedToken);
+          
+          // Fetch user details using the token
           const response = await apiCall('/api/auth/me');
           logger.info('Successfully fetched user after OAuth', { 
             userId: response.user.id, 
@@ -193,12 +211,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } catch (userFetchError) {
           logger.error('Failed to fetch user after OAuth success', { 
             error: userFetchError,
-            userId 
+            hasToken: !!token
           });
           Sentry.captureException(userFetchError instanceof Error ? userFetchError : new Error('Failed to fetch user after OAuth'), {
             tags: { oauth_step: 'user_fetch_after_oauth' },
-            extra: { userId, originalError: String(userFetchError) }
+            extra: { hasToken: !!token, originalError: String(userFetchError) }
           });
+          localStorage.removeItem('authToken');
           dispatch({ type: 'SET_ERROR', payload: 'Failed to complete login after OAuth' });
           return true;
         }
@@ -206,18 +225,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return true;
       }
 
-      logger.warn('OAuth callback with unexpected parameters', { success, error, userId });
+      logger.warn('OAuth callback with unexpected parameters', { success, error, hasToken: !!token });
       return false;
     } catch (callbackError) {
       logger.error('Unexpected error in OAuth callback handler', { 
-        error: callbackError,
+        callbackError,
         success,
-        error: error,
-        userId
+        oauthError: error,
+        hasToken: !!token
       });
       Sentry.captureException(callbackError instanceof Error ? callbackError : new Error('Unexpected OAuth callback error'), {
         tags: { oauth_step: 'frontend_callback_unexpected' },
-        extra: { success, error, userId, originalError: String(callbackError) }
+        extra: { success, error, hasToken: !!token, originalError: String(callbackError) }
       });
       dispatch({ type: 'SET_ERROR', payload: 'Failed to complete OAuth login' });
       return true;

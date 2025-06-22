@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { useTheme, Theme } from '@/context/ThemeContext'
-import { Palette, Moon, Sun, Waves, Sunset, Sparkles, Star, Monitor, Check } from 'lucide-react'
+import { Palette, Moon, Sun, Waves, Sunset, Sparkles, Star, Monitor, Check, Bug } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const themeOptions = [
@@ -41,18 +41,18 @@ const themeOptions = [
     colors: { primary: '#f97316', secondary: '#fbbf24', background: '#7c2d12' }
   },
   { 
-    value: 'glassmorphism', 
-    label: 'Glassmorphism', 
-    icon: Sparkles, 
-    description: 'Translucent glass effect with blur',
-    colors: { primary: '#8b5cf6', secondary: '#a78bfa', background: '#1e1b4b' }
-  },
-  { 
     value: 'midnight', 
     label: 'Midnight', 
     icon: Star, 
     description: 'Deep blues and purples like a starry night',
     colors: { primary: '#6366f1', secondary: '#8b5cf6', background: '#1e1b4b' }
+  },
+  { 
+    value: 'sentry', 
+    label: 'Sentry', 
+    icon: Bug, 
+    description: 'Dark purple theme inspired by Sentry',
+    colors: { primary: '#8b5cf6', secondary: '#a78bfa', background: '#1a1b3a' }
   },
 ] as const
 

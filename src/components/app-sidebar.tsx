@@ -188,12 +188,6 @@ export function AppSidebar({ currentView, onViewChange, onProjectSelect, onChatT
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton className="h-7" tooltip="Help">
-              <HelpCircle className="h-8 w-8" />
-              <span className="text-xs">Help</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
             <UserProfile>
               <SidebarMenuButton 
                 className="h-8 justify-start gap-2" 
