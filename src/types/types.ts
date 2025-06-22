@@ -82,6 +82,7 @@ export interface CreateTaskInput {
   description?: string;
   priority?: Priority;
   dueDate?: string;
+  status?: TaskStatus;
 }
 
 export interface CreateSubtaskInput {

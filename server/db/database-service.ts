@@ -192,6 +192,7 @@ class DatabaseService {
         title: input.title,
         description: input.description,
         priority: input.priority || 'medium',
+        status: input.status || 'backlog',
         dueDate: input.dueDate ? new Date(input.dueDate) : null,
       })
       .returning();
