@@ -31,7 +31,6 @@ import {
   Plus, 
   Circle, 
   MoreHorizontal,
-  Search,
   ArrowLeft,
   CheckCircle2,
   Clock,
@@ -42,10 +41,12 @@ import {
 } from 'lucide-react'
 import { useProjects } from '@/context/ProjectContext'
 import { TaskStatus, Priority } from '@/types/types'
+import { logger } from '@/lib/logger'
 import { cn } from '@/lib/utils'
 
 interface TaskViewProps {
   projectId: string
+  onBack?: () => void
 }
 
 const getStatusIcon = (status: TaskStatus) => {
@@ -102,11 +103,13 @@ const getPriorityIcon = (priority: Priority) => {
 
 type ViewMode = 'list' | 'kanban'
 
-export function TaskView({ projectId }: TaskViewProps) {
+export function TaskView({ projectId, onBack }: TaskViewProps) {
   const { projects, createTask, updateTask, deleteTask } = useProjects()
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+  const [isClosingPanel, setIsClosingPanel] = useState(false)
+  const [closingTask, setClosingTask] = useState<any>(null)
   const [newTask, setNewTask] = useState({
     title: '',
     description: '',
@@ -142,18 +145,20 @@ export function TaskView({ projectId }: TaskViewProps) {
       // Make the API call - the context already handles optimistic updates
       await updateTask(projectId, taskId, { status })
     } catch (error) {
-      console.error('Failed to update task status:', error)
+      logger.error('Failed to update task status', {
+        component: 'TaskView',
+        action: 'updateTaskStatus',
+        taskId,
+        status,
+        projectId,
+      }, error as Error)
       // The context will handle rollback if needed
     }
   }
 
   const handleDeleteTask = async (taskId: string, taskTitle: string) => {
     if (confirm(`Are you sure you want to delete the task "${taskTitle}"? This action cannot be undone.`)) {
-      try {
-        await deleteTask(projectId, taskId)
-      } catch (error) {
-        console.error('Failed to delete task:', error)
-      }
+      await deleteTask(projectId, taskId)
     }
   }
 
@@ -167,63 +172,53 @@ export function TaskView({ projectId }: TaskViewProps) {
 
   return (
     <div className="flex h-full bg-background">
-      <div className={cn("flex-1 flex flex-col", selectedTaskId && "mr-96")}>
+      <div className={cn("flex-1 flex flex-col transition-all duration-300 ease-in-out", (selectedTaskId || isClosingPanel) && "mr-96")}>
         {/* Header */}
       <div className="border-b px-6 py-4">
-        <div className="flex items-center gap-4 mb-4">
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div>
-            <h1 className="text-xl font-semibold">{project.name}</h1>
-            <p className="text-sm text-muted-foreground">
-              {project.tasks.length} {project.tasks.length === 1 ? 'task' : 'tasks'}
-            </p>
-          </div>
-        </div>
-
-        {/* View Mode Tabs */}
-        <div className="flex items-center gap-1 mb-4">
-          <div className="inline-flex h-9 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground">
-            <button
-              onClick={() => setViewMode('list')}
-              className={cn(
-                "inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                viewMode === 'list' && "bg-background text-foreground shadow-sm"
-              )}
-            >
-              <List className="h-4 w-4 mr-2" />
-              List
-            </button>
-            <button
-              onClick={() => setViewMode('kanban')}
-              className={cn(
-                "inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                viewMode === 'kanban' && "bg-background text-foreground shadow-sm"
-              )}
-            >
-              <Kanban className="h-4 w-4 mr-2" />
-              Board
-            </button>
-          </div>
-        </div>
-
         <div className="flex items-center justify-between">
-          <div className="relative">
-            <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search tasks..."
-              className="pl-8 w-64"
-            />
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={onBack}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div>
+              <h1 className="text-xl font-semibold">{project.name}</h1>
+              <p className="text-sm text-muted-foreground mt-1">
+                {project.tasks.length} {project.tasks.length === 1 ? 'task' : 'tasks'}
+              </p>
+            </div>
           </div>
           
-          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm">
-                <Plus className="h-4 w-4 mr-2" />
-                New task
-              </Button>
-            </DialogTrigger>
+          <div className="flex items-center gap-2">
+            <div className="inline-flex h-9 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground">
+              <button
+                onClick={() => setViewMode('list')}
+                className={cn(
+                  "inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                  viewMode === 'list' && "bg-background text-foreground shadow-sm"
+                )}
+              >
+                <List className="h-4 w-4 mr-2" />
+                List
+              </button>
+              <button
+                onClick={() => setViewMode('kanban')}
+                className={cn(
+                  "inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                  viewMode === 'kanban' && "bg-background text-foreground shadow-sm"
+                )}
+              >
+                <Kanban className="h-4 w-4 mr-2" />
+                Board
+              </button>
+            </div>
+            
+            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm">
+                  <Plus className="h-4 w-4 mr-2" />
+                  New task
+                </Button>
+              </DialogTrigger>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
                 <DialogTitle>Create new task</DialogTitle>
@@ -286,12 +281,13 @@ export function TaskView({ projectId }: TaskViewProps) {
                 </div>
               </form>
             </DialogContent>
-          </Dialog>
+            </Dialog>
+          </div>
         </div>
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-hidden">
         {project.tasks.length === 0 ? (
           <div className="flex h-full items-center justify-center">
             <div className="text-center">
@@ -311,122 +307,138 @@ export function TaskView({ projectId }: TaskViewProps) {
             </div>
           </div>
         ) : viewMode === 'kanban' ? (
-          <div className="px-6 pb-6">
+          <div className="h-full overflow-auto px-6 pb-6">
             <KanbanBoard 
               tasks={project.tasks} 
               onTaskStatusChange={(taskId, newStatus) => handleStatusChange(taskId, newStatus)}
+              onTaskClick={(taskId) => setSelectedTaskId(selectedTaskId === taskId ? null : taskId)}
+              selectedTaskId={selectedTaskId}
             />
           </div>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow className="border-b">
-                <TableHead className="w-[40px]"></TableHead>
-                <TableHead>Task</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Priority</TableHead>
-                <TableHead>Due date</TableHead>
-                <TableHead className="w-[40px]"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {project.tasks.map((task) => {
-                return (
-                  <TableRow 
-                    key={task.id}
-                    className="cursor-pointer hover:bg-muted/50 border-b"
-                    onClick={() => setSelectedTaskId(task.id)}
-                  >
-                    <TableCell>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          const newStatus = task.status === TaskStatus.COMPLETED 
-                            ? TaskStatus.BACKLOG 
-                            : TaskStatus.COMPLETED
-                          handleStatusChange(task.id, newStatus)
-                        }}
-                        className="flex items-center justify-center hover:scale-110 transition-transform"
-                      >
-                        {getStatusIcon(task.status)}
-                      </button>
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <div className={cn(
-                          'font-medium',
-                          task.status === TaskStatus.COMPLETED && 'line-through text-muted-foreground'
-                        )}>
-                          {task.title}
-                        </div>
-                        {task.description && (
-                          <div className="text-sm text-muted-foreground">
-                            {task.description}
-                          </div>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div onClick={(e) => e.stopPropagation()}>
-                        <Select
-                          value={task.status}
-                          onValueChange={(value: TaskStatus) => handleStatusChange(task.id, value)}
-                        >
-                          <SelectTrigger className={cn("w-32 h-7 text-xs capitalize", getStatusColor(task.status))}>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value={TaskStatus.BACKLOG}>Backlog</SelectItem>
-                            <SelectItem value={TaskStatus.IN_PROGRESS}>In Progress</SelectItem>
-                            <SelectItem value={TaskStatus.COMPLETED}>Completed</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className={cn('flex items-center gap-1 text-sm', getPriorityColor(task.priority))}>
-                        {getPriorityIcon(task.priority)}
-                        <span className="capitalize">{task.priority}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {task.dueDate ? (
-                        <span className="text-sm text-muted-foreground">
-                          {new Date(task.dueDate).toLocaleDateString()}
-                        </span>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">—</span>
+          <div className="h-full overflow-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-b">
+                  <TableHead className="w-[40px]"></TableHead>
+                  <TableHead>Task</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Priority</TableHead>
+                  <TableHead>Due date</TableHead>
+                  <TableHead className="w-[40px]"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {project.tasks.map((task) => {
+                  return (
+                    <TableRow 
+                      key={task.id}
+                      className={cn(
+                        "cursor-pointer hover:bg-muted/50 border-b transition-colors",
+                        selectedTaskId === task.id && "bg-muted/30 border-l-4 border-l-primary"
                       )}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleDeleteTask(task.id, task.title)
-                        }}
-                        title="Delete task"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
+                      onClick={() => setSelectedTaskId(selectedTaskId === task.id ? null : task.id)}
+                    >
+                      <TableCell>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            const newStatus = task.status === TaskStatus.COMPLETED 
+                              ? TaskStatus.BACKLOG 
+                              : TaskStatus.COMPLETED
+                            handleStatusChange(task.id, newStatus)
+                          }}
+                          className="flex items-center justify-center hover:scale-110 transition-transform"
+                        >
+                          {getStatusIcon(task.status)}
+                        </button>
+                      </TableCell>
+                      <TableCell>
+                        <div>
+                          <div className={cn(
+                            'font-medium',
+                            task.status === TaskStatus.COMPLETED && 'line-through text-muted-foreground'
+                          )}>
+                            {task.title}
+                          </div>
+                          {task.description && (
+                            <div className="text-sm text-muted-foreground">
+                              {task.description}
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <Select
+                            value={task.status}
+                            onValueChange={(value: TaskStatus) => handleStatusChange(task.id, value)}
+                          >
+                            <SelectTrigger className={cn("w-32 h-7 text-xs capitalize", getStatusColor(task.status))}>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value={TaskStatus.BACKLOG}>Backlog</SelectItem>
+                              <SelectItem value={TaskStatus.IN_PROGRESS}>In Progress</SelectItem>
+                              <SelectItem value={TaskStatus.COMPLETED}>Completed</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className={cn('flex items-center gap-1 text-sm', getPriorityColor(task.priority))}>
+                          {getPriorityIcon(task.priority)}
+                          <span className="capitalize">{task.priority}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {task.dueDate ? (
+                          <span className="text-sm text-muted-foreground">
+                            {new Date(task.dueDate).toLocaleDateString()}
+                          </span>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDeleteTask(task.id, task.title)
+                          }}
+                          title="Delete task"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          </div>
         )}
         </div>
       </div>
 
       {/* Task Detail Panel */}
-      {selectedTask && (
+      {(selectedTask || closingTask) && (
         <TaskDetailPanel
-          task={selectedTask}
+          task={selectedTask || closingTask}
           isOpen={!!selectedTaskId}
-          onClose={() => setSelectedTaskId(null)}
+          onClose={() => {
+            setIsClosingPanel(true)
+            setClosingTask(selectedTask)
+            setSelectedTaskId(null)
+            // Reset closing state after animation completes
+            setTimeout(() => {
+              setIsClosingPanel(false)
+              setClosingTask(null)
+            }, 300)
+          }}
         />
       )}
     </div>

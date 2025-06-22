@@ -32,6 +32,8 @@ import {
 interface KanbanBoardProps {
   tasks: Task[]
   onTaskStatusChange: (taskId: string, newStatus: TaskStatus) => void
+  onTaskClick?: (taskId: string) => void
+  selectedTaskId?: string | null
 }
 
 interface KanbanColumnProps {
@@ -39,10 +41,14 @@ interface KanbanColumnProps {
   status: TaskStatus
   tasks: Task[]
   count: number
+  onTaskClick?: (taskId: string) => void
+  selectedTaskId?: string | null
 }
 
 interface KanbanTaskProps {
   task: Task
+  onTaskClick?: (taskId: string) => void
+  isSelected?: boolean
 }
 
 const getStatusIcon = (status: TaskStatus) => {
@@ -97,7 +103,7 @@ const getPriorityIcon = (priority: Priority) => {
   }
 }
 
-function KanbanTask({ task }: KanbanTaskProps) {
+function KanbanTask({ task, onTaskClick, isSelected }: KanbanTaskProps) {
   const {
     attributes,
     listeners,
@@ -127,11 +133,18 @@ function KanbanTask({ task }: KanbanTaskProps) {
         isDragging && 'opacity-50'
       )}
     >
-      <Card className={cn(
-        'mb-3 border-l-4 transition-all duration-200 hover:shadow-md',
-        getPriorityColor(task.priority),
-        getStatusColor(task.status)
-      )}>
+      <Card 
+        className={cn(
+          'mb-3 border-l-4 transition-all duration-200 hover:shadow-md cursor-pointer',
+          getPriorityColor(task.priority),
+          getStatusColor(task.status),
+          isSelected && 'ring-2 ring-primary ring-offset-2 shadow-lg'
+        )}
+        onClick={(e) => {
+          e.stopPropagation()
+          onTaskClick?.(task.id)
+        }}
+      >
         <CardContent className="p-4">
           <div className="flex items-start justify-between mb-2">
             <div className="flex items-center gap-2">
@@ -176,7 +189,7 @@ function KanbanTask({ task }: KanbanTaskProps) {
   )
 }
 
-function KanbanColumn({ title, status, tasks, count }: KanbanColumnProps) {
+function KanbanColumn({ title, status, tasks, count, onTaskClick, selectedTaskId }: KanbanColumnProps) {
   const taskIds = tasks.map(task => task.id)
   
   const { setNodeRef, isOver } = useDroppable({
@@ -205,7 +218,12 @@ function KanbanColumn({ title, status, tasks, count }: KanbanColumnProps) {
           <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
             <div className="space-y-0">
               {tasks.map((task) => (
-                <KanbanTask key={task.id} task={task} />
+                <KanbanTask 
+                  key={task.id} 
+                  task={task} 
+                  onTaskClick={onTaskClick}
+                  isSelected={selectedTaskId === task.id}
+                />
               ))}
             </div>
           </SortableContext>
@@ -221,7 +239,7 @@ function KanbanColumn({ title, status, tasks, count }: KanbanColumnProps) {
   )
 }
 
-export function KanbanBoard({ tasks, onTaskStatusChange }: KanbanBoardProps) {
+export function KanbanBoard({ tasks, onTaskStatusChange, onTaskClick, selectedTaskId }: KanbanBoardProps) {
   const [activeTask, setActiveTask] = useState<Task | null>(null)
   const [optimisticTasks, setOptimisticTasks] = useState<Task[]>(tasks)
   
@@ -287,6 +305,8 @@ export function KanbanBoard({ tasks, onTaskStatusChange }: KanbanBoardProps) {
             status={TaskStatus.BACKLOG}
             tasks={backlogTasks}
             count={backlogTasks.length}
+            onTaskClick={onTaskClick}
+            selectedTaskId={selectedTaskId}
           />
         </Card>
         
@@ -296,6 +316,8 @@ export function KanbanBoard({ tasks, onTaskStatusChange }: KanbanBoardProps) {
             status={TaskStatus.IN_PROGRESS}
             tasks={inProgressTasks}
             count={inProgressTasks.length}
+            onTaskClick={onTaskClick}
+            selectedTaskId={selectedTaskId}
           />
         </Card>
         
@@ -305,6 +327,8 @@ export function KanbanBoard({ tasks, onTaskStatusChange }: KanbanBoardProps) {
             status={TaskStatus.COMPLETED}
             tasks={completedTasks}
             count={completedTasks.length}
+            onTaskClick={onTaskClick}
+            selectedTaskId={selectedTaskId}
           />
         </Card>
       </div>

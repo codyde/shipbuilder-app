@@ -1,18 +1,32 @@
 import express from 'express';
 import { databaseService } from '../db/database-service.js';
 import { CreateProjectInput, CreateTaskInput, CreateCommentInput } from '../../src/types/types.js';
+import { logger } from '../lib/logger.js';
 
 export const projectRoutes = express.Router();
 
 // Projects
 projectRoutes.get('/', async (req, res) => {
+  const startTime = Date.now();
   try {
     if (!req.user) {
       return res.status(401).json({ error: 'Authentication required' });
     }
+    
     const projects = await databaseService.getProjects(req.user.id);
+    
+    logger.debug('Projects fetched successfully', {
+      userId: req.user.id,
+      projectCount: projects.length,
+      duration: Date.now() - startTime,
+    });
+    
     res.json(projects);
   } catch (error) {
+    logger.error('Failed to fetch projects', {
+      userId: req.user?.id,
+      duration: Date.now() - startTime,
+    }, error as Error);
     res.status(500).json({ error: 'Failed to fetch projects' });
   }
 });

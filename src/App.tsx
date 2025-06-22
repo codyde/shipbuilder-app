@@ -11,6 +11,7 @@ import { ChatInterface } from '@/components/ChatInterface'
 import { CommandMenu } from '@/components/command-menu'
 import { LoginScreen } from '@/components/LoginScreen'
 import { LoadingAnimation } from '@/components/ui/loading-animation'
+import { SidebarInset } from '@/components/ui/sidebar'
 
 type View = 'all-issues' | 'active' | 'backlog' | 'archived' | 'project' | 'tasks' | 'settings'
 
@@ -87,7 +88,7 @@ function AppContent() {
   // Show main app if authenticated
   return (
     <ProjectProvider>
-      <SidebarProvider defaultOpen={true}>
+      <SidebarProvider defaultOpen={true} className="sidebar-enhanced-transitions">
         <div className="flex h-screen w-full">
           <AppSidebar 
             currentView={currentView}
@@ -95,17 +96,20 @@ function AppContent() {
             onProjectSelect={handleProjectSelect}
             onChatToggle={() => setChatOpen(!chatOpen)}
           />
-          <main className="flex-1 overflow-hidden">
+          <SidebarInset>
             {currentView === 'tasks' && selectedProjectId ? (
-              <TaskView projectId={selectedProjectId} />
+              <TaskView 
+                projectId={selectedProjectId} 
+                onBack={() => handleViewChange('all-issues')} 
+              />
             ) : currentView === 'settings' ? (
               <SettingsView />
             ) : (
               <ProjectView view={currentView} onProjectSelect={handleProjectSelect} />
             )}
-          </main>
+          </SidebarInset>
         </div>
-        {chatOpen && <ChatInterface />}
+        {chatOpen && <ChatInterface onClose={() => setChatOpen(false)} />}
         <CommandMenu 
           open={commandMenuOpen} 
           onOpenChange={setCommandMenuOpen} 

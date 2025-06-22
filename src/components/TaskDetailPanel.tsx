@@ -34,6 +34,7 @@ import { Task, TaskStatus, Priority, Comment } from '@/types/types'
 import { useProjects } from '@/context/ProjectContext'
 import { useAuth } from '@/context/AuthContext'
 import { cn } from '@/lib/utils'
+import { logger } from '@/lib/logger'
 
 interface TaskDetailPanelProps {
   task: Task
@@ -102,6 +103,8 @@ export function TaskDetailPanel({ task, isOpen, onClose }: TaskDetailPanelProps)
   const { updateTask } = useProjects()
   const { user } = useAuth()
   const [editingField, setEditingField] = useState<string | null>(null)
+  const [isExiting, setIsExiting] = useState(false)
+  const [shouldRender, setShouldRender] = useState(isOpen)
   const [editValues, setEditValues] = useState({
     title: task.title,
     description: task.description || '',
@@ -124,6 +127,23 @@ export function TaskDetailPanel({ task, isOpen, onClose }: TaskDetailPanelProps)
     })
     setComments(task.comments || [])
   }, [task])
+
+  // Handle opening and closing animations
+  useEffect(() => {
+    if (isOpen) {
+      setShouldRender(true)
+      setIsExiting(false)
+    } else if (shouldRender) {
+      // Start exit animation
+      setIsExiting(true)
+      // Remove from DOM after animation completes
+      const timer = setTimeout(() => {
+        setShouldRender(false)
+        setIsExiting(false)
+      }, 250) // Match the exit animation duration
+      return () => clearTimeout(timer)
+    }
+  }, [isOpen, shouldRender])
 
   const handleSave = async (field: string) => {
     const updates: Partial<Task> = {}
@@ -187,28 +207,74 @@ export function TaskDetailPanel({ task, isOpen, onClose }: TaskDetailPanelProps)
 
   const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newComment.trim()) return
+    if (!newComment.trim() || !user) return
+
+    const commentContent = newComment.trim()
+    const authorName = user.name
+    
+    // Create optimistic comment
+    const optimisticComment: Comment = {
+      id: `temp-${Date.now()}-${Math.random()}`,
+      taskId: task.id,
+      content: commentContent,
+      author: authorName,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+
+    logger.userAction('add_comment', 'TaskDetailPanel', {
+      taskId: task.id,
+      projectId: task.projectId,
+      author: authorName,
+      contentLength: commentContent.length
+    })
+
+    // Optimistically add comment to UI
+    setComments(prev => [...prev, optimisticComment])
+    setNewComment('')
 
     try {
       const response = await fetch(`/api/projects/${task.projectId}/tasks/${task.id}/comments`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-id': user?.id || '',
+          'x-user-id': user.id,
         },
         body: JSON.stringify({
-          content: newComment.trim(),
-          author: 'Current User', // Replace with actual user
+          content: commentContent,
+          author: authorName,
         }),
       })
 
       if (response.ok) {
-        const comment = await response.json()
-        setComments(prev => [...prev, comment])
-        setNewComment('')
+        const actualComment = await response.json()
+        // Replace optimistic comment with actual comment from server
+        setComments(prev => prev.map(c => 
+          c.id === optimisticComment.id ? actualComment : c
+        ))
+        logger.info('Comment added successfully', {
+          component: 'TaskDetailPanel',
+          action: 'addComment',
+          taskId: task.id,
+          projectId: task.projectId,
+          commentId: actualComment.id,
+          author: authorName
+        })
+      } else {
+        throw new Error(`HTTP error! status: ${response.status}`)
       }
     } catch (error) {
-      console.error('Failed to add comment:', error)
+      // Rollback: remove optimistic comment
+      setComments(prev => prev.filter(c => c.id !== optimisticComment.id))
+      setNewComment(commentContent) // Restore the comment text
+      
+      logger.error('Failed to add comment - rolled back', {
+        component: 'TaskDetailPanel',
+        action: 'addComment',
+        taskId: task.id,
+        projectId: task.projectId,
+        author: authorName
+      }, error as Error)
     }
   }
 
@@ -265,7 +331,13 @@ export function TaskDetailPanel({ task, isOpen, onClose }: TaskDetailPanelProps)
         await updateTask(task.projectId, task.id, { details: accumulatedText })
       }
     } catch (error) {
-      console.error('Failed to generate details:', error)
+      logger.error('Failed to generate task details', {
+        component: 'TaskDetailPanel',
+        action: 'generateDetails',
+        taskId: task.id,
+        projectId: task.projectId,
+        prompt,
+      }, error as Error)
     } finally {
       setIsGeneratingDetails(false)
     }
@@ -297,22 +369,26 @@ export function TaskDetailPanel({ task, isOpen, onClose }: TaskDetailPanelProps)
     }
   }
 
-  if (!isOpen) return null
+  const handleClose = () => {
+    onClose() // Let the useEffect handle the animation
+  }
+
+  if (!shouldRender) return null
 
   return (
-    <div className="fixed inset-y-0 right-0 w-96 bg-background border-l shadow-lg z-50 flex flex-col">
+    <div className={`fixed inset-y-0 right-0 w-96 bg-background border-l shadow-lg z-50 flex flex-col ${isExiting ? 'task-panel-exit' : 'task-panel-enter'}`}>
       {/* Header */}
       <div className="p-4 border-b">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Task Details</h2>
-          <Button variant="ghost" size="sm" onClick={onClose}>
+          <Button variant="ghost" size="sm" onClick={handleClose}>
             <X className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-6">
+      <div className="flex-1 overflow-y-auto p-4 space-y-6 task-content-animate">
         {/* Title */}
         <div>
           <Label className="text-sm font-medium">Title</Label>
@@ -508,11 +584,12 @@ export function TaskDetailPanel({ task, isOpen, onClose }: TaskDetailPanelProps)
               <Textarea
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
-                placeholder="Add a comment..."
+                placeholder={user ? "Add a comment..." : "Please log in to add comments"}
                 rows={3}
+                disabled={!user}
               />
               <div className="flex justify-end">
-                <Button type="submit" size="sm" disabled={!newComment.trim()}>
+                <Button type="submit" size="sm" disabled={!newComment.trim() || !user}>
                   <Send className="h-4 w-4 mr-2" />
                   Comment
                 </Button>

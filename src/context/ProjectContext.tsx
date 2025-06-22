@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
 import { Project, Task, CreateProjectInput, CreateTaskInput } from '@/types/types';
+import { logger } from '@/lib/logger';
 
 interface ProjectState {
   projects: Project[];
@@ -99,7 +100,10 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(projectReducer, initialState);
 
   const apiCall = async (url: string, options: RequestInit = {}) => {
+    const startTime = performance.now();
     const userId = localStorage.getItem('userId');
+    const method = options.method || 'GET';
+    
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
@@ -108,19 +112,37 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       headers['x-user-id'] = userId;
     }
 
-    const response = await fetch(url, {
-      headers: {
-        ...headers,
-        ...options.headers,
-      },
-      ...options,
-    });
+    try {
+      const response = await fetch(url, {
+        headers: {
+          ...headers,
+          ...options.headers,
+        },
+        ...options,
+      });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const duration = performance.now() - startTime;
+      
+      // Log the API call
+      logger.apiCall(method, url, response.status, duration, {
+        component: 'ProjectContext',
+        userId,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      const duration = performance.now() - startTime;
+      logger.apiCall(method, url, undefined, duration, {
+        component: 'ProjectContext',
+        userId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
     }
-
-    return response.json();
   };
 
   const refreshProjects = async () => {
@@ -164,16 +186,34 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     // Find the project before deleting for potential rollback
     const projectToDelete = state.projects.find(p => p.id === id);
     
+    logger.userAction('delete_project', 'ProjectContext', {
+      projectId: id,
+      projectName: projectToDelete?.name,
+      tasksCount: projectToDelete?.tasks.length
+    });
+    
     // Optimistically remove from UI
     dispatch({ type: 'DELETE_PROJECT', payload: id });
     
     try {
       await apiCall(`/api/projects/${id}`, { method: 'DELETE' });
+      logger.info('Project deleted successfully', {
+        component: 'ProjectContext',
+        action: 'deleteProject',
+        projectId: id,
+        projectName: projectToDelete?.name
+      });
     } catch (error) {
       // Rollback: re-add the project if API call fails
       if (projectToDelete) {
         dispatch({ type: 'ADD_PROJECT', payload: projectToDelete });
       }
+      logger.error('Failed to delete project - rolled back', {
+        component: 'ProjectContext',
+        action: 'deleteProject',
+        projectId: id,
+        projectName: projectToDelete?.name
+      }, error as Error);
       dispatch({ type: 'SET_ERROR', payload: error instanceof Error ? error.message : 'Failed to delete project' });
     }
   };
@@ -203,10 +243,40 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   };
 
   const deleteTask = async (projectId: string, taskId: string) => {
+    // Find the task before deleting for potential rollback
+    const project = state.projects.find(p => p.id === projectId);
+    const taskToDelete = project?.tasks.find(t => t.id === taskId);
+    
+    logger.userAction('delete_task', 'ProjectContext', {
+      projectId,
+      taskId,
+      taskTitle: taskToDelete?.title
+    });
+    
+    // Optimistically remove from UI
+    dispatch({ type: 'DELETE_TASK', payload: { projectId, taskId } });
+    
     try {
       await apiCall(`/api/projects/${projectId}/tasks/${taskId}`, { method: 'DELETE' });
-      dispatch({ type: 'DELETE_TASK', payload: { projectId, taskId } });
+      logger.info('Task deleted successfully', {
+        component: 'ProjectContext',
+        action: 'deleteTask',
+        projectId,
+        taskId,
+        taskTitle: taskToDelete?.title
+      });
     } catch (error) {
+      // Rollback: re-add the task if API call fails
+      if (taskToDelete) {
+        dispatch({ type: 'ADD_TASK', payload: { projectId, task: taskToDelete } });
+      }
+      logger.error('Failed to delete task - rolled back', {
+        component: 'ProjectContext',
+        action: 'deleteTask',
+        projectId,
+        taskId,
+        taskTitle: taskToDelete?.title
+      }, error as Error);
       dispatch({ type: 'SET_ERROR', payload: error instanceof Error ? error.message : 'Failed to delete task' });
     }
   };

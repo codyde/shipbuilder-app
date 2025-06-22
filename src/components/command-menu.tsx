@@ -18,6 +18,7 @@ import {
   Archive
 } from 'lucide-react'
 import { useProjects } from '@/context/ProjectContext'
+import { logger } from '@/lib/logger'
 
 interface CommandMenuProps {
   open: boolean
@@ -128,14 +129,14 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
         <CommandGroup heading="Other">
           <CommandItem onSelect={() => runCommand(() => {
             // Open settings
-            console.log('Open settings')
+            logger.userAction('open_settings', 'CommandMenu')
           })}>
             <Settings className="mr-2 h-4 w-4" />
             <span>Settings</span>
           </CommandItem>
           <CommandItem onSelect={() => runCommand(() => {
             // Open help
-            console.log('Open help')
+            logger.userAction('open_help', 'CommandMenu')
           })}>
             <HelpCircle className="mr-2 h-4 w-4" />
             <span>Help</span>

@@ -67,6 +67,120 @@ input, select, textarea, [role="combobox"] {
   outline-offset: 2px;
 }
 
+/* Sidebar animations */
+@keyframes sidebar-slide-in {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes sidebar-slide-out {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+}
+
+/* Enhanced sidebar transitions */
+.sidebar-enhanced-transitions {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sidebar-enhanced-transitions [data-slot="sidebar-container"] {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), 
+              width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              left 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sidebar-enhanced-transitions [data-slot="sidebar-gap"] {
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Improve icon mode transitions */
+.sidebar-enhanced-transitions [data-sidebar="menu-button"] {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sidebar-enhanced-transitions [data-sidebar="group-label"] {
+  transition: margin 0.3s cubic-bezier(0.4, 0, 0.2, 1), 
+              opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Task detail panel animations */
+@keyframes task-panel-slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+    box-shadow: none;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+    box-shadow: -8px 0 32px rgba(0, 0, 0, 0.1);
+  }
+}
+
+@keyframes task-panel-slide-out {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+    box-shadow: -8px 0 32px rgba(0, 0, 0, 0.1);
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+    box-shadow: none;
+  }
+}
+
+.task-panel-enter {
+  animation: task-panel-slide-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.task-panel-exit {
+  animation: task-panel-slide-out 0.25s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+/* Task panel content animations */
+@keyframes task-content-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.task-content-animate {
+  animation: task-content-fade-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both;
+}
+
+/* Backdrop overlay animation */
+@keyframes backdrop-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.task-panel-backdrop {
+  animation: backdrop-fade-in 0.2s ease-out forwards;
+}
+
 /* Chat interface animations */
 @keyframes chat-appear {
   0% {
@@ -177,6 +291,10 @@ input, select, textarea, [role="combobox"] {
 
 :root {
   --radius: 0.625rem;
+  /* Sidebar width variables for animations */
+  --sidebar-width: 16rem;
+  --sidebar-width-icon: 3rem;
+  --sidebar-width-mobile: 18rem;
   /* Force dark mode values */
   --background: oklch(0.089 0 0);
   --foreground: oklch(0.985 0 0);

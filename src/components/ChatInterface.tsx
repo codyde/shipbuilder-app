@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { X, MessageCircle, Send, ChevronDown } from 'lucide-react';
+import { X, MessageCircle, Send, ChevronDown, GripHorizontal } from 'lucide-react';
+import { useDraggable } from '@/hooks/useDraggable';
 
 interface ChatMessageProps {
   message: {
@@ -69,6 +70,18 @@ export function ChatInterface({ className = '', onClose }: ChatInterfaceProps) {
   const { user } = useAuth();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Initialize draggable functionality with position persistence
+  const { ref: dragRef, handleMouseDown, style: dragStyle } = useDraggable({
+    initialPosition: { x: window.innerWidth - 400, y: 100 },
+    storageKey: 'chat-window-position',
+    bounds: {
+      left: 0,
+      top: 0,
+      right: window.innerWidth,
+      bottom: window.innerHeight,
+    },
+  });
+
   const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
     api: '/api/chat/stream',
     headers: {
@@ -124,11 +137,18 @@ export function ChatInterface({ className = '', onClose }: ChatInterfaceProps) {
   };
 
   return (
-    <div className={`fixed top-0 right-0 z-50 h-full w-96 ${className}`}>
+    <div 
+      ref={dragRef}
+      style={dragStyle}
+      className={`w-96 h-[600px] ${className}`}
+    >
       {/* Chat Window */}
-      <div className="h-full bg-background shadow-xl border-l flex flex-col">
+      <div className="h-full bg-background shadow-2xl border rounded-lg flex flex-col overflow-hidden">
           {/* Header */}
-          <div className="p-4 border-b bg-muted/50">
+          <div 
+            className="p-4 border-b bg-muted/50 cursor-grab active:cursor-grabbing"
+            onMouseDown={handleMouseDown}
+          >
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center">
@@ -139,14 +159,17 @@ export function ChatInterface({ className = '', onClose }: ChatInterfaceProps) {
                   <p className="text-muted-foreground text-xs">Online</p>
                 </div>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleCollapse}
-                className="h-8 w-8 p-0"
-              >
-                <X className="h-4 w-4" />
-              </Button>
+              <div className="flex items-center gap-2">
+                <GripHorizontal className="w-4 h-4 text-muted-foreground" />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleCollapse}
+                  className="h-8 w-8 p-0"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </div>
 

@@ -28,11 +28,9 @@ import {
 import { 
   Plus, 
   Circle, 
-  MoreHorizontal,
-  Filter,
-  Search,
-  ChevronDown,
-  Trash2
+  Trash2,
+  Settings,
+  Edit
 } from 'lucide-react'
 import { useProjects } from '@/context/ProjectContext'
 import { TaskStatus, ProjectStatus } from '@/types/types'
@@ -72,30 +70,16 @@ const getStatusIcon = (status: string) => {
 export function ProjectView({ view, onProjectSelect }: ProjectViewProps) {
   const { projects, createProject, updateProject, deleteProject, loading } = useProjects()
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
-  const [activeDropdown, setActiveDropdown] = useState<string | null>(null)
+  const [manageDialogOpen, setManageDialogOpen] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
-  const [projectToDelete, setProjectToDelete] = useState<{ id: string; name: string } | null>(null)
+  const [projectToManage, setProjectToManage] = useState<{ id: string; name: string; description?: string } | null>(null)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [editingName, setEditingName] = useState('')
   const [newProject, setNewProject] = useState({
     name: '',
     description: '',
   })
-  const dropdownRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setActiveDropdown(null)
-      }
-    }
-
-    if (activeDropdown) {
-      document.addEventListener('mousedown', handleClickOutside)
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [activeDropdown])
 
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -124,17 +108,33 @@ export function ProjectView({ view, onProjectSelect }: ProjectViewProps) {
     }
   }
 
-  const handleDeleteProject = (projectId: string, projectName: string) => {
-    setProjectToDelete({ id: projectId, name: projectName })
-    setDeleteConfirmOpen(true)
-    setActiveDropdown(null)
+  const handleManageProject = (project: { id: string; name: string; description?: string }) => {
+    setProjectToManage(project)
+    setEditingName(project.name)
+    setManageDialogOpen(true)
+  }
+
+  const handleUpdateProjectName = async () => {
+    if (projectToManage && editingName.trim() && editingName.trim() !== projectToManage.name) {
+      await updateProject(projectToManage.id, { name: editingName.trim() })
+      setProjectToManage(prev => prev ? { ...prev, name: editingName.trim() } : null)
+    }
+  }
+
+  const handleDeleteProject = () => {
+    if (projectToManage) {
+      setDeleteConfirmOpen(true)
+      setDeleteConfirmText('')
+    }
   }
 
   const confirmDeleteProject = async () => {
-    if (projectToDelete) {
-      await deleteProject(projectToDelete.id)
+    if (projectToManage && deleteConfirmText === projectToManage.name) {
+      await deleteProject(projectToManage.id)
       setDeleteConfirmOpen(false)
-      setProjectToDelete(null)
+      setManageDialogOpen(false)
+      setProjectToManage(null)
+      setDeleteConfirmText('')
     }
   }
 
@@ -179,12 +179,6 @@ export function ProjectView({ view, onProjectSelect }: ProjectViewProps) {
           </div>
           
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm">
-              <Filter className="h-4 w-4 mr-2" />
-              Filter
-              <ChevronDown className="h-4 w-4 ml-2" />
-            </Button>
-            
             <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
               <DialogTrigger asChild>
                 <Button size="sm">
@@ -231,20 +225,10 @@ export function ProjectView({ view, onProjectSelect }: ProjectViewProps) {
           </div>
         </div>
 
-        {/* Search and filters */}
-        <div className="flex items-center gap-2 mt-4">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search projects..."
-              className="pl-8"
-            />
-          </div>
-        </div>
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-hidden">
         {filteredProjects.length === 0 ? (
           <div className="flex h-full items-center justify-center">
             <div className="text-center">
@@ -264,128 +248,160 @@ export function ProjectView({ view, onProjectSelect }: ProjectViewProps) {
             </div>
           </div>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow className="border-b">
-                <TableHead className="w-[40px]"></TableHead>
-                <TableHead>Project</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Tasks</TableHead>
-                <TableHead>Progress</TableHead>
-                <TableHead>Updated</TableHead>
-                <TableHead className="w-[40px]"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredProjects.map((project) => {
-                const completedTasks = project.tasks.filter(task => task.status === TaskStatus.COMPLETED).length
-                const totalTasks = project.tasks.length
-                const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
+          <div className="h-full overflow-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-b">
+                  <TableHead className="w-[40px]"></TableHead>
+                  <TableHead>Project</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Tasks</TableHead>
+                  <TableHead>Progress</TableHead>
+                  <TableHead>Updated</TableHead>
+                  <TableHead className="w-[80px]"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredProjects.map((project) => {
+                  const completedTasks = project.tasks.filter(task => task.status === TaskStatus.COMPLETED).length
+                  const totalTasks = project.tasks.length
+                  const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
 
-                return (
-                  <TableRow 
-                    key={project.id}
-                    className="cursor-pointer hover:bg-muted/50 border-b"
-                    onClick={() => onProjectSelect(project.id)}
-                  >
-                    <TableCell>
-                      <div className="flex items-center justify-center">
-                        {getStatusIcon(project.status)}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">{project.name}</div>
-                        {project.description && (
-                          <div className="text-sm text-muted-foreground">
-                            {project.description}
-                          </div>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      <Select
-                        value={project.status}
-                        onValueChange={(value: ProjectStatus) => handleStatusChange(project.id, value)}
-                      >
-                        <SelectTrigger className={cn(
-                          "w-fit h-auto py-1 px-2 border-none bg-transparent hover:bg-muted/50 text-sm capitalize",
-                          getStatusColor(project.status)
-                        )}>
-                          <SelectValue>
-                            {project.status.replace('_', ' ')}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={ProjectStatus.ACTIVE}>Active</SelectItem>
-                          <SelectItem value={ProjectStatus.BACKLOG}>Backlog</SelectItem>
-                          <SelectItem value={ProjectStatus.COMPLETED}>Completed</SelectItem>
-                          <SelectItem value={ProjectStatus.ARCHIVED}>Archived</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-sm">
-                        {totalTasks === 0 ? '—' : `${completedTasks}/${totalTasks}`}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
-                          <div 
-                            className="h-full bg-primary rounded-full transition-all"
-                            style={{ width: `${progress}%` }}
-                          />
+                  return (
+                    <TableRow 
+                      key={project.id}
+                      className="cursor-pointer hover:bg-muted/50 border-b"
+                      onClick={() => onProjectSelect(project.id)}
+                    >
+                      <TableCell>
+                        <div className="flex items-center justify-center">
+                          {getStatusIcon(project.status)}
                         </div>
-                        <span className="text-xs text-muted-foreground w-8">
-                          {progress}%
+                      </TableCell>
+                      <TableCell>
+                        <div>
+                          <div className="font-medium">{project.name}</div>
+                          {project.description && (
+                            <div className="text-sm text-muted-foreground">
+                              {project.description}
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <Select
+                          value={project.status}
+                          onValueChange={(value: ProjectStatus) => handleStatusChange(project.id, value)}
+                        >
+                          <SelectTrigger className={cn(
+                            "w-fit h-auto py-1 px-2 border-none bg-transparent hover:bg-muted/50 text-sm capitalize",
+                            getStatusColor(project.status)
+                          )}>
+                            <SelectValue>
+                              {project.status.replace('_', ' ')}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={ProjectStatus.ACTIVE}>Active</SelectItem>
+                            <SelectItem value={ProjectStatus.BACKLOG}>Backlog</SelectItem>
+                            <SelectItem value={ProjectStatus.COMPLETED}>Completed</SelectItem>
+                            <SelectItem value={ProjectStatus.ARCHIVED}>Archived</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm">
+                          {totalTasks === 0 ? '—' : `${completedTasks}/${totalTasks}`}
                         </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-sm text-muted-foreground">
-                        {new Date(project.updatedAt).toLocaleDateString()}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="relative">
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-primary rounded-full transition-all"
+                              style={{ width: `${progress}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-muted-foreground w-8">
+                            {progress}%
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm text-muted-foreground">
+                          {new Date(project.updatedAt).toLocaleDateString()}
+                        </span>
+                      </TableCell>
+                      <TableCell>
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-6 w-6 p-0"
+                          className="h-7 px-2 text-xs"
                           onClick={(e) => {
                             e.stopPropagation()
-                            setActiveDropdown(activeDropdown === project.id ? null : project.id)
+                            handleManageProject({ 
+                              id: project.id, 
+                              name: project.name, 
+                              description: project.description 
+                            })
                           }}
                         >
-                          <MoreHorizontal className="h-4 w-4" />
+                          <Settings className="h-3 w-3 mr-1" />
+                          Manage
                         </Button>
-                        {activeDropdown === project.id && (
-                          <div 
-                            ref={dropdownRef}
-                            className="absolute right-0 top-8 z-50 min-w-[180px] rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
-                          >
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleDeleteProject(project.id, project.name)
-                              }}
-                              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-destructive/10 hover:text-destructive text-left"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              Delete project
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          </div>
         )}
       </div>
+
+      {/* Project Management Dialog */}
+      <Dialog open={manageDialogOpen} onOpenChange={setManageDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Manage Project</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="edit-name">Project Name</Label>
+              <div className="flex gap-2 mt-1">
+                <Input
+                  id="edit-name"
+                  value={editingName}
+                  onChange={(e) => setEditingName(e.target.value)}
+                  placeholder="Enter project name..."
+                />
+                <Button 
+                  size="sm" 
+                  onClick={handleUpdateProjectName}
+                  disabled={!editingName.trim() || editingName.trim() === projectToManage?.name}
+                >
+                  <Edit className="h-4 w-4 mr-1" />
+                  Update
+                </Button>
+              </div>
+            </div>
+            
+            <div className="pt-4 border-t">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-destructive">Danger Zone</Label>
+                <Button 
+                  variant="destructive" 
+                  onClick={handleDeleteProject}
+                  className="w-full"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Project
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
@@ -394,15 +410,28 @@ export function ProjectView({ view, onProjectSelect }: ProjectViewProps) {
             <DialogTitle>Delete Project</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Are you sure you want to delete <strong>"{projectToDelete?.name}"</strong>? 
-              This action cannot be undone and will permanently remove the project and all its tasks.
-            </p>
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">
+                This action cannot be undone. This will permanently delete the project <strong>"{projectToManage?.name}"</strong> and all its tasks.
+              </p>
+              <p className="text-sm font-medium">
+                To confirm, type the project name exactly: <code className="bg-muted px-1 rounded text-xs">{projectToManage?.name}</code>
+              </p>
+            </div>
+            <Input
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              placeholder="Type project name to confirm..."
+              autoFocus
+            />
             <div className="flex justify-end gap-2">
               <Button 
                 type="button" 
                 variant="outline" 
-                onClick={() => setDeleteConfirmOpen(false)}
+                onClick={() => {
+                  setDeleteConfirmOpen(false)
+                  setDeleteConfirmText('')
+                }}
               >
                 Cancel
               </Button>
@@ -410,6 +439,7 @@ export function ProjectView({ view, onProjectSelect }: ProjectViewProps) {
                 type="button" 
                 variant="destructive" 
                 onClick={confirmDeleteProject}
+                disabled={deleteConfirmText !== projectToManage?.name}
               >
                 Delete Project
               </Button>
