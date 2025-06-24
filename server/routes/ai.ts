@@ -341,46 +341,31 @@ Respond with a JSON object in this exact format:
 
 CRITICAL: Your response must be ONLY the JSON object, with no markdown formatting, no code blocks, no additional text before or after. Start directly with { and end with }.`;
 
-    const result = await generateText({
+    // Set headers for streaming
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Transfer-Encoding', 'chunked');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    const result = await streamText({
       model: anthropic('claude-sonnet-4-20250514'),
       experimental_telemetry: {
         isEnabled: true,
-        functionId: "generate-mvp"
+        functionId: "generate-mvp-stream"
       },
       system: systemPrompt,
       prompt: `Create an MVP plan for: ${projectIdea}`,
       maxTokens: 2000,
     });
 
-
-    // Parse the JSON response
-    let mvpPlan;
-    try {
-      let cleanedText = result.text.trim();
-      if (cleanedText.startsWith('```json')) {
-        cleanedText = cleanedText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-      } else if (cleanedText.startsWith('```')) {
-        cleanedText = cleanedText.replace(/^```\s*/, '').replace(/\s*```$/, '');
-      }
-      cleanedText = cleanedText.trim();
-      
-      mvpPlan = JSON.parse(cleanedText);
-    } catch (parseError) {
-      console.error('Failed to parse AI response:', parseError);
-      return res.status(500).json({ 
-        error: 'Failed to parse MVP plan from AI response' 
-      });
+    // Stream the text chunks to the client
+    let fullText = '';
+    for await (const chunk of result.textStream) {
+      fullText += chunk;
+      res.write(chunk);
     }
 
-    // Validate the MVP plan structure
-    if (!mvpPlan.projectName || !mvpPlan.description || !Array.isArray(mvpPlan.features) || !mvpPlan.techStack || !Array.isArray(mvpPlan.tasks)) {
-      console.error('Invalid MVP plan structure:', mvpPlan);
-      return res.status(500).json({ 
-        error: 'Generated MVP plan has invalid structure' 
-      });
-    }
-
-    res.json({ mvpPlan });
+    res.end();
   } catch (error) {
     console.error('MVP generation error:', error);
     res.status(500).json({ error: 'Failed to generate MVP plan' });

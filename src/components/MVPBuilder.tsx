@@ -6,9 +6,11 @@ import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
-import { X, Lightbulb, GripHorizontal, Loader2, Rocket } from 'lucide-react';
+import { Accordion } from '@/components/ui/accordion';
+import { X, Lightbulb, GripHorizontal, Loader2, Rocket, CheckCircle } from 'lucide-react';
 import { useDraggable } from '@/hooks/useDraggable';
 import { getApiUrl } from '@/lib/api-config';
+import { cn } from '@/lib/utils';
 
 interface MVPBuilderProps {
   className?: string;
@@ -42,9 +44,29 @@ export function MVPBuilder({ className = '', onClose }: MVPBuilderProps) {
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [creationProgress, setCreationProgress] = useState<string[]>([]);
   const [generationText, setGenerationText] = useState('');
-  const progressEndRef = useRef<HTMLDivElement>(null);
+  const [currentStatusIndex, setCurrentStatusIndex] = useState(0);
+  const [isComplete, setIsComplete] = useState(false);
+  const streamingTextRef = useRef<HTMLDivElement>(null);
+
+  // Funny status messages for creation process
+  const statusMessages = [
+    "Brewing some fresh code...",
+    "Teaching AI to organize tasks...",
+    "Assembling digital building blocks...",
+    "Sprinkling magic dust on features...",
+    "Convincing databases to cooperate...",
+    "Drawing blueprints in the cloud...",
+    "Negotiating with stubborn APIs...",
+    "Building castles in the codebase...",
+    "Herding cats... er, tasks...",
+    "Summoning the deployment demons...",
+    "Making ones and zeros dance...",
+    "Caffeinating the code monkeys...",
+    "Debugging the quantum flux...",
+    "Optimizing for maximum awesomeness...",
+    "Teaching pixels to behave..."
+  ];
 
   // Initialize draggable functionality
   const { ref: dragRef, handleMouseDown, style: dragStyle } = useDraggable({
@@ -58,16 +80,34 @@ export function MVPBuilder({ className = '', onClose }: MVPBuilderProps) {
     },
   });
 
-  // Auto-scroll to bottom during creation
-  const scrollToBottom = () => {
-    progressEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  // Auto-scroll streaming text
+  const scrollStreamingText = () => {
+    if (streamingTextRef.current) {
+      streamingTextRef.current.scrollTop = streamingTextRef.current.scrollHeight;
+    }
   };
 
+  // Cycle through status messages during creation
   useEffect(() => {
-    if (isCreating && creationProgress.length > 0) {
-      scrollToBottom();
+    let interval: NodeJS.Timeout;
+    if (isCreating && !isComplete) {
+      interval = setInterval(() => {
+        setCurrentStatusIndex(prev => (prev + 1) % statusMessages.length);
+      }, 2500); // Change message every 2.5 seconds
+    } else {
+      setCurrentStatusIndex(0); // Reset when not creating
     }
-  }, [creationProgress, isCreating]);
+    
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isCreating, isComplete, statusMessages.length]);
+
+  useEffect(() => {
+    if (generationText) {
+      scrollStreamingText();
+    }
+  }, [generationText]);
 
   const handleGenerateMVP = async () => {
     // Validation
@@ -136,13 +176,44 @@ export function MVPBuilder({ className = '', onClose }: MVPBuilderProps) {
         }
       }
 
-      const data = await response.json();
-      
-      if (!data.mvpPlan) {
-        throw new Error('Invalid response from server. Please try again.');
+      // Handle streaming response
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let fullText = '';
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value, { stream: true });
+          fullText += chunk;
+          setGenerationText(fullText);
+        }
       }
 
-      setMvpPlan(data.mvpPlan);
+      // Parse the complete JSON response
+      try {
+        let cleanedText = fullText.trim();
+        if (cleanedText.startsWith('```json')) {
+          cleanedText = cleanedText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+        } else if (cleanedText.startsWith('```')) {
+          cleanedText = cleanedText.replace(/^```\s*/, '').replace(/\s*```$/, '');
+        }
+        cleanedText = cleanedText.trim();
+        
+        const mvpPlan = JSON.parse(cleanedText);
+        
+        // Validate the MVP plan structure
+        if (!mvpPlan.projectName || !mvpPlan.description || !Array.isArray(mvpPlan.features) || !mvpPlan.techStack || !Array.isArray(mvpPlan.tasks)) {
+          throw new Error('Generated MVP plan has invalid structure');
+        }
+        
+        setMvpPlan(mvpPlan);
+        setGenerationText(''); // Clear the raw text once parsed
+      } catch (parseError) {
+        throw new Error('Failed to parse MVP plan from AI response');
+      }
 
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
@@ -161,19 +232,10 @@ export function MVPBuilder({ className = '', onClose }: MVPBuilderProps) {
       return;
     }
 
-    // Show confirmation dialog
-    const confirmed = window.confirm(
-      `Are you sure you want to create the project "${mvpPlan.projectName}"? This will create a new project with ${mvpPlan.tasks.length} tasks.`
-    );
-    
-    if (!confirmed) {
-      return;
-    }
-
     setIsCreating(true);
     setError(null);
     setSuccessMessage(null);
-    setCreationProgress([]);
+    setIsComplete(false);
 
     try {
       const token = localStorage.getItem('authToken');
@@ -182,7 +244,7 @@ export function MVPBuilder({ className = '', onClose }: MVPBuilderProps) {
       }
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
 
       const response = await fetch(getApiUrl('ai/create-mvp-project'), {
         method: 'POST',
@@ -213,96 +275,34 @@ export function MVPBuilder({ className = '', onClose }: MVPBuilderProps) {
         }
       }
 
-      // Handle streaming response for creation progress
+      // Wait for streaming to complete
       const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
       if (reader) {
+        const decoder = new TextDecoder();
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-
-          const chunk = decoder.decode(value, { stream: true });
-          buffer += chunk;
-
-          // Process complete lines
-          let lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-
-          for (const line of lines) {
-            if (line.trim()) {
-              console.log('📡 Raw stream line:', line); // Debug all lines
-              try {
-                // Parse AI SDK streaming format (same as original implementation)
-                if (line.startsWith('0:')) {
-                  const data = JSON.parse(line.slice(2));
-                  
-                  if (data.type === 'text-delta') {
-                    // AI thinking during creation
-                    const text = data.textDelta;
-                    if (text && text.trim()) {
-                      setCreationProgress(prev => {
-                        const newMessages = [...prev];
-                        const lastIndex = newMessages.length - 1;
-                        if (newMessages.length === 0 || !newMessages[lastIndex]?.startsWith('🤖')) {
-                          newMessages.push(`🤖 ${text}`);
-                        } else {
-                          newMessages[lastIndex] += text;
-                        }
-                        return newMessages;
-                      });
-                    }
-                  } else if (data.type === 'tool-call') {
-                    // Tool is being called
-                    const toolName = data.toolName;
-                    const args = data.args;
-                    console.log(`🔧 Tool Call: ${toolName}`, args);
-                    if (toolName === 'createProject') {
-                      setCreationProgress(prev => [...prev, `🚀 Creating project: "${args.name}"`]);
-                    } else if (toolName === 'createTask') {
-                      setCreationProgress(prev => [...prev, `📋 Creating task: "${args.title}"`]);
-                    }
-                  } else if (data.type === 'tool-result') {
-                    // Tool execution result
-                    const result = data.result;
-                    console.log(`✅ Tool Result: ${result.success ? 'Success' : 'Failed'}`, result.message);
-                    if (result.success) {
-                      setCreationProgress(prev => [...prev, `✅ ${result.message}`]);
-                    } else {
-                      setCreationProgress(prev => [...prev, `❌ ${result.message || result.error}`]);
-                    }
-                  }
-                } else if (line.startsWith('8:')) {
-                  // Handle finish/complete messages
-                  const data = JSON.parse(line.slice(2));
-                  console.log('🏁 MVP Creation Complete:', data);
-                }
-              } catch (e) {
-                // Skip invalid lines silently
-              }
-            }
-          }
+          // Just consume the stream without processing
+          decoder.decode(value, { stream: true });
         }
       }
       
       // Refresh projects to show the new project
       refreshProjects();
       
-      // Show success message
-      setSuccessMessage(
-        `Success! Created project "${mvpPlan.projectName}" with ${mvpPlan.tasks.length} tasks. The project is now available in your project list.`
-      );
+      // Show completion status
+      setIsComplete(true);
       
-      // Reset the form after a delay to let user see the success message
+      // Reset the form after a delay to let user see the completion
       setTimeout(() => {
         setProjectIdea('');
         setMvpPlan(null);
         setSuccessMessage(null);
-        setCreationProgress([]);
         setGenerationText('');
+        setIsComplete(false);
+        setIsCreating(false);
         onClose?.();
-      }, 4000);
+      }, 3000); // Reduced to 3 seconds
       
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
@@ -310,8 +310,7 @@ export function MVPBuilder({ className = '', onClose }: MVPBuilderProps) {
       } else {
         setError(err instanceof Error ? err.message : 'Failed to create MVP project. Please try again.');
       }
-    } finally {
-      setIsCreating(false);
+      setIsCreating(false); // Only set this in error case
     }
   };
 
@@ -447,14 +446,15 @@ export function MVPBuilder({ className = '', onClose }: MVPBuilderProps) {
                   </div>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-                    <p className="text-sm font-medium text-blue-800">Generating your MVP plan...</p>
-                  </div>
-                  {generationText && (
-                    <div className="bg-muted/30 rounded-lg p-3 max-h-32 overflow-y-auto">
-                      <p className="text-xs text-muted-foreground whitespace-pre-wrap">{generationText}</p>
+                <div className="space-y-3">
+                  {generationText ? (
+                    <div ref={streamingTextRef} className="bg-muted/30 rounded-lg p-3 max-h-20 overflow-y-auto">
+                      <p className="text-xs text-foreground whitespace-pre-wrap leading-relaxed">{generationText}</p>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center gap-2 py-4">
+                      <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                      <p className="text-sm text-muted-foreground">Starting AI analysis...</p>
                     </div>
                   )}
                 </div>
@@ -490,9 +490,13 @@ export function MVPBuilder({ className = '', onClose }: MVPBuilderProps) {
                   </div>
                 </Card>
 
-                <Card className="p-4">
-                  <h4 className="font-semibold text-sm mb-2">Core Features</h4>
-                  <ul className="text-xs space-y-1 max-h-20 overflow-y-auto">
+                <Accordion 
+                  title="Core Features" 
+                  count={mvpPlan.features.length}
+                  defaultOpen={false}
+                  className="bg-card"
+                >
+                  <ul className="text-xs space-y-2">
                     {mvpPlan.features.map((feature, index) => (
                       <li key={index} className="flex items-start gap-2">
                         <span className="w-1 h-1 bg-primary rounded-full mt-2 flex-shrink-0"></span>
@@ -500,11 +504,15 @@ export function MVPBuilder({ className = '', onClose }: MVPBuilderProps) {
                       </li>
                     ))}
                   </ul>
-                </Card>
+                </Accordion>
 
-                <Card className="p-4">
-                  <h4 className="font-semibold text-sm mb-2">Development Tasks ({mvpPlan.tasks.length})</h4>
-                  <div className="space-y-2 max-h-28 overflow-y-auto">
+                <Accordion 
+                  title="Development Tasks" 
+                  count={mvpPlan.tasks.length}
+                  defaultOpen={false}
+                  className="bg-card"
+                >
+                  <div className="space-y-3 max-h-64 overflow-y-auto">
                     {mvpPlan.tasks.map((task, index) => (
                       <div key={index} className="flex items-start gap-2 text-xs">
                         <span className={`w-2 h-2 rounded-full mt-1 flex-shrink-0 ${
@@ -513,12 +521,12 @@ export function MVPBuilder({ className = '', onClose }: MVPBuilderProps) {
                         }`}></span>
                         <div>
                           <p className="font-medium">{task.title}</p>
-                          <p className="text-muted-foreground text-xs leading-tight">{task.description.length > 80 ? task.description.substring(0, 80) + '...' : task.description}</p>
+                          <p className="text-muted-foreground text-xs leading-tight">{task.description}</p>
                         </div>
                       </div>
                     ))}
                   </div>
-                </Card>
+                </Accordion>
 
                 {!isCreating ? (
                   <div className="flex gap-2">
@@ -544,40 +552,42 @@ export function MVPBuilder({ className = '', onClose }: MVPBuilderProps) {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <div className="space-y-3 p-4 bg-blue-50 rounded-lg border">
-                      <div className="flex items-center gap-2">
-                        <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-                        <span className="text-sm font-medium text-blue-800">
-                          Creating project and {mvpPlan.tasks.length} tasks...
-                        </span>
-                      </div>
-                      
-                      {/* Progress Bar */}
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-xs text-blue-700">
-                          <span>Progress</span>
-                          <span>{Math.round(progressValue)}%</span>
-                        </div>
-                        <Progress 
-                          value={progressValue} 
-                          className="h-2 bg-blue-200" 
-                        />
-                      </div>
-                    </div>
-                    
-                    {creationProgress.length > 0 && (
-                      <div className="space-y-2">
-                        <h4 className="text-sm font-medium text-muted-foreground">Creation Log:</h4>
-                        <div className="space-y-1 max-h-28 overflow-y-auto bg-muted/30 rounded-lg p-3">
-                          {creationProgress.map((message, index) => (
-                            <div key={index} className="text-xs p-2 bg-background rounded text-muted-foreground border">
-                              {message}
+                    <div className="flex flex-col items-center justify-center p-8 bg-muted/30 rounded-lg border">
+                      {isComplete ? (
+                        <>
+                          <div className="flex items-center gap-3 mb-4">
+                            <div className="relative">
+                              <CheckCircle className="w-5 h-5 text-green-500 animate-pulse" />
+                              <div className="absolute inset-0 w-5 h-5 border-2 border-green-500 rounded-full animate-ping opacity-75"></div>
                             </div>
-                          ))}
-                          <div ref={progressEndRef} />
-                        </div>
-                      </div>
-                    )}
+                            <span className="text-sm font-medium text-green-600">
+                              Project created successfully!
+                            </span>
+                          </div>
+                          
+                          <div className="text-center">
+                            <p className="text-sm text-green-600 font-medium">
+                              Done!
+                            </p>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-3 mb-4">
+                            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                            <span className="text-sm font-medium">
+                              Creating project with {mvpPlan.tasks.length} tasks...
+                            </span>
+                          </div>
+                          
+                          <div className="text-center">
+                            <p className="text-sm text-muted-foreground animate-pulse">
+                              {statusMessages[currentStatusIndex]}
+                            </p>
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

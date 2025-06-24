@@ -35,6 +35,7 @@ import {
 import { useProjects } from '@/context/ProjectContext'
 import { TaskStatus, ProjectStatus } from '@/types/types'
 import { cn } from '@/lib/utils'
+import { ProjectHoverCard } from '@/components/ProjectHoverCard'
 
 type View = 'all-issues' | 'active' | 'backlog' | 'archived' | 'project' | 'tasks'
 
@@ -292,14 +293,18 @@ export function ProjectView({ view, onProjectSelect }: ProjectViewProps) {
                         </div>
                       </TableCell>
                       <TableCell className="max-w-[300px]">
-                        <div>
-                          <div className="font-medium truncate">{project.name}</div>
-                          {project.description && (
-                            <div className="text-sm text-muted-foreground break-words whitespace-normal overflow-wrap-anywhere">
-                              {project.description}
-                            </div>
-                          )}
-                        </div>
+                        <ProjectHoverCard project={project}>
+                          <div className="cursor-pointer">
+                            <div className="font-medium truncate">{project.name}</div>
+                            {project.description && (
+                              <div className="text-sm text-muted-foreground truncate">
+                                {project.description.length > 80 
+                                  ? `${project.description.substring(0, 80)}...` 
+                                  : project.description}
+                              </div>
+                            )}
+                          </div>
+                        </ProjectHoverCard>
                       </TableCell>
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <Select
