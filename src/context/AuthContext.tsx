@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useReducer, useEffect, useCallback, ReactNode } from 'react';
 import { User } from '@/types/types';
 import * as Sentry from '@sentry/react';
+import { getApiUrl } from '@/lib/api-config';
 
 interface AuthState {
   user: User | null;
@@ -36,7 +37,6 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
 }
 
 interface AuthContextValue extends AuthState {
-  login: (email: string, name: string) => Promise<void>;
   logout: () => void;
   checkAuth: () => Promise<void>;
   handleOAuthCallback: () => Promise<boolean>;
@@ -69,10 +69,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (response.status === 401) {
       const errorData = await response.json().catch(() => ({}));
       if (errorData.code === 'TOKEN_EXPIRED' || errorData.code === 'INVALID_TOKEN') {
-        // Token expired or invalid, clear auth and redirect to login
+        // Token expired or invalid, clear auth but don't redirect (app handles this with login screen)
         localStorage.removeItem('authToken');
         dispatch({ type: 'LOGOUT' });
-        window.location.href = '/login';
         throw new Error('Session expired. Please log in again.');
       }
     }
@@ -84,29 +83,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return response.json();
   };
 
-  const login = async (email: string, name: string) => {
-    try {
-      dispatch({ type: 'SET_LOADING', payload: true });
-      dispatch({ type: 'SET_ERROR', payload: null });
-      
-      const response = await apiCall('/api/auth/fake-login', {
-        method: 'POST',
-        body: JSON.stringify({ email, name }),
-      });
-
-      const { user, token } = response;
-      localStorage.setItem('authToken', token);
-      dispatch({ type: 'SET_USER', payload: user });
-    } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: error instanceof Error ? error.message : 'Login failed' });
-      throw error;
-    } finally {
-      dispatch({ type: 'SET_LOADING', payload: false });
-    }
-  };
 
   const logout = () => {
     localStorage.removeItem('authToken');
+    
+    // Clear Sentry user context on logout
+    Sentry.setUser(null);
+    
     dispatch({ type: 'LOGOUT' });
   };
 
@@ -120,11 +103,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const response = await apiCall('/api/auth/me');
+      const response = await apiCall(getApiUrl('auth/me'));
+      
+      // Update Sentry user context when restoring user session
+      Sentry.setUser({
+        id: response.user.id,
+        email: response.user.email,
+        username: response.user.name
+      });
+      
       dispatch({ type: 'SET_USER', payload: response.user });
     } catch (error) {
       // If auth check fails, clear stored token
       localStorage.removeItem('authToken');
+      
+      // Clear Sentry user context when auth fails
+      Sentry.setUser(null);
+      
       dispatch({ type: 'SET_USER', payload: null });
       
       // Don't show error for session expiration as it's handled in apiCall
@@ -147,6 +142,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!success && !error) {
       return false;
     }
+
+    console.log('OAuth callback detected:', { success, error, hasToken: !!token });
 
     logger.info('Processing OAuth callback', { success, error, hasToken: !!token });
 
@@ -202,11 +199,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           localStorage.setItem('authToken', decodedToken);
           
           // Fetch user details using the token
-          const response = await apiCall('/api/auth/me');
+          const response = await apiCall(getApiUrl('auth/me'));
           logger.info('Successfully fetched user after OAuth', { 
             userId: response.user.id, 
             email: response.user.email 
           });
+          
+          // Update Sentry user context after successful login
+          Sentry.setUser({
+            id: response.user.id,
+            email: response.user.email,
+            username: response.user.name
+          });
+          
           dispatch({ type: 'SET_USER', payload: response.user });
         } catch (userFetchError) {
           logger.error('Failed to fetch user after OAuth success', { 
@@ -218,6 +223,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             extra: { hasToken: !!token, originalError: String(userFetchError) }
           });
           localStorage.removeItem('authToken');
+          
+          // Clear Sentry user context when OAuth user fetch fails
+          Sentry.setUser(null);
+          
           dispatch({ type: 'SET_ERROR', payload: 'Failed to complete login after OAuth' });
           return true;
         }
@@ -243,21 +252,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
       
-      // Clean up URL parameters
-      const newUrl = window.location.pathname;
-      window.history.replaceState({}, document.title, newUrl);
+      // Clean up URL parameters after OAuth callback
+      if (success || error) {
+        // Remove OAuth params from URL to clean up the browser history
+        const cleanUrl = window.location.origin + window.location.pathname;
+        window.history.replaceState({}, document.title, cleanUrl);
+      }
     }
   }, []);
 
   // Check authentication status on mount
   useEffect(() => {
     const initAuth = async () => {
-      // First check if this is an OAuth callback
-      const isOAuthCallback = await handleOAuthCallback();
-      
-      // If not an OAuth callback, proceed with normal auth check
-      if (!isOAuthCallback) {
-        await checkAuth();
+      try {
+        // First check if this is an OAuth callback
+        const isOAuthCallback = await handleOAuthCallback();
+        
+        // If not an OAuth callback, proceed with normal auth check
+        if (!isOAuthCallback) {
+          await checkAuth();
+        }
+      } catch (error) {
+        console.error('Auth initialization error:', error);
+        // Ensure loading is set to false even if there's an error
+        dispatch({ type: 'SET_LOADING', payload: false });
       }
     };
     
@@ -266,7 +284,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const value: AuthContextValue = {
     ...state,
-    login,
     logout,
     checkAuth,
     handleOAuthCallback,

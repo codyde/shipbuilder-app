@@ -20,7 +20,20 @@ const PORT = process.env.PORT || 3001;
 // Trust proxy for proper IP detection in rate limiting
 app.set('trust proxy', 1);
 
-app.use(cors());
+app.use(cors({
+  origin: true,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'baggage', 
+    'sentry-trace',
+    'X-Requested-With',
+    'Accept',
+    'Origin'
+  ]
+}));
 app.use(express.json());
 
 // Add request logging middleware

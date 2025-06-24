@@ -15,7 +15,8 @@ import {
   HelpCircle,
   Folder,
   CheckCircle2,
-  Archive
+  Archive,
+  CheckSquare
 } from 'lucide-react'
 import { useProjects } from '@/context/ProjectContext'
 import { logger } from '@/lib/logger'
@@ -73,6 +74,13 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
           })}>
             <Circle className="mr-2 h-4 w-4" />
             <span>All Projects</span>
+          </CommandItem>
+          <CommandItem onSelect={() => runCommand(() => {
+            // Navigate to all tasks
+            window.dispatchEvent(new CustomEvent('navigate', { detail: 'all-tasks' }))
+          })}>
+            <CheckSquare className="mr-2 h-4 w-4" />
+            <span>All Tasks</span>
           </CommandItem>
           <CommandItem onSelect={() => runCommand(() => {
             // Navigate to active

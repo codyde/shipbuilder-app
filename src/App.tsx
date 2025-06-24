@@ -3,18 +3,22 @@ import { ProjectProvider } from '@/context/ProjectContext'
 import { ThemeProvider } from '@/context/ThemeContext'
 import { AuthProvider, useAuth } from '@/context/AuthContext'
 import { SidebarProvider } from '@/components/ui/sidebar'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { AppSidebar } from '@/components/app-sidebar'
 import { ProjectView } from '@/components/project-view'
 import { TaskView } from '@/components/task-view'
+import { AllTasksView } from '@/components/all-tasks-view'
 import { SettingsView } from '@/components/settings-view'
 import { ChatInterface } from '@/components/ChatInterface'
+import { MVPBuilder } from '@/components/MVPBuilder'
 import { CommandMenu } from '@/components/command-menu'
 import { LoginScreen } from '@/components/LoginScreen'
 import { LoadingAnimation } from '@/components/ui/loading-animation'
 import { ConnectionStatus } from '@/components/ConnectionStatus'
 import { SidebarInset } from '@/components/ui/sidebar'
+import { GlobalTaskPopout } from '@/components/GlobalTaskPopout'
 
-type View = 'all-issues' | 'active' | 'backlog' | 'archived' | 'project' | 'tasks' | 'settings'
+type View = 'all-issues' | 'active' | 'backlog' | 'archived' | 'project' | 'tasks' | 'all-tasks' | 'settings'
 
 function AppContent() {
   const { user, loading } = useAuth();
@@ -22,6 +26,7 @@ function AppContent() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [commandMenuOpen, setCommandMenuOpen] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
+  const [mvpBuilderOpen, setMvpBuilderOpen] = useState(false)
 
   const handleViewChange = (view: View) => {
     setCurrentView(view)
@@ -89,13 +94,15 @@ function AppContent() {
   // Show main app if authenticated
   return (
     <ProjectProvider>
-      <SidebarProvider defaultOpen={true} className="sidebar-enhanced-transitions">
+      <TooltipProvider>
+        <SidebarProvider defaultOpen={true} className="sidebar-enhanced-transitions">
         <div className="flex h-screen w-full">
           <AppSidebar 
             currentView={currentView}
             onViewChange={handleViewChange}
             onProjectSelect={handleProjectSelect}
             onChatToggle={() => setChatOpen(!chatOpen)}
+            onMVPBuilderToggle={() => setMvpBuilderOpen(!mvpBuilderOpen)}
           />
           <SidebarInset>
             {currentView === 'tasks' && selectedProjectId ? (
@@ -103,6 +110,8 @@ function AppContent() {
                 projectId={selectedProjectId} 
                 onBack={() => handleViewChange('all-issues')} 
               />
+            ) : currentView === 'all-tasks' ? (
+              <AllTasksView onProjectSelect={handleProjectSelect} />
             ) : currentView === 'settings' ? (
               <SettingsView />
             ) : (
@@ -111,12 +120,15 @@ function AppContent() {
           </SidebarInset>
         </div>
         {chatOpen && <ChatInterface onClose={() => setChatOpen(false)} />}
+        {mvpBuilderOpen && <MVPBuilder onClose={() => setMvpBuilderOpen(false)} />}
+        <GlobalTaskPopout />
         <CommandMenu 
           open={commandMenuOpen} 
           onOpenChange={setCommandMenuOpen} 
         />
         <ConnectionStatus />
-      </SidebarProvider>
+        </SidebarProvider>
+      </TooltipProvider>
     </ProjectProvider>
   );
 }

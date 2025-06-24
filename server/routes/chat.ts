@@ -6,9 +6,8 @@ import { z } from 'zod';
 
 export const chatRoutes = express.Router();
 
-chatRoutes.post('/stream', async (req, res) => {
+chatRoutes.post('/stream', async (req: any, res: any) => {
   try {
-    console.log('Chat request received:', req.body);
     const { messages } = req.body;
 
     if (!process.env.ANTHROPIC_API_KEY) {
@@ -18,7 +17,6 @@ chatRoutes.post('/stream', async (req, res) => {
       });
     }
 
-    console.log('Processing messages:', messages);
 
     // Get authenticated user ID
     const userId = req.user?.id;
@@ -35,6 +33,7 @@ chatRoutes.post('/stream', async (req, res) => {
         isEnabled: true,
         functionId: "my-awesome-function"
       },
+      maxSteps: 10, // Allow multiple tool calls in sequence
       messages,
       system: `You are a helpful AI assistant for a project management application. You can help users create and manage their projects, tasks, and subtasks using the available tools.
 
@@ -43,7 +42,6 @@ When users ask you to create tasks or projects, use the appropriate tools to act
 You have access to these tools:
 - createProject: Create a new project
 - createTask: Create a task within a project
-- createSubtask: Create a subtask within a task
 - updateTaskStatus: Update a task's status (backlog, in_progress, completed)
 - listProjects: List all projects
 - getProject: Get details of a specific project
@@ -69,16 +67,6 @@ Be helpful and proactive in suggesting project management best practices.`,
           }),
           execute: async (args) => taskTools.createTask.execute(args)
         }),
-        createSubtask: tool({
-          description: taskTools.createSubtask.description,
-          parameters: z.object({
-            taskId: z.string().describe('The ID of the task to add the subtask to'),
-            title: z.string().describe('The title of the subtask'),
-            description: z.string().optional().describe('Optional description of the subtask'),
-            priority: z.enum(['low', 'medium', 'high']).optional().describe('Priority level of the subtask')
-          }),
-          execute: async (args) => taskTools.createSubtask.execute(args)
-        }),
         updateTaskStatus: tool({
           description: taskTools.updateTaskStatus.description,
           parameters: z.object({
@@ -103,7 +91,6 @@ Be helpful and proactive in suggesting project management best practices.`,
       }
     });
 
-    console.log('Creating AI SDK compatible response');
     const response = result.toDataStreamResponse();
     
     // Set headers from the AI SDK response
@@ -122,7 +109,6 @@ Be helpful and proactive in suggesting project management best practices.`,
           if (done) break;
           
           const chunk = decoder.decode(value, { stream: true });
-          console.log('Streaming AI SDK chunk:', chunk);
           res.write(chunk);
         }
       } finally {

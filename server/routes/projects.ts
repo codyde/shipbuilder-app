@@ -82,15 +82,51 @@ projectRoutes.put('/:id', async (req, res) => {
 projectRoutes.delete('/:id', async (req, res) => {
   try {
     if (!req.user) {
+      logger.warn('Delete attempt without authentication', {
+        component: 'ProjectRoutes',
+        projectId: req.params.id
+      });
       return res.status(401).json({ error: 'Authentication required' });
     }
-    const deleted = await databaseService.deleteProject(req.params.id, req.user.id);
+    
+    const projectId = req.params.id;
+    
+    logger.userAction('delete_project_request', 'ProjectRoutes', {
+      projectId,
+      userId: req.user.id
+    });
+    
+    const deleted = await databaseService.deleteProject(projectId, req.user.id);
+    
     if (!deleted) {
+      logger.warn('Project not found or not deleted', {
+        component: 'ProjectRoutes',
+        projectId,
+        userId: req.user.id
+      });
       return res.status(404).json({ error: 'Project not found' });
     }
+    
+    logger.info('Project delete request completed successfully', {
+      component: 'ProjectRoutes',
+      projectId,
+      userId: req.user.id,
+      important: true
+    });
+    
     res.status(204).send();
   } catch (error) {
-    res.status(500).json({ error: 'Failed to delete project' });
+    logger.error('Project deletion request failed', {
+      component: 'ProjectRoutes',
+      projectId: req.params.id,
+      userId: req.user?.id,
+      error: error instanceof Error ? error.message : String(error)
+    }, error as Error);
+    
+    res.status(500).json({ 
+      error: 'Failed to delete project',
+      details: error instanceof Error ? error.message : String(error)
+    });
   }
 });
 

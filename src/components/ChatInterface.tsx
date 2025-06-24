@@ -9,6 +9,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { X, MessageCircle, Send, ChevronDown, GripHorizontal } from 'lucide-react';
 import { useDraggable } from '@/hooks/useDraggable';
+import { getApiUrl } from '@/lib/api-config';
 
 interface ChatMessageProps {
   message: {
@@ -84,7 +85,7 @@ export function ChatInterface({ className = '', onClose }: ChatInterfaceProps) {
   });
 
   const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
-    api: '/api/chat/stream',
+    api: getApiUrl('chat/stream'),
     fetch: async (url, options) => {
       const token = localStorage.getItem('authToken');
       

@@ -1,11 +1,13 @@
 import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
 import { Project, Task, CreateProjectInput, CreateTaskInput } from '@/types/types';
 import { logger } from '@/lib/logger';
+import { getApiUrl } from '@/lib/api-config';
 
 interface ProjectState {
   projects: Project[];
   loading: boolean;
   error: string | null;
+  poppedOutTask: { projectId: string; taskId: string } | null;
 }
 
 type ProjectAction =
@@ -17,12 +19,14 @@ type ProjectAction =
   | { type: 'DELETE_PROJECT'; payload: string }
   | { type: 'ADD_TASK'; payload: { projectId: string; task: Task } }
   | { type: 'UPDATE_TASK'; payload: { projectId: string; task: Task } }
-  | { type: 'DELETE_TASK'; payload: { projectId: string; taskId: string } };
+  | { type: 'DELETE_TASK'; payload: { projectId: string; taskId: string } }
+  | { type: 'SET_POPPED_OUT_TASK'; payload: { projectId: string; taskId: string } | null };
 
 const initialState: ProjectState = {
   projects: [],
   loading: false,
   error: null,
+  poppedOutTask: null,
 };
 
 function projectReducer(state: ProjectState, action: ProjectAction): ProjectState {
@@ -79,6 +83,11 @@ function projectReducer(state: ProjectState, action: ProjectAction): ProjectStat
             : p
         )
       };
+    case 'SET_POPPED_OUT_TASK':
+      return {
+        ...state,
+        poppedOutTask: action.payload
+      };
     default:
       return state;
   }
@@ -92,6 +101,9 @@ interface ProjectContextValue extends ProjectState {
   updateTask: (projectId: string, taskId: string, updates: Partial<Task>) => Promise<void>;
   deleteTask: (projectId: string, taskId: string) => Promise<void>;
   refreshProjects: () => Promise<void>;
+  setPoppedOutTask: (projectId: string, taskId: string) => void;
+  clearPoppedOutTask: () => void;
+  getPoppedOutTask: () => Task | null;
 }
 
 const ProjectContext = createContext<ProjectContextValue | undefined>(undefined);
@@ -146,7 +158,19 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
 
-        return response.json();
+        // Handle 204 No Content responses (like DELETE operations)
+        if (response.status === 204) {
+          return null;
+        }
+
+        // Check if response has content to parse
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          return response.json();
+        }
+
+        // Return null for responses without JSON content
+        return null;
       } catch (error) {
         const duration = performance.now() - startTime;
         
@@ -187,7 +211,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
       dispatch({ type: 'SET_ERROR', payload: null });
-      const projects = await apiCall('/api/projects');
+      const projects = await apiCall(getApiUrl('projects'));
       dispatch({ type: 'SET_PROJECTS', payload: projects });
     } catch (error) {
       dispatch({ type: 'SET_ERROR', payload: error instanceof Error ? error.message : 'Failed to fetch projects' });
@@ -198,7 +222,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
   const createProject = async (input: CreateProjectInput) => {
     try {
-      const project = await apiCall('/api/projects', {
+      const project = await apiCall(getApiUrl('projects'), {
         method: 'POST',
         body: JSON.stringify(input),
       });
@@ -210,7 +234,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
   const updateProject = async (id: string, updates: Partial<Project>) => {
     try {
-      const project = await apiCall(`/api/projects/${id}`, {
+      const project = await apiCall(getApiUrl(`projects/${id}`), {
         method: 'PUT',
         body: JSON.stringify(updates),
       });
@@ -221,8 +245,21 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   };
 
   const deleteProject = async (id: string) => {
+    console.log('ProjectContext: Starting deleteProject', { id });
+    
     // Find the project before deleting for potential rollback
     const projectToDelete = state.projects.find(p => p.id === id);
+    
+    if (!projectToDelete) {
+      console.error('ProjectContext: Project not found in state', { id });
+      return;
+    }
+    
+    console.log('ProjectContext: Found project to delete', {
+      projectId: id,
+      projectName: projectToDelete.name,
+      tasksCount: projectToDelete.tasks.length
+    });
     
     logger.userAction('delete_project', 'ProjectContext', {
       projectId: id,
@@ -231,10 +268,14 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     });
     
     // Optimistically remove from UI
+    console.log('ProjectContext: Optimistically removing from UI');
     dispatch({ type: 'DELETE_PROJECT', payload: id });
     
     try {
-      await apiCall(`/api/projects/${id}`, { method: 'DELETE' });
+      console.log('ProjectContext: Making API call to delete project');
+      const result = await apiCall(getApiUrl(`projects/${id}`), { method: 'DELETE' });
+      console.log('ProjectContext: API call successful', { result });
+      
       logger.info('Project deleted successfully', {
         component: 'ProjectContext',
         action: 'deleteProject',
@@ -242,7 +283,16 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         projectName: projectToDelete?.name
       });
     } catch (error) {
+      // Log the detailed error for debugging
+      console.error('ProjectContext: Project deletion failed:', {
+        error,
+        url: getApiUrl(`projects/${id}`),
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      
       // Rollback: re-add the project if API call fails
+      console.log('ProjectContext: Rolling back - re-adding project to UI');
       if (projectToDelete) {
         dispatch({ type: 'ADD_PROJECT', payload: projectToDelete });
       }
@@ -253,12 +303,13 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         projectName: projectToDelete?.name
       }, error as Error);
       dispatch({ type: 'SET_ERROR', payload: error instanceof Error ? error.message : 'Failed to delete project' });
+      throw error; // Re-throw so the UI can handle it
     }
   };
 
   const createTask = async (input: CreateTaskInput) => {
     try {
-      const task = await apiCall(`/api/projects/${input.projectId}/tasks`, {
+      const task = await apiCall(getApiUrl(`projects/${input.projectId}/tasks`), {
         method: 'POST',
         body: JSON.stringify(input),
       });
@@ -270,7 +321,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
   const updateTask = async (projectId: string, taskId: string, updates: Partial<Task>) => {
     try {
-      const task = await apiCall(`/api/projects/${projectId}/tasks/${taskId}`, {
+      const task = await apiCall(getApiUrl(`projects/${projectId}/tasks/${taskId}`), {
         method: 'PUT',
         body: JSON.stringify(updates),
       });
@@ -295,7 +346,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'DELETE_TASK', payload: { projectId, taskId } });
     
     try {
-      await apiCall(`/api/projects/${projectId}/tasks/${taskId}`, { method: 'DELETE' });
+      await apiCall(getApiUrl(`projects/${projectId}/tasks/${taskId}`), { method: 'DELETE' });
       logger.info('Task deleted successfully', {
         component: 'ProjectContext',
         action: 'deleteTask',
@@ -325,6 +376,24 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     refreshProjects();
   }, []);
 
+  const setPoppedOutTask = (projectId: string, taskId: string) => {
+    dispatch({ type: 'SET_POPPED_OUT_TASK', payload: { projectId, taskId } });
+  };
+
+  const clearPoppedOutTask = () => {
+    dispatch({ type: 'SET_POPPED_OUT_TASK', payload: null });
+  };
+
+  const getPoppedOutTask = (): Task | null => {
+    if (!state.poppedOutTask) return null;
+    
+    const project = state.projects.find(p => p.id === state.poppedOutTask!.projectId);
+    if (!project) return null;
+    
+    const task = project.tasks.find(t => t.id === state.poppedOutTask!.taskId);
+    return task || null;
+  };
+
   const value: ProjectContextValue = {
     ...state,
     createProject,
@@ -334,6 +403,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     updateTask,
     deleteTask,
     refreshProjects,
+    setPoppedOutTask,
+    clearPoppedOutTask,
+    getPoppedOutTask,
   };
 
   return (

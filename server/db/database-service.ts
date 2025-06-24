@@ -1,6 +1,7 @@
 import { db } from './connection.js';
 import { projects, tasks, comments, users } from './schema.js';
 import { eq, sql, and } from 'drizzle-orm';
+import { logger } from '../lib/logger.js';
 import type { Project, Task, Comment, User, CreateProjectInput, CreateTaskInput, CreateCommentInput, TaskStatus, ProjectStatus, Priority } from '../../src/types/types.js';
 
 class DatabaseService {
@@ -171,10 +172,85 @@ class DatabaseService {
   }
 
   async deleteProject(id: string, userId: string): Promise<boolean> {
-    const result = await db.delete(projects)
-      .where(and(eq(projects.id, id), eq(projects.userId, userId)));
+    const startTime = Date.now();
     
-    return result.rowCount ? result.rowCount > 0 : false;
+    logger.debug('Starting project deletion', {
+      projectId: id,
+      userId,
+      service: 'DatabaseService'
+    });
+    
+    try {
+      // Check if the project exists and belongs to the user
+      const projectToDelete = await db.query.projects.findFirst({
+        where: and(eq(projects.id, id), eq(projects.userId, userId)),
+        with: {
+          tasks: true
+        }
+      });
+      
+      if (!projectToDelete) {
+        logger.warn('Project not found or not owned by user', {
+          projectId: id,
+          userId,
+          service: 'DatabaseService'
+        });
+        return false;
+      }
+      
+      logger.info('Found project to delete', {
+        projectId: id,
+        projectName: projectToDelete.name,
+        tasksCount: projectToDelete.tasks.length,
+        userId,
+        service: 'DatabaseService'
+      });
+      
+      // Delete the project - let database cascades handle tasks and comments
+      logger.debug('Executing project deletion with cascade', {
+        projectId: id,
+        userId,
+        service: 'DatabaseService'
+      });
+      
+      const result = await db.delete(projects)
+        .where(and(eq(projects.id, id), eq(projects.userId, userId)));
+      
+      const success = result.rowCount ? result.rowCount > 0 : false;
+      const duration = Date.now() - startTime;
+      
+      if (success) {
+        logger.info('Project deleted successfully', {
+          projectId: id,
+          projectName: projectToDelete.name,
+          userId,
+          duration,
+          rowCount: result.rowCount,
+          service: 'DatabaseService',
+          important: true
+        });
+      } else {
+        logger.error('Project deletion failed - no rows affected', {
+          projectId: id,
+          userId,
+          duration,
+          rowCount: result.rowCount,
+          service: 'DatabaseService'
+        });
+      }
+      
+      return success;
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      logger.error('Project deletion failed with exception', {
+        projectId: id,
+        userId,
+        duration,
+        service: 'DatabaseService',
+        error: error instanceof Error ? error.message : String(error)
+      }, error instanceof Error ? error : new Error(String(error)));
+      throw error;
+    }
   }
 
   // Tasks
@@ -307,7 +383,6 @@ class DatabaseService {
     
     return false;
   }
-
 
   // Comments
   async getComments(taskId: string, userId: string): Promise<Comment[]> {

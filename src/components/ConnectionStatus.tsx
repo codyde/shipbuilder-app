@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { AlertCircle, CheckCircle, Clock } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { getApiUrl } from '@/lib/api-config'
 
 type ConnectionStatus = 'connected' | 'disconnected' | 'connecting'
 
@@ -19,7 +20,7 @@ export function ConnectionStatus() {
         const controller = new AbortController()
         const timeoutId = setTimeout(() => controller.abort(), 5000)
         
-        const response = await fetch('/api/health', {
+        const response = await fetch(getApiUrl('health'), {
           signal: controller.signal,
           cache: 'no-cache'
         })

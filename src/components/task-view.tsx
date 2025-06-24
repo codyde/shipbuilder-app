@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { KanbanBoard } from './KanbanBoard'
 import { TaskDetailPanel } from './TaskDetailPanel'
+import { TaskHoverCard } from './TaskHoverCard'
 import { 
   Table,
   TableBody,
@@ -104,7 +105,7 @@ const getPriorityIcon = (priority: Priority) => {
 type ViewMode = 'list' | 'kanban'
 
 export function TaskView({ projectId, onBack }: TaskViewProps) {
-  const { projects, createTask, updateTask, deleteTask } = useProjects()
+  const { projects, createTask, updateTask, deleteTask, poppedOutTask, setPoppedOutTask, clearPoppedOutTask } = useProjects()
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
@@ -119,6 +120,16 @@ export function TaskView({ projectId, onBack }: TaskViewProps) {
 
   const project = projects.find(p => p.id === projectId)
   const selectedTask = selectedTaskId ? project?.tasks.find(t => t.id === selectedTaskId) : null
+  
+  // Check if current project has the popped out task
+  const isPoppedOut = poppedOutTask?.projectId === projectId && poppedOutTask?.taskId === selectedTaskId
+
+  // Auto-select the popped out task when navigating to this project
+  useEffect(() => {
+    if (poppedOutTask?.projectId === projectId && !selectedTaskId) {
+      setSelectedTaskId(poppedOutTask.taskId)
+    }
+  }, [poppedOutTask, projectId, selectedTaskId])
 
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -179,6 +190,25 @@ export function TaskView({ projectId, onBack }: TaskViewProps) {
         title,
       }, error as Error)
     }
+  }
+
+  const handlePopOut = () => {
+    if (selectedTaskId) {
+      setPoppedOutTask(projectId, selectedTaskId)
+    }
+  }
+
+
+  const handleTaskClose = () => {
+    setIsClosingPanel(true)
+    setClosingTask(selectedTask)
+    setSelectedTaskId(null)
+    clearPoppedOutTask()
+    // Reset closing state after animation completes
+    setTimeout(() => {
+      setIsClosingPanel(false)
+      setClosingTask(null)
+    }, 300)
   }
 
   if (!project) {
@@ -337,14 +367,14 @@ export function TaskView({ projectId, onBack }: TaskViewProps) {
           </div>
         ) : (
           <div className="h-full overflow-auto">
-            <Table>
+            <Table className="table-fixed">
               <TableHeader>
                 <TableRow className="border-b">
                   <TableHead className="w-[40px]"></TableHead>
-                  <TableHead>Task</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Priority</TableHead>
-                  <TableHead>Due date</TableHead>
+                  <TableHead className="w-[200px]">Task</TableHead>
+                  <TableHead className="w-[120px]">Status</TableHead>
+                  <TableHead className="w-[100px]">Priority</TableHead>
+                  <TableHead className="w-[120px]">Due date</TableHead>
                   <TableHead className="w-[40px]"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -373,20 +403,22 @@ export function TaskView({ projectId, onBack }: TaskViewProps) {
                           {getStatusIcon(task.status)}
                         </button>
                       </TableCell>
-                      <TableCell>
-                        <div>
+                      <TableCell className="max-w-[200px]">
+                        <TaskHoverCard task={task}>
+                          <div className="space-y-1 cursor-help">
                           <div className={cn(
-                            'font-medium',
+                            'font-medium text-sm break-words',
                             task.status === TaskStatus.COMPLETED && 'line-through text-muted-foreground'
                           )}>
                             {task.title}
                           </div>
                           {task.description && (
-                            <div className="text-sm text-muted-foreground">
+                            <div className="text-xs text-muted-foreground break-words line-clamp-2">
                               {task.description}
                             </div>
                           )}
-                        </div>
+                          </div>
+                        </TaskHoverCard>
                       </TableCell>
                       <TableCell>
                         <div onClick={(e) => e.stopPropagation()}>
@@ -444,21 +476,13 @@ export function TaskView({ projectId, onBack }: TaskViewProps) {
         </div>
       </div>
 
-      {/* Task Detail Panel */}
-      {(selectedTask || closingTask) && (
+      {/* Task Detail Panel - Only show when not popped out */}
+      {(selectedTask || closingTask) && !isPoppedOut && (
         <TaskDetailPanel
           task={selectedTask || closingTask}
           isOpen={!!selectedTaskId}
-          onClose={() => {
-            setIsClosingPanel(true)
-            setClosingTask(selectedTask)
-            setSelectedTaskId(null)
-            // Reset closing state after animation completes
-            setTimeout(() => {
-              setIsClosingPanel(false)
-              setClosingTask(null)
-            }, 300)
-          }}
+          onClose={handleTaskClose}
+          onPopOut={handlePopOut}
         />
       )}
     </div>

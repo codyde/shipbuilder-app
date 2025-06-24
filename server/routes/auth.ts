@@ -2,61 +2,14 @@ import express from 'express';
 import { databaseService } from '../db/database-service.js';
 import { sentryOAuthService } from '../services/sentry-oauth.js';
 import { generateJWT, SecurityEvent, logSecurityEvent, authenticateUser } from '../middleware/auth.js';
-import { authRateLimit, oauthCallbackRateLimit } from '../middleware/rate-limit.js';
+import { oauthCallbackRateLimit } from '../middleware/rate-limit.js';
 import * as Sentry from '@sentry/node';
 
 const router = express.Router();
 
-// Fake login endpoint - creates or finds user by email
-router.post('/fake-login', authRateLimit, async (req, res) => {
-  try {
-    const { email, name } = req.body;
-
-    if (!email || !name) {
-      logSecurityEvent(SecurityEvent.LOGIN_FAILURE, req, { reason: 'missing_credentials' }, 'low');
-      return res.status(400).json({ error: 'Email and name are required' });
-    }
-
-    // Check if user exists
-    let user = await databaseService.getUserByEmail(email);
-    
-    if (!user) {
-      // Create new user
-      user = await databaseService.createUser(email, name, 'fake');
-    }
-
-    // Generate JWT token
-    const token = generateJWT({
-      id: user.id,
-      email: user.email,
-      provider: user.provider || 'fake'
-    });
-
-    logSecurityEvent(SecurityEvent.LOGIN_SUCCESS, req, { 
-      userId: user.id, 
-      provider: 'fake' 
-    }, 'low');
-
-    res.json({
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-      },
-      token,
-      message: 'Login successful',
-    });
-  } catch (error) {
-    logSecurityEvent(SecurityEvent.LOGIN_FAILURE, req, { 
-      error: error instanceof Error ? error.message : 'Unknown error' 
-    }, 'medium');
-    console.error('Fake login error:', error);
-    res.status(500).json({ error: 'Login failed' });
-  }
-});
 
 // Get current user endpoint (now uses JWT authentication)
-router.get('/me', authenticateUser, async (req, res) => {
+router.get('/me', authenticateUser, async (req: any, res: any) => {
   try {
     if (!req.user) {
       return res.status(401).json({ error: 'Not authenticated' });
@@ -115,7 +68,7 @@ router.get('/sentry/callback', oauthCallbackRateLimit, async (req, res) => {
         tags: { oauth_step: 'authorization' },
         extra: { error, state, query: req.query }
       });
-      return res.redirect(`http://localhost:5173/login?error=${encodeURIComponent(error as string)}`);
+      return res.redirect(`${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/?error=${encodeURIComponent(error as string)}`);
     }
 
     if (!code) {
@@ -124,7 +77,7 @@ router.get('/sentry/callback', oauthCallbackRateLimit, async (req, res) => {
         tags: { oauth_step: 'callback' },
         extra: { query: req.query }
       });
-      return res.redirect('http://localhost:5173/login?error=missing_code');
+      return res.redirect(`${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/?error=missing_code`);
     }
 
     logger.info(logger.fmt`Starting OAuth flow with code: ${code}`);
@@ -176,7 +129,7 @@ router.get('/sentry/callback', oauthCallbackRateLimit, async (req, res) => {
         tags: { oauth_step: 'token_exchange' },
         extra: { code, originalError: String(oauthError) }
       });
-      return res.redirect('http://localhost:5173/login?error=oauth_failed');
+      return res.redirect(`${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/?error=oauth_failed`);
     }
 
     // Check if user exists in our database
@@ -191,7 +144,7 @@ router.get('/sentry/callback', oauthCallbackRateLimit, async (req, res) => {
           sentryUser.name, 
           'sentry', 
           sentryUser.id,
-          sentryUser.avatar
+          sentryUser.avatar?.avatarUrl
         );
         logger.info('Successfully created user', { id: user.id, email: user.email });
       } catch (dbError) {
@@ -200,7 +153,7 @@ router.get('/sentry/callback', oauthCallbackRateLimit, async (req, res) => {
           tags: { oauth_step: 'user_creation' },
           extra: { sentryUser, originalError: String(dbError) }
         });
-        return res.redirect('http://localhost:5173/login?error=user_creation_failed');
+        return res.redirect(`${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/?error=user_creation_failed`);
       }
     } else if (user.provider !== 'sentry') {
       logger.info('Updating existing user to link with Sentry');
@@ -208,16 +161,16 @@ router.get('/sentry/callback', oauthCallbackRateLimit, async (req, res) => {
         user = await databaseService.updateUser(user.id, {
           provider: 'sentry',
           providerId: sentryUser.id,
-          avatar: sentryUser.avatar,
-        });
+          avatar: sentryUser.avatar?.avatarUrl,
+        }) || undefined;
         logger.info('Successfully updated user', { id: user?.id, email: user?.email });
       } catch (dbError) {
-        logger.error('Failed to update user in database', { error: dbError, userId: user.id, sentryUser });
+        logger.error('Failed to update user in database', { error: dbError, userId: user?.id, sentryUser });
         Sentry.captureException(dbError instanceof Error ? dbError : new Error('Failed to update user in database'), {
           tags: { oauth_step: 'user_update' },
-          extra: { userId: user.id, sentryUser, originalError: String(dbError) }
+          extra: { userId: user?.id, sentryUser, originalError: String(dbError) }
         });
-        return res.redirect('http://localhost:5173/login?error=user_update_failed');
+        return res.redirect(`${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/?error=user_update_failed`);
       }
     } else {
       logger.info('User already exists with Sentry provider', { id: user.id, email: user.email });
@@ -229,7 +182,7 @@ router.get('/sentry/callback', oauthCallbackRateLimit, async (req, res) => {
         tags: { oauth_step: 'user_verification' },
         extra: { sentryUser }
       });
-      return res.redirect('http://localhost:5173/login?error=user_not_found');
+      return res.redirect(`${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/?error=user_not_found`);
     }
 
     // Generate JWT token for OAuth user
@@ -245,7 +198,7 @@ router.get('/sentry/callback', oauthCallbackRateLimit, async (req, res) => {
     }, 'low');
 
     // Redirect to frontend with JWT token
-    const redirectUrl = `http://localhost:5173/login?success=true&token=${encodeURIComponent(token)}`;
+    const redirectUrl = `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/?success=true&token=${encodeURIComponent(token)}`;
     logger.info('OAuth flow completed successfully', { redirectUrl, userId: user.id });
     res.redirect(redirectUrl);
   } catch (error) {
@@ -263,7 +216,7 @@ router.get('/sentry/callback', oauthCallbackRateLimit, async (req, res) => {
         stack: error instanceof Error ? error.stack : undefined
       }
     });
-    res.redirect('http://localhost:5173/login?error=oauth_failed');
+    res.redirect(`${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/?error=oauth_failed`);
   }
 });
 

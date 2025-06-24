@@ -301,6 +301,20 @@ class ServerLogger {
   }
 
   /**
+   * Log user actions for analytics and debugging
+   */
+  userAction(action: string, component: string, context?: LogContext): void {
+    const message = `User action: ${action}`
+    const actionContext = {
+      ...context,
+      userAction: { action, component },
+      important: true, // User actions are important for analytics
+    }
+
+    this.info(message, actionContext)
+  }
+
+  /**
    * Log performance metrics
    */
   performance(operation: string, duration: number, context?: LogContext): void {

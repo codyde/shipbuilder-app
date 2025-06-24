@@ -1,3 +1,4 @@
+import React, { useState } from 'react';
 import { 
   Sidebar,
   SidebarContent,
@@ -14,10 +15,26 @@ import {
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { UserProfile } from '@/components/UserProfile'
+// Note: DropdownMenu temporarily commented out until @radix-ui/react-dropdown-menu is added
+// import {
+//   DropdownMenu,
+//   DropdownMenuContent,
+//   DropdownMenuItem,
+//   DropdownMenuTrigger,
+// } from '@/components/ui/dropdown-menu'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { 
   Circle, 
   CircleCheckBig, 
-  MoreHorizontal, 
   Plus, 
   Archive,
   Folder,
@@ -25,18 +42,22 @@ import {
   HelpCircle,
   MessageCircle,
   LogOut,
-  User
+  User,
+  CheckSquare,
+  Rocket,
+  Trash2
 } from 'lucide-react'
 import { useProjects } from '@/context/ProjectContext'
 import { useAuth } from '@/context/AuthContext'
 
-type View = 'all-issues' | 'active' | 'backlog' | 'archived' | 'project' | 'tasks' | 'settings'
+type View = 'all-issues' | 'active' | 'backlog' | 'archived' | 'project' | 'tasks' | 'all-tasks' | 'settings'
 
 interface AppSidebarProps {
   currentView: View
   onViewChange: (view: View) => void
   onProjectSelect: (projectId: string) => void
   onChatToggle: () => void
+  onMVPBuilderToggle: () => void
 }
 
 const navigationItems = [
@@ -44,6 +65,12 @@ const navigationItems = [
     id: 'all-issues' as View,
     title: 'All Projects',
     icon: Circle,
+    count: null,
+  },
+  {
+    id: 'all-tasks' as View,
+    title: 'All Tasks',
+    icon: CheckSquare,
     count: null,
   },
   {
@@ -66,15 +93,61 @@ const navigationItems = [
   },
 ]
 
-export function AppSidebar({ currentView, onViewChange, onProjectSelect, onChatToggle }: AppSidebarProps) {
-  const { projects } = useProjects()
+export function AppSidebar({ currentView, onViewChange, onProjectSelect, onChatToggle, onMVPBuilderToggle }: AppSidebarProps) {
+  const { projects, deleteProject } = useProjects()
   const { user, logout } = useAuth()
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [projectToDelete, setProjectToDelete] = useState<{ id: string; name: string } | null>(null)
+  const [confirmationText, setConfirmationText] = useState('')
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
       e.preventDefault()
       // Handle command palette
     }
+  }
+
+  const handleDeleteProject = (project: { id: string; name: string }) => {
+    console.log('Delete project clicked:', project);
+    setProjectToDelete(project)
+    setDeleteDialogOpen(true)
+    setConfirmationText('')
+  }
+
+  const confirmDelete = async () => {
+    console.log('Confirm delete called:', { projectToDelete, confirmationText });
+    
+    if (!projectToDelete || confirmationText !== projectToDelete.name) {
+      console.log('Validation failed:', { 
+        hasProject: !!projectToDelete, 
+        namesMatch: confirmationText === projectToDelete?.name,
+        expectedName: projectToDelete?.name,
+        actualInput: confirmationText
+      });
+      return
+    }
+
+    console.log('Starting deletion of project:', projectToDelete.id);
+    setIsDeleting(true)
+    try {
+      await deleteProject(projectToDelete.id)
+      console.log('Project deleted successfully');
+      setDeleteDialogOpen(false)
+      setProjectToDelete(null)
+      setConfirmationText('')
+    } catch (error) {
+      console.error('Failed to delete project:', error)
+      // You might want to show an error toast here
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  const cancelDelete = () => {
+    setDeleteDialogOpen(false)
+    setProjectToDelete(null)
+    setConfirmationText('')
   }
 
   return (
@@ -92,6 +165,17 @@ export function AppSidebar({ currentView, onViewChange, onProjectSelect, onChatT
       </SidebarHeader>
 
       <SidebarContent>
+        {/* Build MVP Button */}
+        <div className="p-3 border-b">
+          <Button
+            onClick={onMVPBuilderToggle}
+            className="w-full h-9 text-sm font-medium bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-md"
+          >
+            <Rocket className="w-4 h-4 mr-2" />
+            Build MVP
+          </Button>
+        </div>
+
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -141,19 +225,22 @@ export function AppSidebar({ currentView, onViewChange, onProjectSelect, onChatT
                       >
                         <Folder className="h-8 w-8" />
                         <span className="text-xs truncate">{project.name}</span>
-                        <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="ml-auto flex items-center gap-1 opacity-100 transition-opacity">
                           <span className="text-xs text-muted-foreground">
                             {totalTasks > 0 && `${completedTasks}/${totalTasks}`}
                           </span>
-                          <div 
-                            className="inline-flex items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground h-4 w-4 cursor-pointer transition-colors"
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-4 w-4 p-0 hover:bg-red-100 hover:text-red-600"
                             onClick={(e) => {
                               e.stopPropagation()
-                              // Add menu functionality here
+                              handleDeleteProject({ id: project.id, name: project.name })
                             }}
+                            title="Delete Project"
                           >
-                            <MoreHorizontal className="h-3 w-3" />
-                          </div>
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
                         </div>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -231,6 +318,43 @@ export function AppSidebar({ currentView, onViewChange, onProjectSelect, onChatT
       </div>
 
       <SidebarRail />
+      
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Project</DialogTitle>
+            <DialogDescription>
+              This action cannot be undone. This will permanently delete the project "{projectToDelete?.name}" and all of its tasks.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="confirmation" className="text-sm font-medium">
+              Type the project name "{projectToDelete?.name}" to confirm deletion:
+            </Label>
+            <Input
+              id="confirmation"
+              value={confirmationText}
+              onChange={(e) => setConfirmationText(e.target.value)}
+              placeholder={projectToDelete?.name}
+              className="mt-2"
+              disabled={isDeleting}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={cancelDelete} disabled={isDeleting}>
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={confirmDelete}
+              disabled={isDeleting || confirmationText !== projectToDelete?.name}
+            >
+              {isDeleting ? 'Deleting...' : 'Delete Project'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Sidebar>
   )
 }

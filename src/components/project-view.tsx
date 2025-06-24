@@ -75,6 +75,7 @@ export function ProjectView({ view, onProjectSelect }: ProjectViewProps) {
   const [projectToManage, setProjectToManage] = useState<{ id: string; name: string; description?: string } | null>(null)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const [editingName, setEditingName] = useState('')
+  const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null)
   const [newProject, setNewProject] = useState({
     name: '',
     description: '',
@@ -130,11 +131,22 @@ export function ProjectView({ view, onProjectSelect }: ProjectViewProps) {
 
   const confirmDeleteProject = async () => {
     if (projectToManage && deleteConfirmText === projectToManage.name) {
-      await deleteProject(projectToManage.id)
+      // Set loading state
+      setDeletingProjectId(projectToManage.id)
+      
+      // Close dialogs immediately for responsive UI
       setDeleteConfirmOpen(false)
       setManageDialogOpen(false)
       setProjectToManage(null)
       setDeleteConfirmText('')
+      
+      try {
+        // Delete project (optimistic deletion happens in deleteProject function)
+        await deleteProject(projectToManage.id)
+      } finally {
+        // Clear loading state
+        setDeletingProjectId(null)
+      }
     }
   }
 
@@ -266,23 +278,24 @@ export function ProjectView({ view, onProjectSelect }: ProjectViewProps) {
                   const completedTasks = project.tasks.filter(task => task.status === TaskStatus.COMPLETED).length
                   const totalTasks = project.tasks.length
                   const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
+                  const isDeleting = deletingProjectId === project.id
 
                   return (
                     <TableRow 
                       key={project.id}
-                      className="cursor-pointer hover:bg-muted/50 border-b"
-                      onClick={() => onProjectSelect(project.id)}
+                      className={`cursor-pointer hover:bg-muted/50 border-b ${isDeleting ? 'opacity-50 pointer-events-none' : ''}`}
+                      onClick={() => !isDeleting && onProjectSelect(project.id)}
                     >
                       <TableCell>
                         <div className="flex items-center justify-center">
                           {getStatusIcon(project.status)}
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="max-w-[300px]">
                         <div>
-                          <div className="font-medium">{project.name}</div>
+                          <div className="font-medium truncate">{project.name}</div>
                           {project.description && (
-                            <div className="text-sm text-muted-foreground">
+                            <div className="text-sm text-muted-foreground break-words whitespace-normal overflow-wrap-anywhere">
                               {project.description}
                             </div>
                           )}
@@ -333,22 +346,29 @@ export function ProjectView({ view, onProjectSelect }: ProjectViewProps) {
                         </span>
                       </TableCell>
                       <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 px-2 text-xs"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleManageProject({ 
-                              id: project.id, 
-                              name: project.name, 
-                              description: project.description 
-                            })
-                          }}
-                        >
-                          <Settings className="h-3 w-3 mr-1" />
-                          Manage
-                        </Button>
+                        {isDeleting ? (
+                          <div className="flex items-center justify-center h-7 px-2 text-xs text-muted-foreground">
+                            <Circle className="h-3 w-3 mr-1 animate-spin" />
+                            Deleting...
+                          </div>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-xs"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleManageProject({ 
+                                id: project.id, 
+                                name: project.name, 
+                                description: project.description 
+                              })
+                            }}
+                          >
+                            <Settings className="h-3 w-3 mr-1" />
+                            Manage
+                          </Button>
+                        )}
                       </TableCell>
                     </TableRow>
                   )

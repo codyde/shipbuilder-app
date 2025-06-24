@@ -8,7 +8,8 @@ import {
   Clock,
   Sparkles,
   Send,
-  ExternalLink
+  GripHorizontal,
+  Minimize2
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -34,15 +35,16 @@ import { Card } from '@/components/ui/card'
 import { Task, TaskStatus, Priority, Comment } from '@/types/types'
 import { useProjects } from '@/context/ProjectContext'
 import { useAuth } from '@/context/AuthContext'
+import { useDraggable } from '@/hooks/useDraggable'
 import { cn } from '@/lib/utils'
 import { logger } from '@/lib/logger'
 import { getApiUrl } from '@/lib/api-config'
 
-interface TaskDetailPanelProps {
+interface TaskDetailsPopoutProps {
   task: Task
   isOpen: boolean
   onClose: () => void
-  onPopOut?: () => void
+  onMinimize: () => void
 }
 
 interface AIGenerateDialogProps {
@@ -102,12 +104,10 @@ function AIGenerateDialog({ onGenerate, isLoading }: AIGenerateDialogProps) {
   )
 }
 
-export function TaskDetailPanel({ task, isOpen, onClose, onPopOut }: TaskDetailPanelProps) {
+export function TaskDetailsPopout({ task, isOpen, onClose, onMinimize }: TaskDetailsPopoutProps) {
   const { updateTask } = useProjects()
   const { user } = useAuth()
   const [editingField, setEditingField] = useState<string | null>(null)
-  const [isExiting, setIsExiting] = useState(false)
-  const [shouldRender, setShouldRender] = useState(isOpen)
   const [editValues, setEditValues] = useState({
     title: task.title,
     description: task.description || '',
@@ -120,6 +120,18 @@ export function TaskDetailPanel({ task, isOpen, onClose, onPopOut }: TaskDetailP
   const [isGeneratingDetails, setIsGeneratingDetails] = useState(false)
   const detailsTextareaRef = useRef<HTMLTextAreaElement>(null)
 
+  // Draggable functionality
+  const { ref: dragRef, handleMouseDown, style: dragStyle } = useDraggable({
+    initialPosition: { x: window.innerWidth - 600, y: 50 },
+    storageKey: 'task-details-popout-position',
+    bounds: {
+      left: 0,
+      top: 0,
+      right: window.innerWidth,
+      bottom: window.innerHeight,
+    },
+  })
+
   useEffect(() => {
     setEditValues({
       title: task.title,
@@ -130,23 +142,6 @@ export function TaskDetailPanel({ task, isOpen, onClose, onPopOut }: TaskDetailP
     })
     setComments(task.comments || [])
   }, [task])
-
-  // Handle opening and closing animations
-  useEffect(() => {
-    if (isOpen) {
-      setShouldRender(true)
-      setIsExiting(false)
-    } else if (shouldRender) {
-      // Start exit animation
-      setIsExiting(true)
-      // Remove from DOM after animation completes
-      const timer = setTimeout(() => {
-        setShouldRender(false)
-        setIsExiting(false)
-      }, 250) // Match the exit animation duration
-      return () => clearTimeout(timer)
-    }
-  }, [isOpen, shouldRender])
 
   const handleSave = async (field: string) => {
     const updates: Partial<Task> = {}
@@ -225,7 +220,7 @@ export function TaskDetailPanel({ task, isOpen, onClose, onPopOut }: TaskDetailP
       updatedAt: new Date().toISOString(),
     }
 
-    logger.userAction('add_comment', 'TaskDetailPanel', {
+    logger.userAction('add_comment', 'TaskDetailsPopout', {
       taskId: task.id,
       projectId: task.projectId,
       author: authorName,
@@ -257,7 +252,7 @@ export function TaskDetailPanel({ task, isOpen, onClose, onPopOut }: TaskDetailP
           c.id === optimisticComment.id ? actualComment : c
         ))
         logger.info('Comment added successfully', {
-          component: 'TaskDetailPanel',
+          component: 'TaskDetailsPopout',
           action: 'addComment',
           taskId: task.id,
           projectId: task.projectId,
@@ -273,7 +268,7 @@ export function TaskDetailPanel({ task, isOpen, onClose, onPopOut }: TaskDetailP
       setNewComment(commentContent) // Restore the comment text
       
       logger.error('Failed to add comment - rolled back', {
-        component: 'TaskDetailPanel',
+        component: 'TaskDetailsPopout',
         action: 'addComment',
         taskId: task.id,
         projectId: task.projectId,
@@ -337,7 +332,7 @@ export function TaskDetailPanel({ task, isOpen, onClose, onPopOut }: TaskDetailP
       }
     } catch (error) {
       logger.error('Failed to generate task details', {
-        component: 'TaskDetailPanel',
+        component: 'TaskDetailsPopout',
         action: 'generateDetails',
         taskId: task.id,
         projectId: task.projectId,
@@ -374,33 +369,35 @@ export function TaskDetailPanel({ task, isOpen, onClose, onPopOut }: TaskDetailP
     }
   }
 
-  const handleClose = () => {
-    onClose() // Let the useEffect handle the animation
-  }
-
-  if (!shouldRender) return null
+  if (!isOpen) return null
 
   return (
-    <div className={`fixed inset-y-0 right-0 w-96 bg-background border-l shadow-lg z-50 flex flex-col ${isExiting ? 'task-panel-exit' : 'task-panel-enter'}`}>
-      {/* Header */}
-      <div className="p-4 border-b">
-        <div className="flex items-center justify-between">
+    <div
+      ref={dragRef}
+      style={dragStyle}
+      className="bg-background border shadow-2xl rounded-lg flex flex-col w-[600px] h-[700px] overflow-hidden"
+    >
+      {/* Draggable Header */}
+      <div 
+        className="p-4 border-b bg-muted/50 cursor-grab active:cursor-grabbing flex items-center justify-between"
+        onMouseDown={handleMouseDown}
+      >
+        <div className="flex items-center gap-2">
+          <GripHorizontal className="w-4 h-4 text-muted-foreground" />
           <h2 className="text-lg font-semibold">Task Details</h2>
-          <div className="flex gap-1">
-            {onPopOut && (
-              <Button variant="ghost" size="sm" onClick={onPopOut} title="Pop out window">
-                <ExternalLink className="h-4 w-4" />
-              </Button>
-            )}
-            <Button variant="ghost" size="sm" onClick={handleClose}>
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
+        </div>
+        <div className="flex gap-1">
+          <Button variant="ghost" size="sm" onClick={onMinimize} title="Minimize to panel">
+            <Minimize2 className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
         </div>
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-6 task-content-animate">
+      <div className="flex-1 overflow-y-auto p-4 space-y-6">
         {/* Title */}
         <div>
           <Label className="text-sm font-medium">Title</Label>
@@ -545,7 +542,7 @@ export function TaskDetailPanel({ task, isOpen, onClose, onPopOut }: TaskDetailP
                 onChange={(e) => setEditValues(prev => ({ ...prev, details: e.target.value }))}
                 placeholder={isGeneratingDetails ? "Generating details..." : "Add detailed information..."}
                 readOnly={isGeneratingDetails}
-                className={`h-[120px] resize-none ${isGeneratingDetails ? "bg-muted/50" : ""}`}
+                className={`h-[140px] resize-none ${isGeneratingDetails ? "bg-muted/50" : ""}`}
               />
               <div className="flex gap-2">
                 <Button 
@@ -567,7 +564,7 @@ export function TaskDetailPanel({ task, isOpen, onClose, onPopOut }: TaskDetailP
             </div>
           ) : (
             <div 
-              className="p-2 rounded cursor-pointer hover:bg-muted h-[120px] overflow-y-auto border border-dashed"
+              className="p-2 rounded cursor-pointer hover:bg-muted h-[140px] overflow-y-auto border border-dashed"
               onClick={() => setEditingField('details')}
             >
               {task.details ? (
@@ -610,7 +607,7 @@ export function TaskDetailPanel({ task, isOpen, onClose, onPopOut }: TaskDetailP
           </form>
 
           {/* Comments List */}
-          <div className="space-y-3">
+          <div className="space-y-3 max-h-[200px] overflow-y-auto">
             {comments.map((comment) => (
               <Card key={comment.id} className="p-3">
                 <div className="flex items-start justify-between mb-2">

@@ -117,7 +117,8 @@ export async function authenticateUser(req: Request, res: Response, next: NextFu
     
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       logSecurityEvent(SecurityEvent.PERMISSION_DENIED, req, { reason: 'missing_token' }, 'medium');
-      return res.status(401).json({ error: 'Authentication required' });
+      res.status(401).json({ error: 'Authentication required' });
+      return;
     }
 
     const token = authHeader.substring(7); // Remove "Bearer " prefix
@@ -130,10 +131,12 @@ export async function authenticateUser(req: Request, res: Response, next: NextFu
       
       if (errorMessage.includes('expired')) {
         logSecurityEvent(SecurityEvent.EXPIRED_TOKEN, req, { error: errorMessage }, 'medium');
-        return res.status(401).json({ error: 'Token expired', code: 'TOKEN_EXPIRED' });
+        res.status(401).json({ error: 'Token expired', code: 'TOKEN_EXPIRED' });
+        return;
       } else {
         logSecurityEvent(SecurityEvent.INVALID_TOKEN, req, { error: errorMessage }, 'high');
-        return res.status(401).json({ error: 'Invalid token', code: 'INVALID_TOKEN' });
+        res.status(401).json({ error: 'Invalid token', code: 'INVALID_TOKEN' });
+        return;
       }
     }
 
@@ -145,7 +148,8 @@ export async function authenticateUser(req: Request, res: Response, next: NextFu
         reason: 'valid_jwt_but_user_not_found', 
         userId: payload.userId 
       }, 'critical');
-      return res.status(401).json({ error: 'User not found' });
+      res.status(401).json({ error: 'User not found' });
+      return;
     }
 
     // Add user to request
@@ -163,6 +167,7 @@ export async function authenticateUser(req: Request, res: Response, next: NextFu
     }, 'critical');
     console.error('Authentication error:', error);
     res.status(500).json({ error: 'Authentication failed' });
+    return;
   }
 }
 

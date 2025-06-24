@@ -4,6 +4,119 @@ import { sql } from 'drizzle-orm';
 
 export const migrateRoutes = express.Router();
 
+migrateRoutes.post('/init-database', async (req, res) => {
+  try {
+    console.log('Starting complete database initialization...');
+    
+    // Step 1: Create enums
+    console.log('Creating enums...');
+    
+    await db.execute(sql`
+      DO $$ BEGIN
+        CREATE TYPE task_status AS ENUM ('backlog', 'in_progress', 'completed');
+      EXCEPTION WHEN duplicate_object THEN
+        null;
+      END $$;
+    `);
+    
+    await db.execute(sql`
+      DO $$ BEGIN
+        CREATE TYPE project_status AS ENUM ('active', 'backlog', 'completed', 'archived');
+      EXCEPTION WHEN duplicate_object THEN
+        null;
+      END $$;
+    `);
+    
+    await db.execute(sql`
+      DO $$ BEGIN
+        CREATE TYPE priority AS ENUM ('low', 'medium', 'high');
+      EXCEPTION WHEN duplicate_object THEN
+        null;
+      END $$;
+    `);
+    
+    console.log('Enums created successfully');
+    
+    // Step 2: Create users table
+    console.log('Creating users table...');
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS users (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        email TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        provider TEXT,
+        provider_id TEXT,
+        avatar TEXT,
+        created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+        updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+      )
+    `);
+    
+    // Step 3: Create projects table
+    console.log('Creating projects table...');
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS projects (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000' REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        description TEXT,
+        status project_status NOT NULL DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+        updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+      )
+    `);
+    
+    // Step 4: Create tasks table
+    console.log('Creating tasks table...');
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS tasks (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        description TEXT,
+        details TEXT,
+        status task_status NOT NULL DEFAULT 'backlog',
+        priority priority NOT NULL DEFAULT 'medium',
+        due_date TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+        updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+      )
+    `);
+    
+    // Step 5: Create comments table
+    console.log('Creating comments table...');
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS comments (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+        content TEXT NOT NULL,
+        author TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+        updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+      )
+    `);
+    
+    console.log('Database initialization completed successfully!');
+    
+    // Verify tables exist
+    const tablesResult = await db.execute(sql`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public' 
+      ORDER BY table_name
+    `);
+    
+    res.json({ 
+      success: true, 
+      message: 'Database initialized successfully',
+      tables: tablesResult.rows.map(row => row.table_name)
+    });
+  } catch (error) {
+    console.error('Database initialization failed:', error);
+    res.status(500).json({ error: 'Database initialization failed', details: error.message });
+  }
+});
+
 migrateRoutes.get('/status', async (req, res) => {
   try {
     // Check current enum values
