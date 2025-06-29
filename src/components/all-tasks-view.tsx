@@ -39,6 +39,7 @@ import { useProjects } from '@/context/ProjectContext'
 import { TaskStatus, Priority } from '@/types/types'
 import { cn } from '@/lib/utils'
 import { TaskDetailPanel } from './TaskDetailPanel'
+import { CopyableId } from '@/components/CopyableId'
 
 interface AllTasksViewProps {
   onProjectSelect: (projectId: string) => void
@@ -349,6 +350,7 @@ export function AllTasksView({ onProjectSelect }: AllTasksViewProps) {
                 <TableRow className="border-b">
                   <TableHead className="w-[40px]"></TableHead>
                   <TableHead className="w-[200px]">Task</TableHead>
+                  <TableHead className="w-[140px]">Task ID</TableHead>
                   <TableHead className="w-[150px]">Project</TableHead>
                   <TableHead className="w-[120px]">Status</TableHead>
                   <TableHead className="w-[100px]">Priority</TableHead>
@@ -396,6 +398,14 @@ export function AllTasksView({ onProjectSelect }: AllTasksViewProps) {
                         )}
                         </div>
                       </TaskHoverCard>
+                    </TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <CopyableId 
+                        id={task.id} 
+                        type="task" 
+                        size="sm"
+                        showLabel={false}
+                      />
                     </TableCell>
                     <TableCell>
                       <button

@@ -8,6 +8,12 @@ http://localhost:3001/api
 ## Overview
 This is a RESTful API for managing projects, tasks, and subtasks. The API supports full CRUD operations and includes an AI-powered chat interface for natural language project management.
 
+### ID Format
+The API uses human-readable slug-based identifiers:
+- **Project IDs**: Alphanumeric + hyphens (e.g., `photoshare`, `my-awesome-app`)
+- **Task IDs**: Project slug + sequential number (e.g., `photoshare-1`, `photoshare-2`)
+- **User/Comment IDs**: Standard UUIDs
+
 ## Content-Type
 All requests and responses use `Content-Type: application/json`
 
@@ -81,22 +87,22 @@ GET /api/projects
 ```json
 [
   {
-    "id": "string",
-    "name": "string",
-    "description": "string (optional)",
-    "status": "active | completed | archived",
+    "id": "photoshare",
+    "name": "PhotoShare App",
+    "description": "A social photo sharing platform",
+    "status": "active",
     "tasks": [
       {
-        "id": "string",
-        "projectId": "string",
-        "title": "string",
-        "description": "string (optional)",
-        "status": "todo | in_progress | completed",
-        "priority": "low | medium | high",
-        "dueDate": "string (ISO date, optional)",
+        "id": "photoshare-1", 
+        "projectId": "photoshare",
+        "title": "Create user authentication",
+        "description": "Implement OAuth login system",
+        "status": "in_progress",
+        "priority": "high",
+        "dueDate": "2024-12-15T00:00:00.000Z",
         "subtasks": [...],
-        "createdAt": "string (ISO date)",
-        "updatedAt": "string (ISO date)"
+        "createdAt": "2024-12-01T10:00:00.000Z",
+        "updatedAt": "2024-12-01T15:30:00.000Z"
       }
     ],
     "createdAt": "string (ISO date)",
@@ -117,12 +123,12 @@ GET /api/projects/{id}
 ```
 
 **Parameters:**
-- `id` (path, required): Project ID
+- `id` (path, required): Project slug ID (e.g., `website-redesign`)
 
 **Response:**
 ```json
 {
-  "id": "proj-123",
+  "id": "website-redesign",
   "name": "Website Redesign",
   "description": "Complete redesign of company website",
   "status": "active",
@@ -138,7 +144,7 @@ GET /api/projects/{id}
 **Example:**
 ```bash
 curl -H "Authorization: Bearer <your_api_key>" \
-     http://localhost:3001/api/projects/proj-123
+     http://localhost:3001/api/projects/website-redesign
 ```
 
 #### 3. Create Project
@@ -157,7 +163,7 @@ POST /api/projects
 **Response:** `201 Created`
 ```json
 {
-  "id": "proj-124",
+  "id": "new-project",
   "name": "New Project",
   "description": "Project description",
   "status": "active",

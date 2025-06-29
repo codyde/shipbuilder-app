@@ -36,6 +36,7 @@ import { useProjects } from '@/context/ProjectContext'
 import { TaskStatus, ProjectStatus } from '@/types/types'
 import { cn } from '@/lib/utils'
 import { ProjectHoverCard } from '@/components/ProjectHoverCard'
+import { CopyableId } from '@/components/CopyableId'
 
 type View = 'all-issues' | 'active' | 'backlog' | 'archived' | 'project' | 'tasks'
 
@@ -267,6 +268,7 @@ export function ProjectView({ view, onProjectSelect }: ProjectViewProps) {
                 <TableRow className="border-b">
                   <TableHead className="w-[40px]"></TableHead>
                   <TableHead>Project</TableHead>
+                  <TableHead>Project ID</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Tasks</TableHead>
                   <TableHead>Progress</TableHead>
@@ -305,6 +307,14 @@ export function ProjectView({ view, onProjectSelect }: ProjectViewProps) {
                             )}
                           </div>
                         </ProjectHoverCard>
+                      </TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <CopyableId 
+                          id={project.id} 
+                          type="project" 
+                          size="sm"
+                          showLabel={false}
+                        />
                       </TableCell>
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <Select

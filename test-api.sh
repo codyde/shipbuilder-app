@@ -122,14 +122,14 @@ project_response=$(test_endpoint "POST" "/projects" '{
     "description": "A project created for API testing"
 }' "201" "Create new project")
 
-# Extract project ID (assuming jq is available, fallback to basic parsing)
+# Extract project ID (slug format: e.g., "api-test-project")
 if command -v jq &> /dev/null; then
     PROJECT_ID=$(echo "$project_response" | jq -r '.id')
 else
     PROJECT_ID=$(echo "$project_response" | grep -o '"id":"[^"]*"' | cut -d'"' -f4)
 fi
 
-echo "Project ID: $PROJECT_ID"
+echo "Project ID (slug): $PROJECT_ID"
 
 # Test getting all projects
 test_endpoint "GET" "/projects" "" "200" "Get all projects"
@@ -158,14 +158,14 @@ if [ -n "$PROJECT_ID" ]; then
         "dueDate": "2025-02-15T00:00:00Z"
     }' "201" "Create new task")
     
-    # Extract task ID
+    # Extract task ID (slug format: e.g., "api-test-project-1")
     if command -v jq &> /dev/null; then
         TASK_ID=$(echo "$task_response" | jq -r '.id')
     else
         TASK_ID=$(echo "$task_response" | grep -o '"id":"[^"]*"' | cut -d'"' -f4)
     fi
     
-    echo "Task ID: $TASK_ID"
+    echo "Task ID (slug): $TASK_ID"
     
     if [ -n "$TASK_ID" ]; then
         # Get task by ID

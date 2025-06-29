@@ -44,6 +44,7 @@ import { useProjects } from '@/context/ProjectContext'
 import { TaskStatus, Priority } from '@/types/types'
 import { logger } from '@/lib/logger'
 import { cn } from '@/lib/utils'
+import { CopyableId } from '@/components/CopyableId'
 
 interface TaskViewProps {
   projectId: string
@@ -372,6 +373,7 @@ export function TaskView({ projectId, onBack }: TaskViewProps) {
                 <TableRow className="border-b">
                   <TableHead className="w-[40px]"></TableHead>
                   <TableHead className="w-[200px]">Task</TableHead>
+                  <TableHead className="w-[140px]">Task ID</TableHead>
                   <TableHead className="w-[120px]">Status</TableHead>
                   <TableHead className="w-[100px]">Priority</TableHead>
                   <TableHead className="w-[120px]">Due date</TableHead>
@@ -419,6 +421,14 @@ export function TaskView({ projectId, onBack }: TaskViewProps) {
                           )}
                           </div>
                         </TaskHoverCard>
+                      </TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <CopyableId 
+                          id={task.id} 
+                          type="task" 
+                          size="sm"
+                          showLabel={false}
+                        />
                       </TableCell>
                       <TableCell>
                         <div onClick={(e) => e.stopPropagation()}>
