@@ -18,7 +18,7 @@ export const users = pgTable('users', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 export const projects = pgTable('projects', {
-  id: varchar('id', { length: 100 }).primaryKey(),
+  id: varchar('id', { length: 20 }).primaryKey(),
   userId: uuid('user_id').notNull().default('00000000-0000-0000-0000-000000000000').references(() => users.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   description: text('description'),
@@ -30,8 +30,8 @@ export const projects = pgTable('projects', {
 }));
 
 export const tasks = pgTable('tasks', {
-  id: varchar('id', { length: 150 }).primaryKey(),
-  projectId: varchar('project_id', { length: 100 }).notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  id: varchar('id', { length: 20 }).primaryKey(),
+  projectId: varchar('project_id', { length: 20 }).notNull().references(() => projects.id, { onDelete: 'cascade' }),
   title: text('title').notNull(),
   description: text('description'),
   details: text('details'),
@@ -45,7 +45,7 @@ export const tasks = pgTable('tasks', {
 
 export const comments = pgTable('comments', {
   id: uuid('id').primaryKey().defaultRandom(),
-  taskId: varchar('task_id', { length: 150 }).notNull().references(() => tasks.id, { onDelete: 'cascade' }),
+  taskId: varchar('task_id', { length: 20 }).notNull().references(() => tasks.id, { onDelete: 'cascade' }),
   content: text('content').notNull(),
   author: text('author').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),

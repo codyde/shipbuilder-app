@@ -25,8 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - API key management endpoints (`/api/api-keys/*`)
 
 ### Changed
-- **Database Schema**: Updated projects and tasks tables to use varchar slug IDs
-- **Database Service**: Implemented slug generation with collision detection
+- **Database Schema**: Updated projects and tasks tables to use varchar(20) slug IDs
+- **Database Service**: Implemented slug generation with collision detection and 20-char limits
+- **Slug Generation**: Capped project and task IDs at 20 characters maximum
 - **TypeScript Types**: Added slug format documentation and validation types
 - **AI Tools**: Updated to work with slug-based IDs and enhanced messaging
 - **MVP Builder Workflow**: Added name selection/editing step before project creation

@@ -28,13 +28,15 @@ export function generateSlug(input: string, options: SlugOptions = {}): string {
 
 /**
  * Generates a unique project slug by checking for collisions
+ * Project slugs are capped at 20 characters including collision numbers
  */
 export async function generateUniqueProjectSlug(
   name: string, 
   userId: string,
   checkExisting: (userId: string, slug: string) => Promise<boolean>
 ): Promise<string> {
-  const baseSlug = generateSlug(name, { maxLength: 80 });
+  const maxProjectLength = 20;
+  let baseSlug = generateSlug(name, { maxLength: maxProjectLength });
   
   if (!baseSlug) {
     throw new Error('Project name must contain at least one alphanumeric character');
@@ -46,9 +48,17 @@ export async function generateUniqueProjectSlug(
     return baseSlug;
   }
   
-  // Try numbered variations
+  // Try numbered variations, ensuring total length stays within limit
   for (let i = 2; i <= 999; i++) {
-    const numberedSlug = `${baseSlug}-${i}`;
+    const suffix = `-${i}`;
+    const maxBaseLength = maxProjectLength - suffix.length;
+    
+    // Truncate base slug if needed to accommodate suffix
+    const truncatedBase = baseSlug.length > maxBaseLength 
+      ? baseSlug.substring(0, maxBaseLength)
+      : baseSlug;
+    
+    const numberedSlug = `${truncatedBase}${suffix}`;
     const numberedExists = await checkExisting(userId, numberedSlug);
     if (!numberedExists) {
       return numberedSlug;
@@ -60,14 +70,25 @@ export async function generateUniqueProjectSlug(
 
 /**
  * Generates a unique task slug within a project
+ * Task slugs are capped at 20 characters including project ID and number
  */
 export async function generateUniqueTaskSlug(
   projectId: string,
   checkExisting: (taskId: string) => Promise<boolean>
 ): Promise<string> {
-  // Find the next sequential number
+  const maxTaskLength = 20;
+  
+  // Find the next sequential number, ensuring total length stays within limit
   for (let i = 1; i <= 9999; i++) {
-    const taskSlug = `${projectId}-${i}`;
+    const suffix = `-${i}`;
+    const maxProjectLength = maxTaskLength - suffix.length;
+    
+    // Truncate project ID if needed to accommodate task number
+    const truncatedProjectId = projectId.length > maxProjectLength 
+      ? projectId.substring(0, maxProjectLength)
+      : projectId;
+    
+    const taskSlug = `${truncatedProjectId}${suffix}`;
     const exists = await checkExisting(taskSlug);
     if (!exists) {
       return taskSlug;
@@ -82,7 +103,7 @@ export async function generateUniqueTaskSlug(
  */
 export function validateProjectSlug(slug: string): boolean {
   if (!slug || slug.length === 0) return false;
-  if (slug.length > 100) return false;
+  if (slug.length > 20) return false;
   
   // Must match: alphanumeric and hyphens only, no leading/trailing hyphens
   const slugRegex = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -94,7 +115,7 @@ export function validateProjectSlug(slug: string): boolean {
  */
 export function validateTaskSlug(slug: string): boolean {
   if (!slug || slug.length === 0) return false;
-  if (slug.length > 150) return false;
+  if (slug.length > 20) return false;
   
   // Must match: project-slug-number format
   const taskSlugRegex = /^[a-z0-9]+(-[a-z0-9]+)*-\d+$/;

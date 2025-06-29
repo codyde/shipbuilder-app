@@ -102,11 +102,11 @@ This is a full-stack project management application built with React + TypeScrip
 - **User**: Authentication and profile information
   - `id` (UUID), `email`, `name`, `provider`, `providerId`, `avatar`, timestamps
 - **Project**: Has name, description, status, tasks array, timestamps
-  - `id` (VARCHAR slug), `userId` (UUID FK), `name`, `description`, `status`, timestamps
-  - **ID Format**: `photoshare`, `my-awesome-app` (alphanumeric + hyphens)
+  - `id` (VARCHAR(20) slug), `userId` (UUID FK), `name`, `description`, `status`, timestamps
+  - **ID Format**: `photoshare`, `awesome-app` (max 20 chars, alphanumeric + hyphens)
 - **Task**: Belongs to project, has title, description, status, priority, due date, timestamps
-  - `id` (VARCHAR slug), `projectId` (VARCHAR FK), `title`, `description`, `details`, `status`, `priority`, `dueDate`, timestamps
-  - **ID Format**: `photoshare-1`, `photoshare-2` (project-slug + sequential number)
+  - `id` (VARCHAR(20) slug), `projectId` (VARCHAR(20) FK), `title`, `description`, `details`, `status`, `priority`, `dueDate`, timestamps
+  - **ID Format**: `photoshare-1`, `awesome-app-12` (max 20 chars, project-slug + sequential number)
 - **Comment**: Task comments and discussions
   - `id` (UUID), `taskId` (FK), `content`, `author`, timestamps
 - **API Key**: User API keys for programmatic access
@@ -124,10 +124,12 @@ The application uses human-readable slug-based identifiers for projects and task
 - **Projects**: Generated from project name using `generateUniqueProjectSlug()`
   - Converts to lowercase, replaces spaces with hyphens
   - Removes special characters, handles collisions with numeric suffixes
-  - Examples: `photoshare`, `task-manager-2`, `my-awesome-app`
+  - **Maximum length: 20 characters**
+  - Examples: `photoshare`, `task-mgr-2`, `awesome-app`
 - **Tasks**: Sequential numbering within each project using `generateUniqueTaskSlug()`
   - Format: `{project-slug}-{number}`
-  - Examples: `photoshare-1`, `photoshare-2`, `task-manager-2-1`
+  - **Maximum length: 20 characters** (including project ID and number)
+  - Examples: `photoshare-1`, `photoshare-2`, `task-mgr-2-1`
 
 #### Utilities (`server/utils/slug-utils.ts`)
 - `generateSlug()` - Convert string to URL-safe slug

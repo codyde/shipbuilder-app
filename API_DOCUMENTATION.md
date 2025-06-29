@@ -10,8 +10,8 @@ This is a RESTful API for managing projects, tasks, and subtasks. The API suppor
 
 ### ID Format
 The API uses human-readable slug-based identifiers:
-- **Project IDs**: Alphanumeric + hyphens (e.g., `photoshare`, `my-awesome-app`)
-- **Task IDs**: Project slug + sequential number (e.g., `photoshare-1`, `photoshare-2`)
+- **Project IDs**: Alphanumeric + hyphens, max 20 characters (e.g., `photoshare`, `awesome-app`)
+- **Task IDs**: Project slug + sequential number, max 20 characters (e.g., `photoshare-1`, `awesome-app-12`)
 - **User/Comment IDs**: Standard UUIDs
 
 ## Content-Type
