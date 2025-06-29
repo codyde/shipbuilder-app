@@ -29,13 +29,14 @@ chatRoutes.post('/stream', async (req: any, res: any) => {
 
     const result = streamText({
       model: anthropic('claude-sonnet-4-20250514'),
+      maxTokens: 1000,
       experimental_telemetry: {
         isEnabled: true,
-        functionId: "my-awesome-function"
+        functionId: "generate-application"
       },
       maxSteps: 10, // Allow multiple tool calls in sequence
       messages,
-      system: `You are a helpful AI assistant for a project management application. You can help users create and manage their projects, tasks, and subtasks using the available tools.
+      system: `You are a helpful AI assistant for a software development task management application. You can help users create and manage their projects, tasks, and subtasks using the available tools.
 
 When users ask you to create tasks or projects, use the appropriate tools to actually create them in the system. Always provide clear feedback about what was created.
 

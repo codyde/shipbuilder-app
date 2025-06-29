@@ -14,7 +14,57 @@ All requests and responses use `Content-Type: application/json`
 ---
 
 ## Authentication
-Currently, this API does not require authentication. All endpoints are publicly accessible.
+
+This API supports two authentication methods:
+
+### 1. JWT Tokens (Web Application)
+For web application users, authentication is handled automatically through OAuth login. JWT tokens are included in the `Authorization` header:
+
+```http
+Authorization: Bearer <jwt_token>
+```
+
+### 2. API Keys (Direct API Access)
+For direct API access, you can use API keys generated from your user profile. API keys provide secure, programmatic access to your account data.
+
+**Format:** `sb_<64_hex_characters>`
+
+**Usage:**
+```http
+Authorization: Bearer sb_1234567890abcdef...
+```
+
+**Getting an API Key:**
+1. Sign in to the web application
+2. Go to Profile → API Keys tab  
+3. Create a new API key with a descriptive name
+4. Copy the key (shown only once)
+5. Use the key in your API requests
+
+**Security Features:**
+- Keys are scoped to your user account only
+- Optional expiration dates (1-365 days)
+- Usage tracking (last used timestamps)
+- Secure hashing (keys never stored in plaintext)
+- Rate limiting (10 operations per 15 minutes)
+- Comprehensive audit logging
+
+**API Key Management Endpoints:**
+- `POST /api/api-keys/create` - Create new API key
+- `GET /api/api-keys/list` - List your API keys
+- `DELETE /api/api-keys/{keyId}` - Delete API key
+- `GET /api/api-keys/{keyId}` - Get key details
+
+**Example API Key Creation:**
+```bash
+curl -X POST \
+     -H "Authorization: Bearer <your_jwt_token>" \
+     -H "Content-Type: application/json" \
+     -d '{"name": "Production Server", "expiresInDays": 90}' \
+     http://localhost:3001/api/api-keys/create
+```
+
+**All protected endpoints require authentication.** Requests without valid authentication will return `401 Unauthorized`.
 
 ---
 
@@ -57,7 +107,8 @@ GET /api/projects
 
 **Example:**
 ```bash
-curl -X GET http://localhost:3001/api/projects
+curl -H "Authorization: Bearer <your_api_key>" \
+     http://localhost:3001/api/projects
 ```
 
 #### 2. Get Project by ID
@@ -86,7 +137,8 @@ GET /api/projects/{id}
 
 **Example:**
 ```bash
-curl -X GET http://localhost:3001/api/projects/proj-123
+curl -H "Authorization: Bearer <your_api_key>" \
+     http://localhost:3001/api/projects/proj-123
 ```
 
 #### 3. Create Project
@@ -122,6 +174,7 @@ POST /api/projects
 **Example:**
 ```bash
 curl -X POST http://localhost:3001/api/projects \
+  -H "Authorization: Bearer <your_api_key>" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Website Redesign",
@@ -166,6 +219,7 @@ PUT /api/projects/{id}
 **Example:**
 ```bash
 curl -X PUT http://localhost:3001/api/projects/proj-123 \
+  -H "Authorization: Bearer <your_api_key>" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Updated Project Name",
@@ -189,7 +243,8 @@ DELETE /api/projects/{id}
 
 **Example:**
 ```bash
-curl -X DELETE http://localhost:3001/api/projects/proj-123
+curl -X DELETE http://localhost:3001/api/projects/proj-123 \
+  -H "Authorization: Bearer <your_api_key>"
 ```
 
 ---
@@ -238,6 +293,7 @@ POST /api/projects/{projectId}/tasks
 **Example:**
 ```bash
 curl -X POST http://localhost:3001/api/projects/proj-123/tasks \
+  -H "Authorization: Bearer <your_api_key>" \
   -H "Content-Type: application/json" \
   -d '{
     "title": "Implement user authentication",
@@ -277,7 +333,8 @@ GET /api/projects/{projectId}/tasks/{taskId}
 
 **Example:**
 ```bash
-curl -X GET http://localhost:3001/api/projects/proj-123/tasks/task-456
+curl -X GET http://localhost:3001/api/projects/proj-123/tasks/task-456 \
+  -H "Authorization: Bearer <your_api_key>"
 ```
 
 #### 3. Update Task
@@ -323,6 +380,7 @@ PUT /api/projects/{projectId}/tasks/{taskId}
 **Example:**
 ```bash
 curl -X PUT http://localhost:3001/api/projects/proj-123/tasks/task-456 \
+  -H "Authorization: Bearer <your_api_key>" \
   -H "Content-Type: application/json" \
   -d '{
     "status": "completed",
@@ -347,7 +405,8 @@ DELETE /api/projects/{projectId}/tasks/{taskId}
 
 **Example:**
 ```bash
-curl -X DELETE http://localhost:3001/api/projects/proj-123/tasks/task-456
+curl -X DELETE http://localhost:3001/api/projects/proj-123/tasks/task-456 \
+  -H "Authorization: Bearer <your_api_key>"
 ```
 
 ---
@@ -394,6 +453,7 @@ POST /api/projects/{projectId}/tasks/{taskId}/subtasks
 **Example:**
 ```bash
 curl -X POST http://localhost:3001/api/projects/proj-123/tasks/task-456/subtasks \
+  -H "Authorization: Bearer <your_api_key>" \
   -H "Content-Type: application/json" \
   -d '{
     "title": "Create login form",
@@ -442,6 +502,7 @@ PUT /api/projects/tasks/{taskId}/subtasks/{subtaskId}
 **Example:**
 ```bash
 curl -X PUT http://localhost:3001/api/projects/tasks/task-456/subtasks/subtask-789 \
+  -H "Authorization: Bearer <your_api_key>" \
   -H "Content-Type: application/json" \
   -d '{
     "status": "completed"
@@ -465,7 +526,8 @@ DELETE /api/projects/tasks/{taskId}/subtasks/{subtaskId}
 
 **Example:**
 ```bash
-curl -X DELETE http://localhost:3001/api/projects/tasks/task-456/subtasks/subtask-789
+curl -X DELETE http://localhost:3001/api/projects/tasks/task-456/subtasks/subtask-789 \
+  -H "Authorization: Bearer <your_api_key>"
 ```
 
 ---
@@ -506,6 +568,7 @@ Server-Sent Events (SSE) stream with AI responses and tool executions.
 **Example:**
 ```bash
 curl -X POST http://localhost:3001/api/chat/stream \
+  -H "Authorization: Bearer <your_api_key>" \
   -H "Content-Type: application/json" \
   -d '{
     "messages": [
@@ -648,31 +711,37 @@ CORS is enabled for all origins (`*`).
 ```bash
 # 1. Create a project
 PROJECT_ID=$(curl -s -X POST http://localhost:3001/api/projects \
+  -H "Authorization: Bearer <your_api_key>" \
   -H "Content-Type: application/json" \
   -d '{"name": "Website Redesign", "description": "Complete website overhaul"}' | jq -r '.id')
 
 # 2. Add a task
 TASK_ID=$(curl -s -X POST http://localhost:3001/api/projects/$PROJECT_ID/tasks \
+  -H "Authorization: Bearer <your_api_key>" \
   -H "Content-Type: application/json" \
   -d '{"title": "User Authentication", "priority": "high", "dueDate": "2025-02-01T00:00:00Z"}' | jq -r '.id')
 
 # 3. Add subtasks
 curl -X POST http://localhost:3001/api/projects/$PROJECT_ID/tasks/$TASK_ID/subtasks \
+  -H "Authorization: Bearer <your_api_key>" \
   -H "Content-Type: application/json" \
   -d '{"title": "Create login form", "priority": "medium"}'
 
 curl -X POST http://localhost:3001/api/projects/$PROJECT_ID/tasks/$TASK_ID/subtasks \
+  -H "Authorization: Bearer <your_api_key>" \
   -H "Content-Type: application/json" \
   -d '{"title": "Implement password validation", "priority": "high"}'
 
 # 4. View the complete project
-curl -X GET http://localhost:3001/api/projects/$PROJECT_ID
+curl -X GET http://localhost:3001/api/projects/$PROJECT_ID \
+  -H "Authorization: Bearer <your_api_key>"
 ```
 
 ### Using AI for Project Management
 ```bash
 # Create project and tasks using natural language
 curl -X POST http://localhost:3001/api/chat/stream \
+  -H "Authorization: Bearer <your_api_key>" \
   -H "Content-Type: application/json" \
   -d '{
     "messages": [

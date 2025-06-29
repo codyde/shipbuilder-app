@@ -52,10 +52,10 @@ class ServerLogger {
     
     this.config = {
       enableConsole: true,
-      enableSentry: isProduction,
+      enableSentry: isProduction || isDevelopment,
       minLevel: isDevelopment ? LogLevel.DEBUG : LogLevel.INFO,
       environment: isProduction ? 'production' : (isDevelopment ? 'development' : 'test'),
-      enableStructuredLogging: isProduction, // JSON logs in production, readable logs in dev
+      enableStructuredLogging: isProduction,
     }
   }
 

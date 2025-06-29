@@ -2,15 +2,29 @@ import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Separator } from '@/components/ui/separator';
+import { Loader2, Code2 } from 'lucide-react';
 import { getApiUrl } from '@/lib/api-config';
+import shipbuilderVideo from '@/assets/shipbuilder.mp4';
 
 export function LoginScreen() {
-  const { loading, error } = useAuth();
+  const { loading, error, loginAsDeveloper } = useAuth();
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [urlError, setUrlError] = useState<string | null>(null);
+  // Check if developer mode should be available
+  const isDevModeEnabled = React.useMemo(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('devmode') === 'true';
+  }, []);
 
-  // Check for OAuth callback errors in URL
+  const [isDeveloperMode, setIsDeveloperMode] = useState(isDevModeEnabled);
+  const [developerEmail, setDeveloperEmail] = useState('');
+  const [isDeveloperLoading, setIsDeveloperLoading] = useState(false);
+
+  // Check for OAuth callback errors and devmode parameter in URL
   React.useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const errorParam = urlParams.get('error');
@@ -26,9 +40,38 @@ export function LoginScreen() {
     window.location.href = loginUrl;
   };
 
+  const handleDeveloperLogin = async () => {
+    if (!developerEmail.trim()) {
+      return;
+    }
+    
+    setIsDeveloperLoading(true);
+    try {
+      await loginAsDeveloper(developerEmail.trim());
+    } catch (error) {
+      console.error('Developer login failed:', error);
+    } finally {
+      setIsDeveloperLoading(false);
+    }
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-6xl w-full">
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden py-12 px-4 sm:px-6 lg:px-8">
+      {/* Background Video */}
+      <video
+        autoPlay
+        loop
+        muted
+        playsInline
+        className="absolute inset-0 w-full h-full object-cover z-0"
+      >
+        <source src={shipbuilderVideo} type="video/mp4" />
+      </video>
+      
+      {/* Dark overlay for better text readability */}
+      <div className="absolute inset-0 bg-black/70 z-10" />
+      
+      <div className="max-w-6xl w-full relative z-20">
         <div className="grid lg:grid-cols-2 gap-12 items-center">
           {/* Left side - Branding */}
           <div className="text-center lg:text-left space-y-8">
@@ -57,7 +100,7 @@ export function LoginScreen() {
           {/* Right side - Login Form */}
           <div className="flex justify-center lg:justify-end">
             <div className="max-w-md w-full">
-              <Card className="border-2">
+              <Card className="border-2 bg-background/95 backdrop-blur-sm">
                 <CardHeader className="text-center">
                   <CardTitle className="text-2xl">Welcome Back</CardTitle>
                   <CardDescription>
@@ -79,7 +122,7 @@ export function LoginScreen() {
                     onClick={handleSentryLogin}
                     size="lg"
                     className="w-full h-12 text-base font-medium"
-                    disabled={loading || isRedirecting}
+                    disabled={loading || isRedirecting || isDeveloperLoading}
                   >
                     {isRedirecting ? (
                       <>
@@ -95,6 +138,87 @@ export function LoginScreen() {
                       </>
                     )}
                   </Button>
+
+                  {/* Developer Mode Section - Only show if ?devmode=true */}
+                  {isDevModeEnabled && (
+                    <>
+                      {/* Divider */}
+                      <div className="relative">
+                        <Separator />
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <span className="bg-card px-2 text-xs text-muted-foreground">
+                            or
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Developer Mode Toggle */}
+                      <div className="flex items-center space-x-2">
+                        <Switch
+                          id="developer-mode"
+                          checked={isDeveloperMode}
+                          onCheckedChange={setIsDeveloperMode}
+                          disabled={loading || isRedirecting || isDeveloperLoading}
+                        />
+                        <Label htmlFor="developer-mode" className="text-sm font-medium">
+                          Developer Mode
+                        </Label>
+                      </div>
+
+                      {/* Developer Mode Form */}
+                      {isDeveloperMode && (
+                        <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
+                          <div className="flex items-center space-x-2 text-amber-600">
+                            <Code2 className="w-4 h-4" />
+                            <span className="text-sm font-medium">Development Access</span>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor="developer-email" className="text-sm">
+                              Email Address
+                            </Label>
+                            <Input
+                              id="developer-email"
+                              type="email"
+                              placeholder="Enter your email"
+                              value={developerEmail}
+                              onChange={(e) => setDeveloperEmail(e.target.value)}
+                              disabled={loading || isRedirecting || isDeveloperLoading}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && developerEmail.trim()) {
+                                  handleDeveloperLogin();
+                                }
+                              }}
+                            />
+                          </div>
+                          
+                          <Button
+                            onClick={handleDeveloperLogin}
+                            size="sm"
+                            variant="outline"
+                            className="w-full"
+                            disabled={loading || isRedirecting || isDeveloperLoading || !developerEmail.trim()}
+                          >
+                            {isDeveloperLoading ? (
+                              <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Logging in...
+                              </>
+                            ) : (
+                              <>
+                                <Code2 className="w-4 h-4 mr-2" />
+                                Login as Developer
+                              </>
+                            )}
+                          </Button>
+                          
+                          <p className="text-xs text-muted-foreground">
+                            This will log you in as <strong>{developerEmail.trim() ? `${developerEmail.trim().split('@')[0]}+demo@${developerEmail.trim().split('@')[1] || 'example.com'}` : 'email+demo@domain.com'}</strong>
+                          </p>
+                        </div>
+                      )}
+                    </>
+                  )}
 
                   {/* Security Notice */}
                   <div className="text-center">

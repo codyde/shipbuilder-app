@@ -47,8 +47,12 @@ Keep the response well-structured and professional.`;
         functionId: "generate-details"
       },
       system: systemPrompt,
+      onError: (error) => {
+        console.error('AI generation error:', error);
+        Sentry.captureException(error);
+      },
       prompt: prompt,
-      maxTokens: 1000,
+      maxTokens: 1,
     });
 
     // Stream the text chunks to the client
@@ -67,222 +71,6 @@ Keep the response well-structured and professional.`;
   }
 });
 
-aiRoutes.post('/generate-mvp', async (req: any, res: any) => {
-  const { logger } = Sentry;
-  const startTime = Date.now();
-  
-  try {
-    const { projectIdea } = req.body;
-    
-    // Get authenticated user ID first for logging context
-    const userId = req.user?.id;
-    if (!userId) {
-      logger.warn('MVP generation attempted without authentication');
-      return res.status(401).json({ error: 'User not authenticated' });
-    }
-
-    logger.info('MVP generation started', {
-      userId,
-      projectIdeaLength: projectIdea?.length || 0,
-      hasProjectIdea: !!projectIdea
-    });
-
-    if (!projectIdea) {
-      logger.warn('MVP generation failed: missing project idea', { userId });
-      return res.status(400).json({ error: 'Project idea is required' });
-    }
-
-    if (!process.env.ANTHROPIC_API_KEY) {
-      logger.error('MVP generation failed: ANTHROPIC_API_KEY not set', { userId });
-      Sentry.captureException(new Error('ANTHROPIC_API_KEY not configured'), {
-        tags: { feature: 'mvp_generation', step: 'config_validation' },
-        extra: { userId }
-      });
-      return res.status(500).json({ 
-        error: 'ANTHROPIC_API_KEY environment variable is not set' 
-      });
-    }
-
-    const systemPrompt = `You are an expert product manager and technical architect who helps create detailed MVP (Minimum Viable Product) plans for software projects.
-
-Based on the user's project idea, create a comprehensive MVP plan that includes:
-
-1. A clear project name and description
-2. Core features that are essential for the MVP (keep it minimal but functional)
-3. Recommended tech stack (frontend, backend, database, hosting)
-4. Detailed development tasks broken down into actionable items
-
-Focus on creating an MVP that can be built and launched quickly while still providing value to users. Prioritize essential features only.
-
-Respond with a JSON object in this exact format:
-{
-  "projectName": "Clear, concise project name",
-  "description": "Brief description of what the MVP does",
-  "features": [
-    "List of core features needed for MVP",
-    "Each feature should be essential and user-facing"
-  ],
-  "techStack": {
-    "frontend": "Recommended frontend technology/framework",
-    "backend": "Recommended backend technology/framework", 
-    "database": "Recommended database solution",
-    "hosting": "Optional hosting recommendation"
-  },
-  "tasks": [
-    {
-      "title": "Task title",
-      "description": "Detailed description of what needs to be done",
-      "priority": "high|medium|low"
-    }
-  ]
-}
-
-CRITICAL: Your response must be ONLY the JSON object, with no markdown formatting, no code blocks, no additional text before or after. Start directly with { and end with }. Do not include \`\`\`json or any other formatting.`;
-
-    logger.info('Calling Anthropic API for MVP generation', {
-      userId,
-      projectIdeaPreview: projectIdea.substring(0, 100)
-    });
-
-    const result = await generateText({
-      model: anthropic('claude-sonnet-4-20250514'),
-      experimental_telemetry: {
-        isEnabled: true,
-        functionId: "generate-mvp"
-      },
-      system: systemPrompt,
-      prompt: `Create an MVP plan for: ${projectIdea}`,
-      maxTokens: 2000,
-    });
-
-    logger.info('Anthropic API response received', {
-      userId,
-      responseLength: result.text.length,
-      responsePreview: result.text.substring(0, 200)
-    });
-
-    // Parse the JSON response
-    let mvpPlan;
-    try {
-      logger.info('Starting JSON parsing of AI response', {
-        userId,
-        rawLength: result.text.length
-      });
-      
-      // Clean the response text - remove potential markdown formatting
-      let cleanedText = result.text.trim();
-      if (cleanedText.startsWith('```json')) {
-        cleanedText = cleanedText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-        logger.info('Removed JSON markdown formatting', { userId });
-      } else if (cleanedText.startsWith('```')) {
-        cleanedText = cleanedText.replace(/^```\s*/, '').replace(/\s*```$/, '');
-        logger.info('Removed generic markdown formatting', { userId });
-      }
-      cleanedText = cleanedText.trim();
-      
-      mvpPlan = JSON.parse(cleanedText);
-      
-      logger.info('Successfully parsed MVP plan', {
-        userId,
-        projectName: mvpPlan.projectName,
-        tasksCount: mvpPlan.tasks?.length,
-        featuresCount: mvpPlan.features?.length,
-        hasTechStack: !!mvpPlan.techStack
-      });
-    } catch (parseError) {
-      logger.error('Failed to parse AI response as JSON', {
-        userId,
-        error: parseError instanceof Error ? parseError.message : String(parseError),
-        rawText: result.text.substring(0, 500)
-      });
-      
-      Sentry.captureException(parseError instanceof Error ? parseError : new Error('JSON parse failed'), {
-        tags: { feature: 'mvp_generation', step: 'json_parsing' },
-        extra: { 
-          userId,
-          rawResponse: result.text.substring(0, 1000),
-          responseLength: result.text.length
-        }
-      });
-      
-      return res.status(500).json({ 
-        error: 'Failed to parse MVP plan from AI response' 
-      });
-    }
-
-    // Validate the MVP plan structure
-    const validationResult = {
-      hasProjectName: !!mvpPlan.projectName,
-      hasDescription: !!mvpPlan.description,
-      hasFeaturesArray: Array.isArray(mvpPlan.features),
-      hasTechStack: !!mvpPlan.techStack,
-      hasTasksArray: Array.isArray(mvpPlan.tasks)
-    };
-    
-    logger.info('MVP plan validation results', {
-      userId,
-      ...validationResult
-    });
-
-    if (!mvpPlan.projectName || !mvpPlan.description || !Array.isArray(mvpPlan.features) || !mvpPlan.techStack || !Array.isArray(mvpPlan.tasks)) {
-      logger.error('Invalid MVP plan structure', {
-        userId,
-        validationResult,
-        receivedStructure: {
-          projectName: typeof mvpPlan.projectName,
-          description: typeof mvpPlan.description,
-          features: Array.isArray(mvpPlan.features) ? `array[${mvpPlan.features.length}]` : typeof mvpPlan.features,
-          techStack: typeof mvpPlan.techStack,
-          tasks: Array.isArray(mvpPlan.tasks) ? `array[${mvpPlan.tasks.length}]` : typeof mvpPlan.tasks
-        }
-      });
-      
-      Sentry.captureException(new Error('Invalid MVP plan structure'), {
-        tags: { feature: 'mvp_generation', step: 'structure_validation' },
-        extra: { 
-          userId,
-          validationResult,
-          mvpPlanKeys: Object.keys(mvpPlan),
-          receivedStructure: JSON.stringify(mvpPlan, null, 2).substring(0, 1000)
-        }
-      });
-      
-      return res.status(500).json({ 
-        error: 'Generated MVP plan has invalid structure' 
-      });
-    }
-
-    const duration = Date.now() - startTime;
-    logger.info('MVP generation completed successfully', {
-      userId,
-      duration,
-      projectName: mvpPlan.projectName,
-      tasksCount: mvpPlan.tasks.length,
-      featuresCount: mvpPlan.features.length
-    });
-
-    res.json({ mvpPlan });
-  } catch (error) {
-    const duration = Date.now() - startTime;
-    logger.error('MVP generation failed with unexpected error', {
-      userId: req.user?.id,
-      duration,
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined
-    });
-    
-    Sentry.captureException(error instanceof Error ? error : new Error('MVP generation failed'), {
-      tags: { feature: 'mvp_generation', step: 'unexpected_error' },
-      extra: { 
-        userId: req.user?.id,
-        duration,
-        projectIdea: req.body?.projectIdea?.substring(0, 100)
-      }
-    });
-    
-    res.status(500).json({ error: 'Failed to generate MVP plan' });
-  }
-});
 
 aiRoutes.post('/generatemvp', async (req: any, res: any) => {
   try {
@@ -315,6 +103,12 @@ Based on the user's project idea, create a comprehensive MVP plan that includes:
 4. Detailed development tasks broken down into actionable items
 
 Focus on creating an MVP that can be built and launched quickly while still providing value to users. Prioritize essential features only.
+
+Task descriptions should be in the format of prompts that an AI can use to generate code for that specific task. It should be a detailed description of the task, written from the perspective of a senior developer focused on that task space.
+
+For UI related tasks, prefer to use Shadcn UI and Tailwind CSS as part of the build.
+
+For database related tasks, prefer to use PostgreSQL and use Drizzle ORM to manage it. Include these in the tasks.
 
 Respond with a JSON object in this exact format:
 {
@@ -448,7 +242,7 @@ The user will be very disappointed if you only create the project but not the ta
           parameters: z.object({
             projectId: z.string().describe('The ID of the project to add the task to'),
             title: z.string().describe('The title of the task'),
-            description: z.string().describe('Detailed description of what needs to be done'),
+            description: z.string().describe('Detailed description of what needs to be done, structured as a prompt that an AI can use to generate code for that specific task. It should be a detailed description of the task, written from the perspective of a senior developer focused on that task space.'),
             priority: z.enum(['low', 'medium', 'high']).optional().describe('Priority level of the task')
           }),
           execute: async (args) => taskTools.createTask.execute(args)

@@ -24,7 +24,7 @@ export const Priority = {
 export type Priority = typeof Priority[keyof typeof Priority]
 
 export interface User {
-  id: string;
+  id: string; // UUID format
   email: string;
   name: string;
   provider?: string;
@@ -46,8 +46,8 @@ export interface Subtask {
 }
 
 export interface Task {
-  id: string;
-  projectId: string;
+  id: string; // Slug format: {project-slug}-{number} (e.g., "photoshare-1")
+  projectId: string; // Slug format: alphanumeric + hyphens (e.g., "photoshare")
   title: string;
   description?: string;
   details?: string;
@@ -61,8 +61,8 @@ export interface Task {
 }
 
 export interface Project {
-  id: string;
-  userId: string;
+  id: string; // Slug format: alphanumeric + hyphens (e.g., "photoshare")
+  userId: string; // UUID format
   name: string;
   description?: string;
   status: ProjectStatus;
@@ -77,7 +77,7 @@ export interface CreateProjectInput {
 }
 
 export interface CreateTaskInput {
-  projectId: string;
+  projectId: string; // Project slug (e.g., "photoshare")
   title: string;
   description?: string;
   priority?: Priority;
@@ -112,8 +112,8 @@ export interface ToolInvocation {
 }
 
 export interface Comment {
-  id: string;
-  taskId: string;
+  id: string; // UUID format
+  taskId: string; // Task slug (e.g., "photoshare-1")
   content: string;
   author: string;
   createdAt: string;
@@ -121,7 +121,11 @@ export interface Comment {
 }
 
 export interface CreateCommentInput {
-  taskId: string;
+  taskId: string; // Task slug (e.g., "photoshare-1")
   content: string;
   author: string;
 }
+
+// Slug validation types
+export type ProjectSlug = string; // Format: alphanumeric + hyphens (e.g., "photoshare")
+export type TaskSlug = string;    // Format: {project-slug}-{number} (e.g., "photoshare-1")

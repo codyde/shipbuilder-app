@@ -5,12 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
-import { Progress } from '@/components/ui/progress';
 import { Accordion } from '@/components/ui/accordion';
 import { X, Lightbulb, GripHorizontal, Loader2, Rocket, CheckCircle } from 'lucide-react';
 import { useDraggable } from '@/hooks/useDraggable';
 import { getApiUrl } from '@/lib/api-config';
-import { cn } from '@/lib/utils';
 
 interface MVPBuilderProps {
   className?: string;
@@ -41,6 +39,8 @@ export function MVPBuilder({ className = '', onClose }: MVPBuilderProps) {
   const [projectIdea, setProjectIdea] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [mvpPlan, setMvpPlan] = useState<MVPPlan | null>(null);
+  const [projectName, setProjectName] = useState(''); // Editable project name
+  const [isSuggestingName, setIsSuggestingName] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -210,6 +210,7 @@ export function MVPBuilder({ className = '', onClose }: MVPBuilderProps) {
         }
         
         setMvpPlan(mvpPlan);
+        setProjectName(mvpPlan.projectName); // Initialize editable name
         setGenerationText(''); // Clear the raw text once parsed
       } catch (parseError) {
         throw new Error('Failed to parse MVP plan from AI response');
@@ -226,9 +227,99 @@ export function MVPBuilder({ className = '', onClose }: MVPBuilderProps) {
     }
   };
 
+  const handleSuggestName = async () => {
+    if (!projectIdea.trim()) {
+      setError('Please enter a project description first');
+      return;
+    }
+
+    setIsSuggestingName(true);
+    setError(null);
+
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        throw new Error('Authentication token missing. Please log in again.');
+      }
+
+      const response = await fetch(getApiUrl('chat/stream'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          messages: [
+            {
+              role: 'user',
+              content: `Suggest a project name based on this description: ${projectIdea.trim()}`
+            }
+          ],
+          tools: {
+            suggestProjectName: {
+              description: 'Generate a suggested project name based on a project description',
+              parameters: {
+                type: 'object',
+                properties: {
+                  description: {
+                    type: 'string',
+                    description: 'The project description to base the name suggestion on'
+                  }
+                },
+                required: ['description']
+              }
+            }
+          },
+          maxSteps: 3
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get name suggestion');
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let fullResponse = '';
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          fullResponse += decoder.decode(value, { stream: true });
+        }
+      }
+
+      // Parse the streaming response to find tool results
+      const lines = fullResponse.split('\n');
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.type === 'tool-result' && data.toolName === 'suggestProjectName') {
+              const result = JSON.parse(data.result);
+              if (result.success && result.data?.suggestedName) {
+                setProjectName(result.data.suggestedName);
+                return;
+              }
+            }
+          } catch (parseError) {
+            // Continue to next line
+          }
+        }
+      }
+
+      throw new Error('No name suggestion received');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to suggest name');
+    } finally {
+      setIsSuggestingName(false);
+    }
+  };
+
   const handleCreateProject = async () => {
-    if (!mvpPlan || !user) {
-      setError('Invalid project plan or user not authenticated');
+    if (!mvpPlan || !user || !projectName.trim()) {
+      setError('Invalid project plan, project name, or user not authenticated');
       return;
     }
 
@@ -253,7 +344,10 @@ export function MVPBuilder({ className = '', onClose }: MVPBuilderProps) {
           'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
-          mvpPlan,
+          mvpPlan: {
+            ...mvpPlan,
+            projectName: projectName.trim(), // Use the edited project name
+          },
         }),
         signal: controller.signal,
       });
@@ -297,6 +391,7 @@ export function MVPBuilder({ className = '', onClose }: MVPBuilderProps) {
       setTimeout(() => {
         setProjectIdea('');
         setMvpPlan(null);
+        setProjectName('');
         setSuccessMessage(null);
         setGenerationText('');
         setIsComplete(false);
@@ -464,8 +559,31 @@ export function MVPBuilder({ className = '', onClose }: MVPBuilderProps) {
             <>
               {/* MVP Plan Display */}
               <div className="space-y-4">
+                {/* Project Name Editor */}
                 <Card className="p-4">
-                  <h4 className="font-semibold text-sm mb-2">Project: {mvpPlan.projectName}</h4>
+                  <label className="text-sm font-medium mb-2 block">Project Name</label>
+                  <div className="flex gap-2 mb-3">
+                    <Input
+                      value={projectName}
+                      onChange={(e) => setProjectName(e.target.value)}
+                      placeholder="Enter project name"
+                      className="flex-1"
+                      maxLength={50}
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSuggestName}
+                      disabled={isSuggestingName || !projectIdea.trim()}
+                      className="shrink-0"
+                    >
+                      {isSuggestingName ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Lightbulb className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </div>
                   <p className="text-sm text-muted-foreground mb-3">{mvpPlan.description}</p>
                   
                   <div className="grid grid-cols-2 gap-3 text-xs">
@@ -532,7 +650,7 @@ export function MVPBuilder({ className = '', onClose }: MVPBuilderProps) {
                   <div className="flex gap-2">
                     <Button
                       onClick={handleCreateProject}
-                      disabled={isCreating}
+                      disabled={isCreating || !projectName.trim()}
                       className="flex-1"
                     >
                       <Rocket className="w-4 h-4 mr-2" />
@@ -542,6 +660,7 @@ export function MVPBuilder({ className = '', onClose }: MVPBuilderProps) {
                       variant="outline"
                       onClick={() => {
                         setMvpPlan(null);
+                        setProjectName('');
                         setError(null);
                         setSuccessMessage(null);
                       }}

@@ -151,7 +151,7 @@ export function loggingExamples() {
   // External API logging
   logger.externalAPI('Anthropic', 'POST', '/v1/messages', 200, 2300, {
     model: 'claude-sonnet-4',
-    tokens: 1500,
+    tokens: 1,
   })
 }
 

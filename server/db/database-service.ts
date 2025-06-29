@@ -1,10 +1,26 @@
 import { db } from './connection.js';
-import { projects, tasks, comments, users } from './schema.js';
+import { projects, tasks, comments, users, apiKeys } from './schema.js';
 import { eq, sql, and } from 'drizzle-orm';
 import { logger } from '../lib/logger.js';
+import { generateUniqueProjectSlug, generateUniqueTaskSlug, getProjectIdFromTaskSlug } from '../utils/slug-utils.js';
 import type { Project, Task, Comment, User, CreateProjectInput, CreateTaskInput, CreateCommentInput, TaskStatus, ProjectStatus, Priority } from '../../src/types/types.js';
 
 class DatabaseService {
+  // Helper methods for slug generation
+  private async checkProjectSlugExists(userId: string, slug: string): Promise<boolean> {
+    const existing = await db.query.projects.findFirst({
+      where: and(eq(projects.userId, userId), eq(projects.id, slug)),
+    });
+    return !!existing;
+  }
+
+  private async checkTaskSlugExists(taskSlug: string): Promise<boolean> {
+    const existing = await db.query.tasks.findFirst({
+      where: eq(tasks.id, taskSlug),
+    });
+    return !!existing;
+  }
+
   // Users
   async createUser(email: string, name: string, provider?: string, providerId?: string, avatar?: string): Promise<User> {
     const [user] = await db.insert(users)
@@ -72,8 +88,16 @@ class DatabaseService {
 
   // Projects
   async createProject(input: CreateProjectInput, userId: string): Promise<Project> {
+    // Generate unique slug for the project
+    const projectSlug = await generateUniqueProjectSlug(
+      input.name,
+      userId,
+      this.checkProjectSlugExists.bind(this)
+    );
+
     const [project] = await db.insert(projects)
       .values({
+        id: projectSlug,
         userId,
         name: input.name,
         description: input.description,
@@ -262,8 +286,15 @@ class DatabaseService {
     
     if (!project) return null;
 
+    // Generate unique task slug
+    const taskSlug = await generateUniqueTaskSlug(
+      input.projectId,
+      this.checkTaskSlugExists.bind(this)
+    );
+
     const [task] = await db.insert(tasks)
       .values({
+        id: taskSlug,
         projectId: input.projectId,
         title: input.title,
         description: input.description,
@@ -318,6 +349,12 @@ class DatabaseService {
       createdAt: task.createdAt.toISOString(),
       updatedAt: task.updatedAt.toISOString(),
     };
+  }
+
+  // Convenience method to get task by slug only
+  async getTaskBySlug(taskSlug: string, userId: string): Promise<Task | null> {
+    const projectId = getProjectIdFromTaskSlug(taskSlug);
+    return this.getTask(projectId, taskSlug, userId);
   }
 
   async updateTask(projectId: string, taskId: string, userId: string, updates: Partial<Omit<Task, 'id' | 'projectId' | 'createdAt'>>): Promise<Task | null> {
@@ -440,6 +477,75 @@ class DatabaseService {
       createdAt: comment.createdAt.toISOString(),
       updatedAt: comment.updatedAt.toISOString(),
     };
+  }
+
+  // API Keys
+  async createApiKey(userId: string, name: string, keyHash: string, prefix: string, expiresAt?: Date): Promise<{ id: string; name: string; prefix: string; createdAt: string; expiresAt: string | null; isActive: boolean }> {
+    const [apiKey] = await db.insert(apiKeys)
+      .values({
+        userId,
+        name,
+        keyHash,
+        prefix,
+        expiresAt,
+        isActive: 'true',
+      })
+      .returning();
+
+    return {
+      id: apiKey.id,
+      name: apiKey.name,
+      prefix: apiKey.prefix,
+      createdAt: apiKey.createdAt.toISOString(),
+      expiresAt: apiKey.expiresAt?.toISOString() || null,
+      isActive: apiKey.isActive === 'true',
+    };
+  }
+
+  async getApiKeysByUserId(userId: string): Promise<{ id: string; name: string; prefix: string; createdAt: string; expiresAt: string | null; lastUsedAt: string | null; isActive: boolean }[]> {
+    const userApiKeys = await db.query.apiKeys.findMany({
+      where: and(eq(apiKeys.userId, userId), eq(apiKeys.isActive, 'true')),
+    });
+
+    return userApiKeys.map(key => ({
+      id: key.id,
+      name: key.name,
+      prefix: key.prefix,
+      createdAt: key.createdAt.toISOString(),
+      expiresAt: key.expiresAt?.toISOString() || null,
+      lastUsedAt: key.lastUsedAt?.toISOString() || null,
+      isActive: key.isActive === 'true',
+    }));
+  }
+
+  async getApiKeyByHash(keyHash: string): Promise<{ id: string; userId: string; name: string; expiresAt: Date | null; isActive: boolean } | null> {
+    const apiKey = await db.query.apiKeys.findFirst({
+      where: and(eq(apiKeys.keyHash, keyHash), eq(apiKeys.isActive, 'true')),
+    });
+
+    if (!apiKey) return null;
+
+    return {
+      id: apiKey.id,
+      userId: apiKey.userId,
+      name: apiKey.name,
+      expiresAt: apiKey.expiresAt,
+      isActive: apiKey.isActive === 'true',
+    };
+  }
+
+  async updateApiKeyLastUsed(keyId: string): Promise<void> {
+    await db.update(apiKeys)
+      .set({ lastUsedAt: sql`NOW()` })
+      .where(eq(apiKeys.id, keyId));
+  }
+
+  async deleteApiKey(keyId: string, userId: string): Promise<boolean> {
+    const result = await db.update(apiKeys)
+      .set({ isActive: 'false' })
+      .where(and(eq(apiKeys.id, keyId), eq(apiKeys.userId, userId)));
+
+    return result.rowCount ? result.rowCount > 0 : false;
   }
 }
 

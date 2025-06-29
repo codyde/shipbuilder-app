@@ -40,6 +40,7 @@ interface AuthContextValue extends AuthState {
   logout: () => void;
   checkAuth: () => Promise<void>;
   handleOAuthCallback: () => Promise<boolean>;
+  loginAsDeveloper: (email: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -261,6 +262,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const loginAsDeveloper = useCallback(async (email: string) => {
+    try {
+      dispatch({ type: 'SET_LOADING', payload: true });
+      dispatch({ type: 'SET_ERROR', payload: null });
+
+      const response = await fetch(getApiUrl('auth/developer'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Developer login failed');
+      }
+
+      const data = await response.json();
+      
+      // Store JWT token
+      localStorage.setItem('authToken', data.token);
+      
+      // Update Sentry user context for developer login
+      Sentry.setUser({
+        id: data.user.id,
+        email: data.user.email,
+        username: data.user.name
+      });
+      
+      dispatch({ type: 'SET_USER', payload: data.user });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Developer login failed';
+      dispatch({ type: 'SET_ERROR', payload: errorMessage });
+      throw error;
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  }, []);
+
   // Check authentication status on mount
   useEffect(() => {
     const initAuth = async () => {
@@ -287,6 +328,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     logout,
     checkAuth,
     handleOAuthCallback,
+    loginAsDeveloper,
   };
 
   return (

@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { databaseService } from '../db/database-service.js';
 import * as Sentry from '@sentry/node';
+import { verifyApiKey, isValidApiKeyFormat, hashApiKey, isApiKeyExpired } from '../utils/api-key-utils.js';
 
 // JWT Payload interface
 export interface JWTPayload {
@@ -38,7 +39,12 @@ enum SecurityEvent {
   PERMISSION_DENIED = 'auth.permission.denied',
   SUSPICIOUS_ACTIVITY = 'auth.suspicious.activity',
   INVALID_TOKEN = 'auth.token.invalid',
-  EXPIRED_TOKEN = 'auth.token.expired'
+  EXPIRED_TOKEN = 'auth.token.expired',
+  API_KEY_SUCCESS = 'auth.apikey.success',
+  API_KEY_INVALID = 'auth.apikey.invalid',
+  API_KEY_EXPIRED = 'auth.apikey.expired',
+  API_KEY_CREATED = 'auth.apikey.created',
+  API_KEY_DELETED = 'auth.apikey.deleted'
 }
 
 interface AuditLogEntry {
@@ -116,13 +122,72 @@ export async function authenticateUser(req: Request, res: Response, next: NextFu
     const authHeader = req.headers.authorization;
     
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      logSecurityEvent(SecurityEvent.PERMISSION_DENIED, req, { reason: 'missing_token' }, 'medium');
+      logSecurityEvent(SecurityEvent.PERMISSION_DENIED, req, { reason: 'missing_auth_header' }, 'medium');
       res.status(401).json({ error: 'Authentication required' });
       return;
     }
 
     const token = authHeader.substring(7); // Remove "Bearer " prefix
     
+    // Check if token looks like an API key
+    if (isValidApiKeyFormat(token)) {
+      // Handle API key authentication
+      const keyHash = hashApiKey(token);
+      const apiKeyData = await databaseService.getApiKeyByHash(keyHash);
+      
+      if (!apiKeyData || !apiKeyData.isActive) {
+        logSecurityEvent(SecurityEvent.API_KEY_INVALID, req, { reason: 'key_not_found' }, 'high');
+        res.status(401).json({ error: 'Invalid API key' });
+        return;
+      }
+      
+      // Check if API key is expired
+      if (isApiKeyExpired(apiKeyData.expiresAt)) {
+        logSecurityEvent(SecurityEvent.API_KEY_EXPIRED, req, { 
+          keyId: apiKeyData.id,
+          userId: apiKeyData.userId,
+          expiresAt: apiKeyData.expiresAt?.toISOString()
+        }, 'medium');
+        res.status(401).json({ error: 'API key expired' });
+        return;
+      }
+      
+      // Get user from database
+      const user = await databaseService.getUserById(apiKeyData.userId);
+      
+      if (!user) {
+        logSecurityEvent(SecurityEvent.SUSPICIOUS_ACTIVITY, req, { 
+          reason: 'valid_apikey_but_user_not_found', 
+          keyId: apiKeyData.id,
+          userId: apiKeyData.userId 
+        }, 'critical');
+        res.status(401).json({ error: 'User not found' });
+        return;
+      }
+      
+      // Update last used timestamp
+      await databaseService.updateApiKeyLastUsed(apiKeyData.id);
+      
+      // Log successful API key authentication
+      logSecurityEvent(SecurityEvent.API_KEY_SUCCESS, req, {
+        keyId: apiKeyData.id,
+        keyName: apiKeyData.name,
+        userId: apiKeyData.userId
+      }, 'low');
+      
+      // Add user to request
+      req.user = {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        provider: user.provider || 'unknown'
+      };
+      
+      next();
+      return;
+    }
+    
+    // Handle JWT authentication
     let payload: JWTPayload;
     try {
       payload = verifyJWT(token);

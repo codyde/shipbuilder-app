@@ -37,6 +37,87 @@ router.post('/logout', (req, res) => {
   res.json({ message: 'Logged out successfully' });
 });
 
+// Developer mode login endpoint
+router.post('/developer', async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+    
+    // Transform email to demo format: user@domain.com -> user+demo@domain.com
+    const emailParts = email.split('@');
+    if (emailParts.length !== 2) {
+      return res.status(400).json({ error: 'Invalid email format' });
+    }
+    
+    const [localPart, domain] = emailParts;
+    const demoEmail = `${localPart}+demo@${domain}`;
+    
+    // Check if user already exists
+    let user = await databaseService.getUserByEmail(demoEmail);
+    
+    if (!user) {
+      // Create new developer user
+      try {
+        user = await databaseService.createUser(
+          demoEmail,
+          localPart, // Use the local part as the name
+          'developer',
+          `dev_${Date.now()}`, // Unique provider ID for developer accounts
+          null // No avatar for developer accounts
+        );
+        
+        logSecurityEvent(SecurityEvent.LOGIN_SUCCESS, req, { 
+          userId: user.id, 
+          provider: 'developer',
+          originalEmail: email,
+          demoEmail: demoEmail
+        }, 'low');
+        
+        console.log('Created new developer user:', { id: user.id, email: demoEmail, originalEmail: email });
+      } catch (dbError) {
+        console.error('Failed to create developer user:', dbError);
+        return res.status(500).json({ error: 'Failed to create developer account' });
+      }
+    } else {
+      logSecurityEvent(SecurityEvent.LOGIN_SUCCESS, req, { 
+        userId: user.id, 
+        provider: 'developer',
+        originalEmail: email,
+        demoEmail: demoEmail
+      }, 'low');
+      
+      console.log('Developer user login:', { id: user.id, email: demoEmail, originalEmail: email });
+    }
+    
+    // Generate JWT token
+    const token = generateJWT({
+      id: user.id,
+      email: user.email,
+      provider: user.provider || 'developer'
+    });
+    
+    res.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        provider: user.provider
+      },
+      token
+    });
+  } catch (error) {
+    console.error('Developer login error:', error);
+    logSecurityEvent(SecurityEvent.LOGIN_FAILURE, req, { 
+      error: error instanceof Error ? error.message : 'Unknown error',
+      provider: 'developer'
+    }, 'medium');
+    res.status(500).json({ error: 'Developer login failed' });
+  }
+});
+
 // Sentry OAuth initiation endpoint
 router.get('/sentry', (req, res) => {
   try {

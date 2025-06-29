@@ -286,6 +286,12 @@ Based on the user's project idea, create a comprehensive MVP plan that includes:
 
 Focus on creating an MVP that can be built and launched quickly while still providing value to users. Prioritize essential features only.
 
+Task descriptions should be in the format of prompts that an AI can use to generate code for that specific task. It should be a detailed description of the task, written from the perspective of a senior developer focused on that task space.
+
+For UI related tasks, prefer to use Shadcn UI and Tailwind CSS as part of the build.
+
+For database related tasks, prefer to use PostgreSQL and use Drizzle ORM to manage it. Include these in the tasks.
+
 Respond with a JSON object in this exact format:
 {
   "projectName": "Clear, concise project name",

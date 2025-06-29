@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid, pgEnum } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, uuid, pgEnum, varchar, unique } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 // Enums
@@ -18,18 +18,20 @@ export const users = pgTable('users', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 export const projects = pgTable('projects', {
-  id: uuid('id').primaryKey().defaultRandom(),
+  id: varchar('id', { length: 100 }).primaryKey(),
   userId: uuid('user_id').notNull().default('00000000-0000-0000-0000-000000000000').references(() => users.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   description: text('description'),
   status: projectStatusEnum('status').notNull().default('active'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
-});
+}, (table) => ({
+  uniqueUserProject: unique().on(table.userId, table.id),
+}));
 
 export const tasks = pgTable('tasks', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  id: varchar('id', { length: 150 }).primaryKey(),
+  projectId: varchar('project_id', { length: 100 }).notNull().references(() => projects.id, { onDelete: 'cascade' }),
   title: text('title').notNull(),
   description: text('description'),
   details: text('details'),
@@ -43,16 +45,29 @@ export const tasks = pgTable('tasks', {
 
 export const comments = pgTable('comments', {
   id: uuid('id').primaryKey().defaultRandom(),
-  taskId: uuid('task_id').notNull().references(() => tasks.id, { onDelete: 'cascade' }),
+  taskId: varchar('task_id', { length: 150 }).notNull().references(() => tasks.id, { onDelete: 'cascade' }),
   content: text('content').notNull(),
   author: text('author').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
+export const apiKeys = pgTable('api_keys', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  keyHash: text('key_hash').notNull(),
+  prefix: text('prefix').notNull(), // Short prefix for identification (e.g., "sk_live_")
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  expiresAt: timestamp('expires_at'), // Optional expiration
+  lastUsedAt: timestamp('last_used_at'),
+  isActive: text('is_active').notNull().default('true'), // 'true' or 'false' as text
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   projects: many(projects),
+  apiKeys: many(apiKeys),
 }));
 
 export const projectsRelations = relations(projects, ({ one, many }) => ({
@@ -76,5 +91,12 @@ export const commentsRelations = relations(comments, ({ one }) => ({
   task: one(tasks, {
     fields: [comments.taskId],
     references: [tasks.id],
+  }),
+}));
+
+export const apiKeysRelations = relations(apiKeys, ({ one }) => ({
+  user: one(users, {
+    fields: [apiKeys.userId],
+    references: [users.id],
   }),
 }));

@@ -4,9 +4,9 @@ import express from 'express';
 import cors from 'cors';
 import { projectRoutes } from './routes/projects.js';
 import { chatRoutes } from './routes/chat.js';
-import { migrateRoutes } from './routes/migrate.js';
 import { aiRoutes } from './routes/ai.js';
 import authRoutes from './routes/auth.js';
+import apiKeyRoutes from './routes/api-keys.js';
 import { authenticateUser } from './middleware/auth.js';
 import { apiRateLimit } from './middleware/rate-limit.js';
 import { loggingMiddleware, errorLoggingMiddleware } from './middleware/logging.js';
@@ -51,9 +51,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/projects', apiRateLimit, authenticateUser, projectRoutes);
 app.use('/api/chat', apiRateLimit, authenticateUser, chatRoutes);
 app.use('/api/ai', apiRateLimit, authenticateUser, aiRoutes);
+app.use('/api/api-keys', authenticateUser, apiKeyRoutes); // Note: API key routes have their own rate limiting
 
-// Public routes
-app.use('/api/migrate', migrateRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

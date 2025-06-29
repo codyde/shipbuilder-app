@@ -2,6 +2,7 @@ import express from 'express';
 import { databaseService } from '../db/database-service.js';
 import { CreateProjectInput, CreateTaskInput, CreateCommentInput } from '../../src/types/types.js';
 import { logger } from '../lib/logger.js';
+import { validateProjectSlug, validateTaskSlug } from '../utils/slug-utils.js';
 
 export const projectRoutes = express.Router();
 
@@ -36,7 +37,13 @@ projectRoutes.get('/:id', async (req, res) => {
     if (!req.user) {
       return res.status(401).json({ error: 'Authentication required' });
     }
-    const project = await databaseService.getProject(req.params.id, req.user.id);
+    
+    const projectId = req.params.id;
+    if (!validateProjectSlug(projectId)) {
+      return res.status(400).json({ error: 'Invalid project ID format' });
+    }
+    
+    const project = await databaseService.getProject(projectId, req.user.id);
     if (!project) {
       return res.status(404).json({ error: 'Project not found' });
     }
@@ -161,7 +168,16 @@ projectRoutes.get('/:projectId/tasks/:taskId', async (req, res) => {
     if (!req.user) {
       return res.status(401).json({ error: 'Authentication required' });
     }
-    const task = await databaseService.getTask(req.params.projectId, req.params.taskId, req.user.id);
+    
+    const { projectId, taskId } = req.params;
+    if (!validateProjectSlug(projectId)) {
+      return res.status(400).json({ error: 'Invalid project ID format' });
+    }
+    if (!validateTaskSlug(taskId)) {
+      return res.status(400).json({ error: 'Invalid task ID format' });
+    }
+    
+    const task = await databaseService.getTask(projectId, taskId, req.user.id);
     if (!task) {
       return res.status(404).json({ error: 'Task not found' });
     }

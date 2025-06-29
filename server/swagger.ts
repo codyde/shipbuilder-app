@@ -21,6 +21,20 @@ const options = {
       }
     ],
     components: {
+      securitySchemes: {
+        BearerAuth: {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+          description: 'JWT token for web application authentication'
+        },
+        ApiKeyAuth: {
+          type: 'http', 
+          scheme: 'bearer',
+          bearerFormat: 'API Key',
+          description: 'API key for direct API access (format: sb_<64_hex_characters>)'
+        }
+      },
       schemas: {
         Project: {
           type: 'object',
@@ -268,15 +282,137 @@ const options = {
               description: 'Current timestamp'
             }
           }
+        },
+        ApiKey: {
+          type: 'object',
+          required: ['id', 'name', 'prefix', 'displayKey', 'createdAt', 'isActive'],
+          properties: {
+            id: {
+              type: 'string',
+              format: 'uuid',
+              description: 'Unique API key identifier'
+            },
+            name: {
+              type: 'string',
+              description: 'Descriptive name for the API key'
+            },
+            prefix: {
+              type: 'string',
+              description: 'API key prefix (e.g., "sb_")'
+            },
+            displayKey: {
+              type: 'string',
+              description: 'Partially masked key for display (e.g., "sb_1234****...****")'
+            },
+            createdAt: {
+              type: 'string',
+              format: 'date-time',
+              description: 'API key creation timestamp'
+            },
+            expiresAt: {
+              type: 'string',
+              format: 'date-time',
+              nullable: true,
+              description: 'API key expiration timestamp (null if no expiration)'
+            },
+            lastUsedAt: {
+              type: 'string',
+              format: 'date-time',
+              nullable: true,
+              description: 'Last usage timestamp (null if never used)'
+            },
+            isActive: {
+              type: 'boolean',
+              description: 'Whether the API key is active'
+            }
+          }
+        },
+        CreateApiKeyInput: {
+          type: 'object',
+          required: ['name'],
+          properties: {
+            name: {
+              type: 'string',
+              maxLength: 100,
+              description: 'Descriptive name for the API key'
+            },
+            expiresInDays: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 365,
+              description: 'Number of days until key expires (optional)'
+            }
+          }
+        },
+        CreateApiKeyResponse: {
+          type: 'object',
+          required: ['id', 'name', 'key', 'prefix', 'displayKey', 'createdAt', 'message'],
+          properties: {
+            id: {
+              type: 'string',
+              format: 'uuid',
+              description: 'Unique API key identifier'
+            },
+            name: {
+              type: 'string',
+              description: 'Descriptive name for the API key'
+            },
+            key: {
+              type: 'string',
+              description: 'Full API key - ONLY shown once during creation'
+            },
+            prefix: {
+              type: 'string',
+              description: 'API key prefix'
+            },
+            displayKey: {
+              type: 'string',
+              description: 'Partially masked key for display'
+            },
+            createdAt: {
+              type: 'string',
+              format: 'date-time',
+              description: 'API key creation timestamp'
+            },
+            expiresAt: {
+              type: 'string',
+              format: 'date-time',
+              nullable: true,
+              description: 'API key expiration timestamp'
+            },
+            message: {
+              type: 'string',
+              description: 'Important notice about key security'
+            }
+          }
+        },
+        ApiKeyListResponse: {
+          type: 'object',
+          required: ['apiKeys'],
+          properties: {
+            apiKeys: {
+              type: 'array',
+              items: { $ref: '#/components/schemas/ApiKey' },
+              description: 'Array of user API keys'
+            }
+          }
         }
       }
     },
+    security: [
+      { BearerAuth: [] },
+      { ApiKeyAuth: [] }
+    ],
     paths: {
       '/projects': {
         get: {
           summary: 'Get all projects',
           description: 'Retrieve a list of all projects with their tasks and subtasks',
           tags: ['Projects'],
+          security: [
+            { BearerAuth: [] },
+            { ApiKeyAuth: [] }
+          ],
           responses: {
             '200': {
               description: 'Successful response',
@@ -945,6 +1081,220 @@ const options = {
               content: {
                 'application/json': {
                   schema: { $ref: '#/components/schemas/HealthResponse' }
+                }
+              }
+            }
+          }
+        }
+      },
+      '/api-keys/create': {
+        post: {
+          summary: 'Create API key',
+          description: 'Create a new API key for programmatic access. Requires JWT authentication from web application.',
+          tags: ['API Keys'],
+          security: [
+            { BearerAuth: [] }
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/CreateApiKeyInput' }
+              }
+            }
+          },
+          responses: {
+            '200': {
+              description: 'API key created successfully',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/CreateApiKeyResponse' }
+                }
+              }
+            },
+            '400': {
+              description: 'Bad request - invalid input or too many keys',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/Error' }
+                }
+              }
+            },
+            '401': {
+              description: 'Unauthorized - JWT token required',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/Error' }
+                }
+              }
+            },
+            '429': {
+              description: 'Rate limit exceeded',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/Error' }
+                }
+              }
+            },
+            '500': {
+              description: 'Internal server error',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/Error' }
+                }
+              }
+            }
+          }
+        }
+      },
+      '/api-keys/list': {
+        get: {
+          summary: 'List API keys',
+          description: 'Get a list of all API keys for the authenticated user. Requires JWT authentication.',
+          tags: ['API Keys'],
+          security: [
+            { BearerAuth: [] }
+          ],
+          responses: {
+            '200': {
+              description: 'Successful response',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/ApiKeyListResponse' }
+                }
+              }
+            },
+            '401': {
+              description: 'Unauthorized - JWT token required',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/Error' }
+                }
+              }
+            },
+            '500': {
+              description: 'Internal server error',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/Error' }
+                }
+              }
+            }
+          }
+        }
+      },
+      '/api-keys/{keyId}': {
+        get: {
+          summary: 'Get API key details',
+          description: 'Get details for a specific API key. Requires JWT authentication.',
+          tags: ['API Keys'],
+          security: [
+            { BearerAuth: [] }
+          ],
+          parameters: [
+            {
+              name: 'keyId',
+              in: 'path',
+              required: true,
+              schema: {
+                type: 'string',
+                format: 'uuid'
+              },
+              description: 'API key ID'
+            }
+          ],
+          responses: {
+            '200': {
+              description: 'Successful response',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/ApiKey' }
+                }
+              }
+            },
+            '401': {
+              description: 'Unauthorized - JWT token required',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/Error' }
+                }
+              }
+            },
+            '404': {
+              description: 'API key not found',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/Error' }
+                }
+              }
+            },
+            '500': {
+              description: 'Internal server error',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/Error' }
+                }
+              }
+            }
+          }
+        },
+        delete: {
+          summary: 'Delete API key',
+          description: 'Delete an API key. This action cannot be undone. Requires JWT authentication.',
+          tags: ['API Keys'],
+          security: [
+            { BearerAuth: [] }
+          ],
+          parameters: [
+            {
+              name: 'keyId',
+              in: 'path',
+              required: true,
+              schema: {
+                type: 'string',
+                format: 'uuid'
+              },
+              description: 'API key ID'
+            }
+          ],
+          responses: {
+            '200': {
+              description: 'API key deleted successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      message: {
+                        type: 'string',
+                        example: 'API key deleted successfully'
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            '401': {
+              description: 'Unauthorized - JWT token required',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/Error' }
+                }
+              }
+            },
+            '404': {
+              description: 'API key not found or not owned by user',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/Error' }
+                }
+              }
+            },
+            '500': {
+              description: 'Internal server error',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/Error' }
                 }
               }
             }
