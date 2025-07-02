@@ -3,7 +3,7 @@
  * This file demonstrates various logging patterns for server-side code
  */
 
-import { logger } from './logger'
+import { logger } from './logger.js'
 
 // Example Express route with comprehensive logging
 export function exampleRoute(req: any, res: any) {

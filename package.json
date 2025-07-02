@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\" --kill-others-on-fail --restart-tries 3",
-    "dev:client": "wait-on http://localhost:3001/api/health && vite",
+    "dev:client": "vite",
     "dev:server": "tsx --watch server/index.ts",
     "dev:safe": "node scripts/dev-safe.js",
     "build": "tsc -b && vite build",

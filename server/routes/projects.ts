@@ -1,13 +1,13 @@
 import express from 'express';
 import { databaseService } from '../db/database-service.js';
-import { CreateProjectInput, CreateTaskInput, CreateCommentInput } from '../../src/types/types.js';
+import { CreateProjectInput, CreateTaskInput, CreateCommentInput } from '../types/types.js';
 import { logger } from '../lib/logger.js';
 import { validateProjectSlug, validateTaskSlug } from '../utils/slug-utils.js';
 
 export const projectRoutes = express.Router();
 
 // Projects
-projectRoutes.get('/', async (req, res) => {
+projectRoutes.get('/', async (req: any, res: any) => {
   const startTime = Date.now();
   try {
     if (!req.user) {
@@ -32,7 +32,7 @@ projectRoutes.get('/', async (req, res) => {
   }
 });
 
-projectRoutes.get('/:id', async (req, res) => {
+projectRoutes.get('/:id', async (req: any, res: any) => {
   try {
     if (!req.user) {
       return res.status(401).json({ error: 'Authentication required' });
@@ -53,7 +53,7 @@ projectRoutes.get('/:id', async (req, res) => {
   }
 });
 
-projectRoutes.post('/', async (req, res) => {
+projectRoutes.post('/', async (req: any, res: any) => {
   try {
     if (!req.user) {
       return res.status(401).json({ error: 'Authentication required' });
@@ -70,7 +70,7 @@ projectRoutes.post('/', async (req, res) => {
   }
 });
 
-projectRoutes.put('/:id', async (req, res) => {
+projectRoutes.put('/:id', async (req: any, res: any) => {
   try {
     if (!req.user) {
       return res.status(401).json({ error: 'Authentication required' });
@@ -86,7 +86,7 @@ projectRoutes.put('/:id', async (req, res) => {
   }
 });
 
-projectRoutes.delete('/:id', async (req, res) => {
+projectRoutes.delete('/:id', async (req: any, res: any) => {
   try {
     if (!req.user) {
       logger.warn('Delete attempt without authentication', {
@@ -138,7 +138,7 @@ projectRoutes.delete('/:id', async (req, res) => {
 });
 
 // Tasks
-projectRoutes.post('/:projectId/tasks', async (req, res) => {
+projectRoutes.post('/:projectId/tasks', async (req: any, res: any) => {
   try {
     if (!req.user) {
       return res.status(401).json({ error: 'Authentication required' });
@@ -163,7 +163,7 @@ projectRoutes.post('/:projectId/tasks', async (req, res) => {
   }
 });
 
-projectRoutes.get('/:projectId/tasks/:taskId', async (req, res) => {
+projectRoutes.get('/:projectId/tasks/:taskId', async (req: any, res: any) => {
   try {
     if (!req.user) {
       return res.status(401).json({ error: 'Authentication required' });
@@ -187,7 +187,7 @@ projectRoutes.get('/:projectId/tasks/:taskId', async (req, res) => {
   }
 });
 
-projectRoutes.put('/:projectId/tasks/:taskId', async (req, res) => {
+projectRoutes.put('/:projectId/tasks/:taskId', async (req: any, res: any) => {
   try {
     if (!req.user) {
       return res.status(401).json({ error: 'Authentication required' });
@@ -203,7 +203,7 @@ projectRoutes.put('/:projectId/tasks/:taskId', async (req, res) => {
   }
 });
 
-projectRoutes.delete('/:projectId/tasks/:taskId', async (req, res) => {
+projectRoutes.delete('/:projectId/tasks/:taskId', async (req: any, res: any) => {
   try {
     if (!req.user) {
       return res.status(401).json({ error: 'Authentication required' });
@@ -220,7 +220,7 @@ projectRoutes.delete('/:projectId/tasks/:taskId', async (req, res) => {
 
 
 // Comments
-projectRoutes.get('/:projectId/tasks/:taskId/comments', async (req, res) => {
+projectRoutes.get('/:projectId/tasks/:taskId/comments', async (req: any, res: any) => {
   try {
     if (!req.user) {
       return res.status(401).json({ error: 'Authentication required' });
@@ -232,7 +232,7 @@ projectRoutes.get('/:projectId/tasks/:taskId/comments', async (req, res) => {
   }
 });
 
-projectRoutes.post('/:projectId/tasks/:taskId/comments', async (req, res) => {
+projectRoutes.post('/:projectId/tasks/:taskId/comments', async (req: any, res: any) => {
   try {
     if (!req.user) {
       return res.status(401).json({ error: 'Authentication required' });

@@ -38,7 +38,7 @@ router.post('/logout', (req, res) => {
 });
 
 // Developer mode login endpoint
-router.post('/developer', async (req, res) => {
+router.post('/developer', async (req: any, res: any) => {
   try {
     const { email } = req.body;
     
@@ -66,7 +66,7 @@ router.post('/developer', async (req, res) => {
           localPart, // Use the local part as the name
           'developer',
           `dev_${Date.now()}`, // Unique provider ID for developer accounts
-          null // No avatar for developer accounts
+          undefined // No avatar for developer accounts
         );
         
         logSecurityEvent(SecurityEvent.LOGIN_SUCCESS, req, { 

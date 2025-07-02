@@ -1,7 +1,6 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { useTheme, Theme } from '@/context/ThemeContext'
-import { Palette, Moon, Sun, Waves, Sunset, Sparkles, Star, Monitor, Check, Bug } from 'lucide-react'
+import { Palette, Moon, Sun, Waves, Sunset, Star, Monitor, Check, Bug } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const themeOptions = [

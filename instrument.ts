@@ -18,7 +18,7 @@ Sentry.init({
 
   tracesSampleRate: 1.0,
 
-  tracePropagationTargets: ["localhost:3001"],
+  tracePropagationTargets: ["localhost:3001", "api.shipbuilder.app"],
 
 
   replaysSessionSampleRate: 0.1,

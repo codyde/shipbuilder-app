@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useEffect, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useReducer, useEffect, useCallback, ReactNode } from 'react';
 import { User } from '@/types/types';
 import * as Sentry from '@sentry/react';
 import { getApiUrl } from '@/lib/api-config';

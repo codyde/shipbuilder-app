@@ -11,12 +11,15 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "noEmit": true
+    "outDir": "dist",
+    "rootDir": ".",
+    "noEmitOnError": false
   },
   "include": [
     "**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "dist"
   ]
 }

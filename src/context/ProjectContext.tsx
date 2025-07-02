@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
 import { Project, Task, CreateProjectInput, CreateTaskInput } from '@/types/types';
 import { logger } from '@/lib/logger';
 import { getApiUrl } from '@/lib/api-config';

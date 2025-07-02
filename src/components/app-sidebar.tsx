@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { 
   Sidebar,
   SidebarContent,
@@ -39,10 +39,8 @@ import {
   Archive,
   Folder,
   Settings,
-  HelpCircle,
   MessageCircle,
   LogOut,
-  User,
   CheckSquare,
   Rocket,
   Trash2

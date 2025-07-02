@@ -16,7 +16,7 @@ const options = {
     },
     servers: [
       {
-        url: 'http://localhost:3001/api',
+        url: 'https://api.shipbuilder.app/api',
         description: 'Development server'
       }
     ],
