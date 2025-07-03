@@ -9,12 +9,20 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { X, MessageCircle, Send, ChevronDown, GripHorizontal } from 'lucide-react';
 import { useDraggable } from '@/hooks/useDraggable';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { getApiUrl } from '@/lib/api-config';
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerClose,
+} from '@/components/ui/drawer';
 
 interface ChatMessageProps {
   message: {
     id: string;
-    role: 'user' | 'assistant';
+    role: 'user' | 'assistant' | 'data' | 'system';
     content: string;
     toolInvocations?: ToolInvocation[];
   };
@@ -64,12 +72,15 @@ function ChatMessage({ message }: ChatMessageProps) {
 interface ChatInterfaceProps {
   className?: string;
   onClose?: () => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-export function ChatInterface({ className = '', onClose }: ChatInterfaceProps) {
+export function ChatInterface({ className = '', onClose, open = true, onOpenChange }: ChatInterfaceProps) {
   const { refreshProjects } = useProjects();
   const { user } = useAuth();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
   
 
   // Initialize draggable functionality with position persistence
@@ -167,6 +178,98 @@ export function ChatInterface({ className = '', onClose }: ChatInterfaceProps) {
     }, 100);
   };
 
+  // Mobile version: use Drawer component
+  if (isMobile) {
+    const handleOpenChange = (newOpen: boolean) => {
+      if (onOpenChange) {
+        onOpenChange(newOpen);
+      } else if (!newOpen && onClose) {
+        onClose();
+      }
+    };
+
+    return (
+      <Drawer open={open} onOpenChange={handleOpenChange} direction="bottom" shouldScaleBackground={false}>
+        <DrawerContent className="h-[75vh] !max-h-[75vh] flex flex-col fixed">
+          <DrawerHeader className="border-b p-4 flex-shrink-0">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center">
+                  <MessageCircle className="w-4 h-4 text-primary" />
+                </div>
+                <div>
+                  <DrawerTitle className="text-left text-base">AI Assistant</DrawerTitle>
+                </div>
+              </div>
+              <DrawerClose asChild>
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                  <X className="w-4 h-4" />
+                </Button>
+              </DrawerClose>
+            </div>
+          </DrawerHeader>
+
+          {/* Mobile Messages */}
+          <div className="flex-1 overflow-y-auto p-4 min-h-0">
+            <div className="flex flex-col gap-4">
+              {messages
+                .filter(message => message.role === 'user' || message.role === 'assistant')
+                .map((message) => (
+                  <ChatMessage key={message.id} message={message} />
+                ))}
+              {isLoading && (
+                <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                  <div className="w-2 h-2 bg-current rounded-full animate-pulse"></div>
+                  <span>AI is thinking...</span>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+          </div>
+
+          {/* Mobile Input */}
+          <div className="p-4 border-t bg-background flex-shrink-0">
+            <form onSubmit={handleFormSubmit} className="chat-form flex gap-2">
+              <Input
+                value={input}
+                onChange={handleInputChange}
+                placeholder="Ask about your projects..."
+                disabled={isLoading}
+                className="flex-1 h-9"
+              />
+              <Button type="submit" disabled={isLoading} size="sm" className="h-9 px-3">
+                <Send className="w-4 h-4" />
+              </Button>
+            </form>
+            
+            {/* Mobile Quick Actions - Only show 2 on first load */}
+            {messages.length === 0 && (
+              <div className="flex gap-2 mt-2">
+                {quickActions.slice(0, 2).map((action, index) => (
+                  <Button
+                    key={index}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleQuickAction(action)}
+                    className="text-xs h-7 px-2 flex-1 truncate"
+                    disabled={isLoading}
+                  >
+                    {action}
+                  </Button>
+                ))}
+              </div>
+            )}
+          </div>
+        </DrawerContent>
+      </Drawer>
+    );
+  }
+
+  // Desktop version - only render if open
+  if (!open) {
+    return null;
+  }
+
   return (
     <div 
       ref={dragRef}
@@ -232,9 +335,11 @@ export function ChatInterface({ className = '', onClose }: ChatInterfaceProps) {
               </div>
             ) : (
               <>
-                {messages.map((message) => (
-                  <ChatMessage key={message.id} message={message as any} />
-                ))}
+                {messages
+                  .filter(message => message.role === 'user' || message.role === 'assistant')
+                  .map((message) => (
+                    <ChatMessage key={message.id} message={message} />
+                  ))}
                 {isLoading && (
                   <div className="max-w-[85%] self-start">
                     <Card className="p-3 bg-muted">
