@@ -6,10 +6,19 @@ class MemoryStore {
 
   // Projects
   createProject(input: CreateProjectInput, userId: string): Project {
+    if (!userId) {
+      throw new Error('User ID is required to create a project');
+    }
     const project: Project = {
       id: uuidv4(),
       userId,
       name: input.name,
+      description: input.description,
+      status: ProjectStatus.ACTIVE,
+      tasks: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
       description: input.description,
       status: ProjectStatus.ACTIVE,
       tasks: [],
