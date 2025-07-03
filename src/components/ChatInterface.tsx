@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { MarkdownRenderer } from '@/components/ui/markdown-renderer';
 import { X, MessageCircle, Send, ChevronDown, GripHorizontal } from 'lucide-react';
 import { useDraggable } from '@/hooks/useDraggable';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -38,9 +39,16 @@ function ChatMessage({ message }: ChatMessageProps) {
           ? 'bg-primary text-primary-foreground' 
           : 'bg-muted'
       }`}>
-        <div className="text-sm leading-relaxed">
-          {message.content}
-        </div>
+        {isUser ? (
+          <div className="text-sm leading-relaxed">
+            {message.content}
+          </div>
+        ) : (
+          <MarkdownRenderer 
+            content={message.content} 
+            className="text-sm leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0" 
+          />
+        )}
         {message.toolInvocations && message.toolInvocations.length > 0 && (
           <div className="mt-3 pt-3 border-t border-border/30">
             {message.toolInvocations.map((tool, index) => (
