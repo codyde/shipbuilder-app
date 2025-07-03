@@ -19,12 +19,6 @@ class MemoryStore {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
-      description: input.description,
-      status: ProjectStatus.ACTIVE,
-      tasks: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
     
     this.projects.set(project.id, project);
     return project;
