@@ -584,7 +584,7 @@ export function AIAssistant({ className = '', onClose, open = true, onOpenChange
                 <TabsTrigger value="chat" className="data-[state=active]:bg-background data-[state=active]:shadow-sm flex-1 text-sm h-8">Chat</TabsTrigger>
               </TabsList>
               
-              <TabsContent value="mvp" className="flex-1 px-2 pb-3 space-y-3 overflow-y-auto min-h-0">
+              <TabsContent value="mvp" className="flex-1 px-2 pb-3 space-y-3 overflow-y-auto overscroll-contain min-h-0" style={{ maxHeight: 'calc(85vh - 180px)' }}>
                 {/* MVP Builder Content for Mobile */}
                 {!mvpPlan ? (
                   <>
@@ -798,10 +798,10 @@ export function AIAssistant({ className = '', onClose, open = true, onOpenChange
                 )}
               </TabsContent>
               
-              <TabsContent value="chat" className="flex-1 px-2 pb-3 flex flex-col min-h-0 overflow-hidden">
+              <TabsContent value="chat" className="flex-1 px-2 pb-3 flex flex-col min-h-0">
                 {/* Chat Content for Mobile */}
-                <div className="flex-1 overflow-y-auto p-2 min-h-0">
-                  <div className="flex flex-col gap-4">
+                <div className="flex-1 overflow-y-auto overscroll-contain p-2 min-h-0" style={{ maxHeight: 'calc(85vh - 180px)' }}>
+                  <div className="flex flex-col gap-4 min-h-fit">
                     {messages
                       .filter(message => message.role === 'user' || message.role === 'assistant')
                       .map((message) => (
