@@ -9,8 +9,7 @@ import { ProjectView } from '@/components/project-view'
 import { TaskView } from '@/components/task-view'
 import { AllTasksView } from '@/components/all-tasks-view'
 import { SettingsView } from '@/components/settings-view'
-import { ChatInterface } from '@/components/ChatInterface'
-import { MVPBuilder } from '@/components/MVPBuilder'
+import { AIAssistant } from '@/components/AIAssistant'
 import { CommandMenu } from '@/components/command-menu'
 import { LoginScreen } from '@/components/LoginScreen'
 import { LoadingAnimation } from '@/components/ui/loading-animation'
@@ -25,8 +24,9 @@ function AppContent() {
   const [currentView, setCurrentView] = useState<View>('all-issues')
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [commandMenuOpen, setCommandMenuOpen] = useState(false)
-  const [chatOpen, setChatOpen] = useState(false)
-  const [mvpBuilderOpen, setMvpBuilderOpen] = useState(false)
+  const [aiAssistantOpen, setAiAssistantOpen] = useState(false)
+  const [initialTab, setInitialTab] = useState<'mvp' | 'chat'>('mvp')
+  const [newProjectDialogOpen, setNewProjectDialogOpen] = useState(false)
 
   const handleViewChange = (view: View) => {
     setCurrentView(view)
@@ -38,6 +38,10 @@ function AppContent() {
   const handleProjectSelect = (projectId: string) => {
     setSelectedProjectId(projectId)
     setCurrentView('tasks')
+  }
+
+  const handleNewProject = () => {
+    setNewProjectDialogOpen(true)
   }
 
   // Listen for navigation events from command menu
@@ -96,13 +100,16 @@ function AppContent() {
     <ProjectProvider>
       <TooltipProvider>
         <SidebarProvider defaultOpen={true} className="sidebar-enhanced-transitions">
-        <div className="flex h-screen w-full">
+        <div className="flex h-screen w-full overflow-hidden">
           <AppSidebar 
             currentView={currentView}
             onViewChange={handleViewChange}
             onProjectSelect={handleProjectSelect}
-            onChatToggle={() => setChatOpen(!chatOpen)}
-            onMVPBuilderToggle={() => setMvpBuilderOpen(!mvpBuilderOpen)}
+            onMVPBuilderToggle={() => {
+              setInitialTab('mvp')
+              setAiAssistantOpen(!aiAssistantOpen)
+            }}
+            onNewProject={handleNewProject}
           />
           <SidebarInset>
             {currentView === 'tasks' && selectedProjectId ? (
@@ -115,12 +122,21 @@ function AppContent() {
             ) : currentView === 'settings' ? (
               <SettingsView />
             ) : (
-              <ProjectView view={currentView} onProjectSelect={handleProjectSelect} />
+              <ProjectView 
+                view={currentView} 
+                onProjectSelect={handleProjectSelect}
+                newProjectDialogOpen={newProjectDialogOpen}
+                onNewProjectDialogChange={setNewProjectDialogOpen}
+              />
             )}
           </SidebarInset>
         </div>
-        {chatOpen && <ChatInterface onClose={() => setChatOpen(false)} />}
-        {mvpBuilderOpen && <MVPBuilder onClose={() => setMvpBuilderOpen(false)} />}
+        <AIAssistant
+          open={aiAssistantOpen}
+          onOpenChange={setAiAssistantOpen}
+          onClose={() => setAiAssistantOpen(false)}
+          initialTab={initialTab}
+        />
         <GlobalTaskPopout />
         <CommandMenu 
           open={commandMenuOpen} 

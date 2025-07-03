@@ -39,7 +39,6 @@ import {
   Archive,
   Folder,
   Settings,
-  MessageCircle,
   LogOut,
   CheckSquare,
   Rocket,
@@ -54,8 +53,8 @@ interface AppSidebarProps {
   currentView: View
   onViewChange: (view: View) => void
   onProjectSelect: (projectId: string) => void
-  onChatToggle: () => void
   onMVPBuilderToggle: () => void
+  onNewProject: () => void
 }
 
 const navigationItems = [
@@ -91,7 +90,7 @@ const navigationItems = [
   },
 ]
 
-export function AppSidebar({ currentView, onViewChange, onProjectSelect, onChatToggle, onMVPBuilderToggle }: AppSidebarProps) {
+export function AppSidebar({ currentView, onViewChange, onProjectSelect, onMVPBuilderToggle, onNewProject }: AppSidebarProps) {
   const { projects, deleteProject } = useProjects()
   const { user, logout } = useAuth()
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -163,14 +162,22 @@ export function AppSidebar({ currentView, onViewChange, onProjectSelect, onChatT
       </SidebarHeader>
 
       <SidebarContent>
-        {/* Build MVP Button */}
-        <div className="p-3 border-b">
+        {/* Action Buttons */}
+        <div className="p-3 border-b space-y-2">
           <Button
             onClick={onMVPBuilderToggle}
-            className="w-full h-9 text-sm font-medium bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-md"
+            className="w-full h-9 text-sm font-medium bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-md group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:p-0 min-w-0"
           >
-            <Rocket className="w-4 h-4 mr-2" />
-            Build MVP
+            <Rocket className="w-4 h-4 group-data-[collapsible=icon]:mr-0 mr-2 flex-shrink-0" />
+            <span className="group-data-[collapsible=icon]:sr-only truncate min-w-0">AI Assistant</span>
+          </Button>
+          <Button
+            onClick={onNewProject}
+            variant="outline"
+            className="w-full h-9 text-sm font-medium border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 hover:border-gray-400 dark:hover:border-gray-500 group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:p-0 min-w-0"
+          >
+            <Plus className="w-4 h-4 group-data-[collapsible=icon]:mr-0 mr-2 flex-shrink-0" />
+            <span className="group-data-[collapsible=icon]:sr-only truncate min-w-0">New Project</span>
           </Button>
         </div>
 
@@ -200,11 +207,8 @@ export function AppSidebar({ currentView, onViewChange, onProjectSelect, onChatT
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupLabel className="text-xs text-muted-foreground flex items-center justify-between group-data-[collapsible=icon]:hidden">
+          <SidebarGroupLabel className="text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
             Projects
-            <Button variant="ghost" size="sm" className="h-4 w-4 p-0">
-              <Plus className="h-3 w-3" />
-            </Button>
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -251,16 +255,6 @@ export function AppSidebar({ currentView, onViewChange, onProjectSelect, onChatT
 
       <div className="mt-auto border-t p-2">
         <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton 
-              className="h-7" 
-              tooltip="AI Chat"
-              onClick={onChatToggle}
-            >
-              <MessageCircle className="h-8 w-8" />
-              <span className="text-xs">AI Chat</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton 
               className="h-7" 
