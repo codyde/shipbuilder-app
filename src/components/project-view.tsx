@@ -43,6 +43,8 @@ type View = 'all-issues' | 'active' | 'backlog' | 'archived' | 'project' | 'task
 interface ProjectViewProps {
   view: View
   onProjectSelect: (projectId: string) => void
+  newProjectDialogOpen?: boolean
+  onNewProjectDialogChange?: (open: boolean) => void
 }
 
 const getStatusColor = (status: string) => {
@@ -69,9 +71,12 @@ const getStatusIcon = (status: string) => {
   }
 }
 
-export function ProjectView({ view, onProjectSelect }: ProjectViewProps) {
+export function ProjectView({ view, onProjectSelect, newProjectDialogOpen, onNewProjectDialogChange }: ProjectViewProps) {
   const { projects, createProject, updateProject, deleteProject, loading } = useProjects()
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  // Use external dialog state if provided, otherwise fall back to local state
+  const [localCreateDialogOpen, setLocalCreateDialogOpen] = useState(false)
+  const isCreateDialogOpen = newProjectDialogOpen ?? localCreateDialogOpen
+  const setIsCreateDialogOpen = onNewProjectDialogChange ?? setLocalCreateDialogOpen
   const [manageDialogOpen, setManageDialogOpen] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [projectToManage, setProjectToManage] = useState<{ id: string; name: string; description?: string } | null>(null)
@@ -183,23 +188,18 @@ export function ProjectView({ view, onProjectSelect }: ProjectViewProps) {
   return (
     <div className="flex h-full flex-col bg-background">
       {/* Header */}
-      <div className="border-b px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-semibold">{getViewTitle()}</h1>
-            <p className="text-sm text-muted-foreground mt-1">
+      <div className="border-b px-4 md:px-6 py-4">
+        <div className="flex items-center justify-between gap-4 min-w-0">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl font-semibold truncate">{getViewTitle()}</h1>
+            <p className="text-sm text-muted-foreground mt-1 truncate">
               {filteredProjects.length} {filteredProjects.length === 1 ? 'project' : 'projects'}
             </p>
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {/* New Project button moved to sidebar */}
             <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-              <DialogTrigger asChild>
-                <Button size="sm">
-                  <Plus className="h-4 w-4 mr-2" />
-                  New project
-                </Button>
-              </DialogTrigger>
               <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                   <DialogTitle>Create new project</DialogTitle>
@@ -249,16 +249,8 @@ export function ProjectView({ view, onProjectSelect }: ProjectViewProps) {
               <Circle className="mx-auto h-12 w-12 text-muted-foreground/50 mb-4" />
               <h3 className="text-lg font-medium mb-2">No projects found</h3>
               <p className="text-sm text-muted-foreground mb-4">
-                Get started by creating your first project
+                Get started by creating your first project using the "New Project" button in the sidebar
               </p>
-              <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create project
-                  </Button>
-                </DialogTrigger>
-              </Dialog>
             </div>
           </div>
         ) : (

@@ -8,11 +8,21 @@ import { Textarea } from '@/components/ui/textarea';
 import { Accordion } from '@/components/ui/accordion';
 import { X, Lightbulb, GripHorizontal, Loader2, Rocket, CheckCircle } from 'lucide-react';
 import { useDraggable } from '@/hooks/useDraggable';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { getApiUrl } from '@/lib/api-config';
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerClose,
+} from '@/components/ui/drawer';
 
 interface MVPBuilderProps {
   className?: string;
   onClose?: () => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 interface MVPPlan {
@@ -33,9 +43,10 @@ interface MVPPlan {
 }
 
 
-export function MVPBuilder({ className = '', onClose }: MVPBuilderProps) {
+export function MVPBuilder({ className = '', onClose, open = true, onOpenChange }: MVPBuilderProps) {
   const { refreshProjects } = useProjects();
   const { user } = useAuth();
+  const isMobile = useIsMobile();
   const [projectIdea, setProjectIdea] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [mvpPlan, setMvpPlan] = useState<MVPPlan | null>(null);
@@ -417,6 +428,264 @@ export function MVPBuilder({ className = '', onClose }: MVPBuilderProps) {
     'An e-commerce store for handmade crafts with Stripe integration',
   ];
 
+  // Mobile version: use Drawer component
+  if (isMobile) {
+    const handleOpenChange = (newOpen: boolean) => {
+      if (onOpenChange) {
+        onOpenChange(newOpen);
+      } else if (!newOpen && onClose) {
+        onClose();
+      }
+    };
+
+    return (
+      <Drawer open={open} onOpenChange={handleOpenChange} direction="bottom" shouldScaleBackground={false}>
+        <DrawerContent className="h-[85vh] !max-h-[85vh] flex flex-col fixed">
+          <DrawerHeader className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-3 flex-shrink-0">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
+                  <Rocket className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <DrawerTitle className="text-left text-white text-base">MVP Builder</DrawerTitle>
+                </div>
+              </div>
+              <DrawerClose asChild>
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-white/80 hover:text-white hover:bg-white/20">
+                  <X className="w-4 h-4" />
+                </Button>
+              </DrawerClose>
+            </div>
+          </DrawerHeader>
+
+          {/* Content */}
+          <div className="flex-1 p-3 space-y-3 overflow-y-auto min-h-0">
+            {!mvpPlan ? (
+              <>
+                <div className="text-center space-y-3">
+                  <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto">
+                    <Lightbulb className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold">Build Your MVP</h2>
+                    <p className="text-muted-foreground text-sm">
+                      Describe your project idea below
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <Textarea
+                      value={projectIdea}
+                      onChange={(e) => setProjectIdea(e.target.value)}
+                      placeholder="e.g., A social media app for pet owners..."
+                      className="min-h-20 text-sm"
+                      disabled={isGenerating}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {projectIdea.length}/500
+                    </p>
+                  </div>
+
+                  <Button 
+                    onClick={handleGenerateMVP} 
+                    disabled={projectIdea.length < 10 || isGenerating}
+                    className="w-full h-9 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
+                  >
+                    {isGenerating ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Rocket className="w-4 h-4 mr-2" />
+                        Generate Plan
+                      </>
+                    )}
+                  </Button>
+
+                  {projectIdea.length === 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs text-muted-foreground">Try an example:</p>
+                      <div className="grid gap-1">
+                        {exampleIdeas.slice(0, 2).map((example, index) => (
+                          <Button
+                            key={index}
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setProjectIdea(example)}
+                            className="text-left h-auto py-1.5 px-2 whitespace-normal text-xs"
+                            disabled={isGenerating}
+                          >
+                            {example}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Streaming text display for mobile */}
+                  {isGenerating && (
+                    <div className="space-y-3">
+                      {generationText ? (
+                        <div ref={streamingTextRef} className="bg-muted/30 rounded-lg p-3 max-h-20 overflow-y-auto">
+                          <p className="text-xs text-foreground whitespace-pre-wrap leading-relaxed">{generationText}</p>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-center gap-2 py-4">
+                          <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                          <p className="text-sm text-muted-foreground">Starting AI analysis...</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              // MVP Plan Display (same content as desktop)
+              <div className="space-y-4">
+                {/* Project Name Editor */}
+                <Card className="p-3">
+                  <label className="text-sm font-medium mb-2 block">Project Name</label>
+                  <div className="flex gap-2 mb-3">
+                    <Input
+                      value={projectName}
+                      onChange={(e) => setProjectName(e.target.value)}
+                      placeholder="Enter project name"
+                      className="flex-1"
+                      maxLength={50}
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSuggestName}
+                      disabled={isSuggestingName || !projectIdea.trim()}
+                      className="shrink-0"
+                    >
+                      {isSuggestingName ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Lightbulb className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-3">{mvpPlan.description}</p>
+                  
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <span className="font-medium">Frontend:</span>
+                      <p className="text-muted-foreground">{mvpPlan.techStack.frontend}</p>
+                    </div>
+                    <div>
+                      <span className="font-medium">Backend:</span>
+                      <p className="text-muted-foreground">{mvpPlan.techStack.backend}</p>
+                    </div>
+                    <div>
+                      <span className="font-medium">Database:</span>
+                      <p className="text-muted-foreground">{mvpPlan.techStack.database}</p>
+                    </div>
+                    {mvpPlan.techStack.hosting && (
+                      <div>
+                        <span className="font-medium">Hosting:</span>
+                        <p className="text-muted-foreground">{mvpPlan.techStack.hosting}</p>
+                      </div>
+                    )}
+                  </div>
+                </Card>
+
+                {/* Simple summary for mobile - no accordions */}
+                <Card className="p-3">
+                  <div className="text-sm space-y-2">
+                    <div>
+                      <span className="font-medium text-blue-600">Features:</span>
+                      <span className="text-muted-foreground ml-1">{mvpPlan.features.length} core features</span>
+                    </div>
+                    <div>
+                      <span className="font-medium text-purple-600">Tasks:</span>
+                      <span className="text-muted-foreground ml-1">{mvpPlan.tasks.length} development tasks</span>
+                    </div>
+                  </div>
+                </Card>
+
+                {!isCreating ? (
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleCreateProject}
+                      disabled={isCreating || !projectName.trim()}
+                      className="flex-1 text-white"
+                    >
+                      <Rocket className="w-4 h-4 mr-2" />
+                      Create Project
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setMvpPlan(null);
+                        setProjectName('');
+                        setError(null);
+                        setSuccessMessage(null);
+                      }}
+                      disabled={isCreating}
+                    >
+                      Start Over
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex flex-col items-center justify-center p-8 bg-muted/30 rounded-lg border">
+                      {isComplete ? (
+                        <>
+                          <div className="flex items-center gap-3 mb-4">
+                            <div className="relative">
+                              <CheckCircle className="w-5 h-5 text-green-500 animate-pulse" />
+                              <div className="absolute inset-0 w-5 h-5 border-2 border-green-500 rounded-full animate-ping opacity-75"></div>
+                            </div>
+                            <span className="text-sm font-medium text-green-600">
+                              Project created successfully!
+                            </span>
+                          </div>
+                          
+                          <div className="text-center">
+                            <p className="text-sm text-green-600 font-medium">
+                              Done!
+                            </p>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-3 mb-4">
+                            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                            <span className="text-sm font-medium">
+                              Creating project with {mvpPlan.tasks.length} tasks...
+                            </span>
+                          </div>
+                          
+                          <div className="text-center">
+                            <p className="text-sm text-muted-foreground animate-pulse">
+                              {statusMessages[currentStatusIndex]}
+                            </p>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </DrawerContent>
+      </Drawer>
+    );
+  }
+
+  // Desktop version - only render if open
+  if (!open) {
+    return null;
+  }
+
   return (
     <div 
       ref={dragRef}
@@ -560,7 +829,7 @@ export function MVPBuilder({ className = '', onClose }: MVPBuilderProps) {
               {/* MVP Plan Display */}
               <div className="space-y-4">
                 {/* Project Name Editor */}
-                <Card className="p-4">
+                <Card className="p-3">
                   <label className="text-sm font-medium mb-2 block">Project Name</label>
                   <div className="flex gap-2 mb-3">
                     <Input
@@ -651,7 +920,7 @@ export function MVPBuilder({ className = '', onClose }: MVPBuilderProps) {
                     <Button
                       onClick={handleCreateProject}
                       disabled={isCreating || !projectName.trim()}
-                      className="flex-1"
+                      className="flex-1 text-white"
                     >
                       <Rocket className="w-4 h-4 mr-2" />
                       Create Project

@@ -27,6 +27,7 @@ function AppContent() {
   const [commandMenuOpen, setCommandMenuOpen] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
   const [mvpBuilderOpen, setMvpBuilderOpen] = useState(false)
+  const [newProjectDialogOpen, setNewProjectDialogOpen] = useState(false)
 
   const handleViewChange = (view: View) => {
     setCurrentView(view)
@@ -38,6 +39,10 @@ function AppContent() {
   const handleProjectSelect = (projectId: string) => {
     setSelectedProjectId(projectId)
     setCurrentView('tasks')
+  }
+
+  const handleNewProject = () => {
+    setNewProjectDialogOpen(true)
   }
 
   // Listen for navigation events from command menu
@@ -96,13 +101,14 @@ function AppContent() {
     <ProjectProvider>
       <TooltipProvider>
         <SidebarProvider defaultOpen={true} className="sidebar-enhanced-transitions">
-        <div className="flex h-screen w-full">
+        <div className="flex h-screen w-full overflow-hidden">
           <AppSidebar 
             currentView={currentView}
             onViewChange={handleViewChange}
             onProjectSelect={handleProjectSelect}
             onChatToggle={() => setChatOpen(!chatOpen)}
             onMVPBuilderToggle={() => setMvpBuilderOpen(!mvpBuilderOpen)}
+            onNewProject={handleNewProject}
           />
           <SidebarInset>
             {currentView === 'tasks' && selectedProjectId ? (
@@ -115,12 +121,25 @@ function AppContent() {
             ) : currentView === 'settings' ? (
               <SettingsView />
             ) : (
-              <ProjectView view={currentView} onProjectSelect={handleProjectSelect} />
+              <ProjectView 
+                view={currentView} 
+                onProjectSelect={handleProjectSelect}
+                newProjectDialogOpen={newProjectDialogOpen}
+                onNewProjectDialogChange={setNewProjectDialogOpen}
+              />
             )}
           </SidebarInset>
         </div>
-        {chatOpen && <ChatInterface onClose={() => setChatOpen(false)} />}
-        {mvpBuilderOpen && <MVPBuilder onClose={() => setMvpBuilderOpen(false)} />}
+        <ChatInterface 
+          open={chatOpen} 
+          onOpenChange={setChatOpen}
+          onClose={() => setChatOpen(false)} 
+        />
+        <MVPBuilder
+          open={mvpBuilderOpen}
+          onOpenChange={setMvpBuilderOpen}
+          onClose={() => setMvpBuilderOpen(false)}
+        />
         <GlobalTaskPopout />
         <CommandMenu 
           open={commandMenuOpen} 
