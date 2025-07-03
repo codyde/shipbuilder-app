@@ -16,9 +16,12 @@ const options = {
     },
     servers: [
       {
-        url: 'https://api.shipbuilder.app/api',
-        description: 'Development server'
+    servers: [
+      {
+        url: process.env.API_BASE_URL || 'http://localhost:3001/api',
+        description: process.env.NODE_ENV === 'production' ? 'Production server' : 'Development server'
       }
+    ],
     ],
     components: {
       securitySchemes: {
