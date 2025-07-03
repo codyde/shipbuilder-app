@@ -39,7 +39,7 @@ router.post('/logout', (req, res) => {
 });
 
 // Developer mode login endpoint
-router.post('/developer', async (req, res) => {
+router.post('/developer', async (req: any, res: any) => {
   try {
     const { email } = req.body;
     
