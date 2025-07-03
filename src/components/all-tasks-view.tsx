@@ -219,23 +219,24 @@ export function AllTasksView({ onProjectSelect }: AllTasksViewProps) {
 
   return (
     <div className="flex h-full bg-background">
-      <div className={cn("flex-1 flex flex-col transition-all duration-300 ease-in-out", (selectedTaskId || isClosingPanel) && !isPoppedOut && "mr-96")}>
+      <div className={cn("flex-1 flex flex-col transition-all duration-300 ease-in-out", (selectedTaskId || isClosingPanel) && !isPoppedOut && "md:mr-96")}>
       {/* Header */}
-      <div className="border-b px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-semibold">All Tasks</h1>
-            <p className="text-sm text-muted-foreground mt-1">
+      <div className="border-b px-4 md:px-6 py-4">
+        <div className="flex items-center justify-between gap-4 min-w-0">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl font-semibold truncate">All Tasks</h1>
+            <p className="text-sm text-muted-foreground mt-1 truncate">
               {allTasks.length} {allTasks.length === 1 ? 'task' : 'tasks'} across {activeProjects.length} {activeProjects.length === 1 ? 'project' : 'projects'}
             </p>
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink-0">
             <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
               <DialogTrigger asChild>
                 <Button size="sm">
                   <Plus className="h-4 w-4 mr-2" />
-                  New task
+                  <span className="hidden sm:inline">New task</span>
+                  <span className="sm:hidden">New</span>
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-md">

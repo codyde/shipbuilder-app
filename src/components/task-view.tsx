@@ -221,24 +221,24 @@ export function TaskView({ projectId, onBack }: TaskViewProps) {
 
   return (
     <div className="flex h-full bg-background">
-      <div className={cn("flex-1 flex flex-col transition-all duration-300 ease-in-out", (selectedTaskId || isClosingPanel) && "mr-96")}>
+      <div className={cn("flex-1 flex flex-col transition-all duration-300 ease-in-out", (selectedTaskId || isClosingPanel) && "md:mr-96")}>
         {/* Header */}
-      <div className="border-b px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={onBack}>
+      <div className="border-b px-4 md:px-6 py-4">
+        <div className="flex items-center justify-between gap-4 min-w-0">
+          <div className="flex items-center gap-4 min-w-0 flex-1">
+            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 flex-shrink-0" onClick={onBack}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
-            <div>
-              <h1 className="text-xl font-semibold">{project.name}</h1>
-              <p className="text-sm text-muted-foreground mt-1">
+            <div className="min-w-0 flex-1">
+              <h1 className="text-xl font-semibold truncate">{project.name}</h1>
+              <p className="text-sm text-muted-foreground mt-1 truncate">
                 {project.tasks.length} {project.tasks.length === 1 ? 'task' : 'tasks'}
               </p>
             </div>
           </div>
           
-          <div className="flex items-center gap-2">
-            <div className="inline-flex h-9 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground">
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="inline-flex h-9 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground hidden sm:flex">
               <button
                 onClick={() => setViewMode('list')}
                 className={cn(
@@ -246,8 +246,8 @@ export function TaskView({ projectId, onBack }: TaskViewProps) {
                   viewMode === 'list' && "bg-background text-foreground shadow-sm"
                 )}
               >
-                <List className="h-4 w-4 mr-2" />
-                List
+                <List className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">List</span>
               </button>
               <button
                 onClick={() => setViewMode('kanban')}
@@ -256,8 +256,8 @@ export function TaskView({ projectId, onBack }: TaskViewProps) {
                   viewMode === 'kanban' && "bg-background text-foreground shadow-sm"
                 )}
               >
-                <Kanban className="h-4 w-4 mr-2" />
-                Board
+                <Kanban className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Board</span>
               </button>
             </div>
             
@@ -265,7 +265,8 @@ export function TaskView({ projectId, onBack }: TaskViewProps) {
               <DialogTrigger asChild>
                 <Button size="sm">
                   <Plus className="h-4 w-4 mr-2" />
-                  New task
+                  <span className="hidden sm:inline">New task</span>
+                  <span className="sm:hidden">New</span>
                 </Button>
               </DialogTrigger>
             <DialogContent className="sm:max-w-md">
