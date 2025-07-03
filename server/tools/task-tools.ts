@@ -1,5 +1,5 @@
 import { databaseService } from '../db/database-service.js';
-import { Priority, TaskStatus } from '../../src/types/types.js';
+import { Priority, TaskStatus } from '../types/types.js';
 import { anthropic } from '@ai-sdk/anthropic';
 import { generateText } from 'ai';
 

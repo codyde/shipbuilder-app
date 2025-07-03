@@ -92,7 +92,7 @@ export function ChatInterface({ className = '', onClose }: ChatInterfaceProps) {
       const headers = {
         ...options?.headers,
         'Content-Type': 'application/json',
-      };
+      } as Record<string, string>;
       
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
@@ -233,7 +233,7 @@ export function ChatInterface({ className = '', onClose }: ChatInterfaceProps) {
             ) : (
               <>
                 {messages.map((message) => (
-                  <ChatMessage key={message.id} message={message} />
+                  <ChatMessage key={message.id} message={message as any} />
                 ))}
                 {isLoading && (
                   <div className="max-w-[85%] self-start">

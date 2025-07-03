@@ -7,7 +7,7 @@ type ConnectionStatus = 'connected' | 'disconnected' | 'connecting'
 
 export function ConnectionStatus() {
   const [status, setStatus] = useState<ConnectionStatus>('connecting')
-  const [lastCheck, setLastCheck] = useState<Date>(new Date())
+  const [, setLastCheck] = useState<Date>(new Date())
 
   useEffect(() => {
     let mounted = true

@@ -1,14 +1,24 @@
-import { Project, Task, Subtask, CreateProjectInput, CreateTaskInput, CreateSubtaskInput, TaskStatus, ProjectStatus, Priority } from '../../src/types/types.js';
+import { Project, Task, Subtask, CreateProjectInput, CreateTaskInput, CreateSubtaskInput, TaskStatus, ProjectStatus, Priority } from '../types/types.js';
 import { v4 as uuidv4 } from 'uuid';
 
 class MemoryStore {
   private projects: Map<string, Project> = new Map();
 
   // Projects
-  createProject(input: CreateProjectInput): Project {
+  createProject(input: CreateProjectInput, userId: string): Project {
+    if (!userId) {
+      throw new Error('User ID is required to create a project');
+    }
     const project: Project = {
       id: uuidv4(),
+      userId,
       name: input.name,
+      description: input.description,
+      status: ProjectStatus.ACTIVE,
+      tasks: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
       description: input.description,
       status: ProjectStatus.ACTIVE,
       tasks: [],
@@ -113,18 +123,18 @@ class MemoryStore {
   }
 
   // Subtasks
-  createSubtask(input: CreateSubtaskInput): Subtask | null {
+  createSubtask(taskId: string, input: CreateSubtaskInput): Subtask | null {
     const project = Array.from(this.projects.values()).find(p => 
-      p.tasks.some(t => t.id === input.taskId)
+      p.tasks.some(t => t.id === taskId)
     );
     if (!project) return null;
 
-    const task = project.tasks.find(t => t.id === input.taskId);
+    const task = project.tasks.find(t => t.id === taskId);
     if (!task) return null;
 
     const subtask: Subtask = {
       id: uuidv4(),
-      taskId: input.taskId,
+      taskId: taskId,
       title: input.title,
       description: input.description,
       status: TaskStatus.BACKLOG,
@@ -133,6 +143,9 @@ class MemoryStore {
       updatedAt: new Date().toISOString()
     };
 
+    if (!task.subtasks) {
+      task.subtasks = [];
+    }
     task.subtasks.push(subtask);
     task.updatedAt = new Date().toISOString();
     project.updatedAt = new Date().toISOString();
@@ -148,7 +161,7 @@ class MemoryStore {
     if (!project) return null;
 
     const task = project.tasks.find(t => t.id === taskId);
-    if (!task) return null;
+    if (!task || !task.subtasks) return null;
 
     const subtaskIndex = task.subtasks.findIndex(st => st.id === subtaskId);
     if (subtaskIndex === -1) return null;
@@ -174,7 +187,7 @@ class MemoryStore {
     if (!project) return false;
 
     const task = project.tasks.find(t => t.id === taskId);
-    if (!task) return false;
+    if (!task || !task.subtasks) return false;
 
     const subtaskIndex = task.subtasks.findIndex(st => st.id === subtaskId);
     if (subtaskIndex === -1) return false;

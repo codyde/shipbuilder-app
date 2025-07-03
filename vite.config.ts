@@ -11,4 +11,17 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  // Remove or comment out these warning suppressions and fix the underlying issues:
+  // esbuild: {
+  //   logOverride: { 'this-is-undefined-in-esm': 'silent' }
+  // },
+  // build: {
+  //   rollupOptions: {
+  //     onwarn(warning, warn) {
+  //       if (warning.code === 'UNUSED_EXTERNAL_IMPORT') return
+  //       warn(warning)
+  //     }
+  //   }
+  // }
+  }
 })

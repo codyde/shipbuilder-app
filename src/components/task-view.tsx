@@ -31,7 +31,6 @@ import {
 import { 
   Plus, 
   Circle, 
-  MoreHorizontal,
   ArrowLeft,
   CheckCircle2,
   Clock,

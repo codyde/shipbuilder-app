@@ -3,7 +3,7 @@ import { anthropic } from '@ai-sdk/anthropic';
 import { streamText, generateText, tool } from 'ai';
 import { z } from 'zod';
 import { databaseService } from '../db/database-service.js';
-import { Priority } from '../../src/types/types.js';
+import { Priority } from '../types/types.js';
 import * as Sentry from '@sentry/node';
 
 export const aiRoutes = express.Router();

@@ -3,7 +3,7 @@ import { projects, tasks, comments, users, apiKeys } from './schema.js';
 import { eq, sql, and } from 'drizzle-orm';
 import { logger } from '../lib/logger.js';
 import { generateUniqueProjectSlug, generateUniqueTaskSlug, getProjectIdFromTaskSlug } from '../utils/slug-utils.js';
-import type { Project, Task, Comment, User, CreateProjectInput, CreateTaskInput, CreateCommentInput, TaskStatus, ProjectStatus, Priority } from '../../src/types/types.js';
+import type { Project, Task, Comment, User, CreateProjectInput, CreateTaskInput, CreateCommentInput, TaskStatus, ProjectStatus, Priority } from '../types/types.js';
 
 class DatabaseService {
   // Helper methods for slug generation
@@ -35,6 +35,9 @@ class DatabaseService {
 
     return {
       ...user,
+      provider: user.provider || undefined,
+      providerId: user.providerId || undefined,
+      avatar: user.avatar || undefined,
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString(),
     };
@@ -49,6 +52,9 @@ class DatabaseService {
 
     return {
       ...user,
+      provider: user.provider || undefined,
+      providerId: user.providerId || undefined,
+      avatar: user.avatar || undefined,
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString(),
     };
@@ -63,6 +69,9 @@ class DatabaseService {
 
     return {
       ...user,
+      provider: user.provider || undefined,
+      providerId: user.providerId || undefined,
+      avatar: user.avatar || undefined,
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString(),
     };
@@ -81,6 +90,9 @@ class DatabaseService {
 
     return {
       ...updated,
+      provider: updated.provider || undefined,
+      providerId: updated.providerId || undefined,
+      avatar: updated.avatar || undefined,
       createdAt: updated.createdAt.toISOString(),
       updatedAt: updated.updatedAt.toISOString(),
     };
@@ -107,6 +119,7 @@ class DatabaseService {
     return {
       ...project,
       status: project.status as ProjectStatus,
+      description: project.description || undefined,
       tasks: [],
       createdAt: project.createdAt.toISOString(),
       updatedAt: project.updatedAt.toISOString(),
@@ -128,10 +141,13 @@ class DatabaseService {
     return projectsWithTasks.map(p => ({
       ...p,
       status: p.status as ProjectStatus,
+      description: p.description || undefined,
       tasks: p.tasks.map(t => ({
         ...t,
         status: t.status as TaskStatus,
         priority: t.priority as Priority,
+        description: t.description || undefined,
+        details: t.details || undefined,
         dueDate: t.dueDate?.toISOString(),
         comments: t.comments?.map(c => ({
           ...c,
@@ -163,10 +179,13 @@ class DatabaseService {
     return {
       ...project,
       status: project.status as ProjectStatus,
+      description: project.description || undefined,
       tasks: project.tasks.map(t => ({
         ...t,
         status: t.status as TaskStatus,
         priority: t.priority as Priority,
+        description: t.description || undefined,
+        details: t.details || undefined,
         dueDate: t.dueDate?.toISOString(),
         comments: t.comments?.map(c => ({
           ...c,
@@ -313,6 +332,8 @@ class DatabaseService {
       ...task,
       status: task.status as TaskStatus,
       priority: task.priority as Priority,
+      description: task.description || undefined,
+      details: task.details || undefined,
       dueDate: task.dueDate?.toISOString(),
       createdAt: task.createdAt.toISOString(),
       updatedAt: task.updatedAt.toISOString(),
@@ -340,6 +361,8 @@ class DatabaseService {
       ...task,
       status: task.status as TaskStatus,
       priority: task.priority as Priority,
+      description: task.description || undefined,
+      details: task.details || undefined,
       dueDate: task.dueDate?.toISOString(),
       comments: task.comments?.map(c => ({
         ...c,

@@ -58,24 +58,11 @@ interface AuditLogEntry {
 }
 
 function logSecurityEvent(event: SecurityEvent, req: Request, metadata: Record<string, unknown> = {}, severity: 'low' | 'medium' | 'high' | 'critical' = 'medium') {
-  const logEntry: AuditLogEntry = {
-    timestamp: new Date(),
-    event,
-    userId: req.user?.id,
-    ipAddress: req.ip || req.connection.remoteAddress || 'unknown',
-    userAgent: req.headers['user-agent'] || 'unknown',
-    metadata,
-    severity
-  };
-
-  const { logger } = Sentry;
-  logger.info(`Security Event: ${event}`, logEntry);
   
   // Capture high/critical events in Sentry
   if (severity === 'high' || severity === 'critical') {
     Sentry.captureMessage(`Security Event: ${event}`, severity === 'critical' ? 'error' : 'warning');
     Sentry.setTag('security_event', event);
-    Sentry.setContext('security_audit', logEntry);
   }
 }
 
@@ -97,7 +84,7 @@ export function generateJWT(user: { id: string; email: string; provider: string 
   const expiresIn = process.env.JWT_EXPIRES_IN || '1h';
   
   return jwt.sign(payload, secret, {
-    expiresIn,
+    expiresIn: expiresIn as any,
     algorithm: 'HS256'
   });
 }
