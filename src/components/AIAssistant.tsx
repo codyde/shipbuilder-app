@@ -79,9 +79,9 @@ function ChatMessage({ message }: ChatMessageProps) {
                 {tool.result && (
                   <div className="mt-1 text-xs">
                     {tool.result.success ? (
-                      <span className="text-green-600">✓ {tool.result.message}</span>
+                      <span className="text-green-600 dark:text-green-400 dark:text-green-400">✓ {tool.result.message}</span>
                     ) : (
-                      <span className="text-red-600">✗ {tool.result.message}</span>
+                      <span className="text-red-600 dark:text-red-400 dark:text-red-400">✗ {tool.result.message}</span>
                     )}
                   </div>
                 )}
@@ -617,7 +617,7 @@ export function AIAssistant({ className = '', onClose, open = true, onOpenChange
                       <Button 
                         onClick={handleGenerateMVP} 
                         disabled={projectIdea.length < 10 || isGenerating}
-                        className="w-full h-9 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
+                        className="w-full h-9 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white"
                       >
                         {isGenerating ? (
                           <>
@@ -660,7 +660,7 @@ export function AIAssistant({ className = '', onClose, open = true, onOpenChange
                             </div>
                           ) : (
                             <div className="flex items-center justify-center gap-2 py-4">
-                              <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                              <Loader2 className="w-4 h-4 animate-spin text-primary" />
                               <p className="text-sm text-muted-foreground">Starting AI analysis...</p>
                             </div>
                           )}
@@ -721,11 +721,11 @@ export function AIAssistant({ className = '', onClose, open = true, onOpenChange
                     <Card className="p-3">
                       <div className="text-sm space-y-2">
                         <div>
-                          <span className="font-medium text-blue-600">Features:</span>
+                          <span className="font-medium text-primary">Features:</span>
                           <span className="text-muted-foreground ml-1">{mvpPlan.features.length} core features</span>
                         </div>
                         <div>
-                          <span className="font-medium text-purple-600">Tasks:</span>
+                          <span className="font-medium text-primary">Tasks:</span>
                           <span className="text-muted-foreground ml-1">{mvpPlan.tasks.length} development tasks</span>
                         </div>
                       </div>
@@ -736,7 +736,7 @@ export function AIAssistant({ className = '', onClose, open = true, onOpenChange
                         <Button
                           onClick={handleCreateProject}
                           disabled={isCreating || !projectName.trim()}
-                          className="flex-1 text-white"
+                          className="flex-1"
                         >
                           <Rocket className="w-4 h-4 mr-2" />
                           Create Project
@@ -764,13 +764,13 @@ export function AIAssistant({ className = '', onClose, open = true, onOpenChange
                                   <CheckCircle className="w-5 h-5 text-green-500 animate-pulse" />
                                   <div className="absolute inset-0 w-5 h-5 border-2 border-green-500 rounded-full animate-ping opacity-75"></div>
                                 </div>
-                                <span className="text-sm font-medium text-green-600">
+                                <span className="text-sm font-medium text-green-600 dark:text-green-400">
                                   Project created successfully!
                                 </span>
                               </div>
                               
                               <div className="text-center">
-                                <p className="text-sm text-green-600 font-medium">
+                                <p className="text-sm text-green-600 dark:text-green-400 font-medium">
                                   Done!
                                 </p>
                               </div>
@@ -901,13 +901,13 @@ export function AIAssistant({ className = '', onClose, open = true, onOpenChange
         <div className="flex-1 flex flex-col overflow-hidden min-h-0">
           {error && (
             <Card className="m-4 p-3 bg-red-50 border-red-200">
-              <p className="text-red-600 text-sm">{error}</p>
+              <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
             </Card>
           )}
           
           {successMessage && (
             <Card className="m-4 p-3 bg-green-50 border-green-200">
-              <p className="text-green-600 text-sm">{successMessage}</p>
+              <p className="text-green-600 dark:text-green-400 text-sm">{successMessage}</p>
             </Card>
           )}
 
@@ -944,8 +944,8 @@ export function AIAssistant({ className = '', onClose, open = true, onOpenChange
                           Minimum 10 characters for detailed analysis
                         </p>
                         <p className={`text-xs ${
-                          projectIdea.length > 450 ? 'text-orange-600' : 
-                          projectIdea.length > 500 ? 'text-red-600' : 'text-muted-foreground'
+                          projectIdea.length > 450 ? 'text-orange-600 dark:text-orange-400' : 
+                          projectIdea.length > 500 ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'
                         }`}>
                           {projectIdea.length}/500
                         </p>
@@ -997,7 +997,7 @@ export function AIAssistant({ className = '', onClose, open = true, onOpenChange
                         </div>
                       ) : (
                         <div className="flex items-center justify-center gap-2 py-4">
-                          <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                          <Loader2 className="w-4 h-4 animate-spin text-primary" />
                           <p className="text-sm text-muted-foreground">Starting AI analysis...</p>
                         </div>
                       )}
@@ -1098,7 +1098,7 @@ export function AIAssistant({ className = '', onClose, open = true, onOpenChange
                         <Button
                           onClick={handleCreateProject}
                           disabled={isCreating || !projectName.trim()}
-                          className="flex-1 text-white"
+                          className="flex-1"
                         >
                           <Rocket className="w-4 h-4 mr-2" />
                           Create Project
@@ -1126,13 +1126,13 @@ export function AIAssistant({ className = '', onClose, open = true, onOpenChange
                                   <CheckCircle className="w-5 h-5 text-green-500 animate-pulse" />
                                   <div className="absolute inset-0 w-5 h-5 border-2 border-green-500 rounded-full animate-ping opacity-75"></div>
                                 </div>
-                                <span className="text-sm font-medium text-green-600">
+                                <span className="text-sm font-medium text-green-600 dark:text-green-400">
                                   Project created successfully!
                                 </span>
                               </div>
                               
                               <div className="text-center">
-                                <p className="text-sm text-green-600 font-medium">
+                                <p className="text-sm text-green-600 dark:text-green-400 font-medium">
                                   Done!
                                 </p>
                               </div>
