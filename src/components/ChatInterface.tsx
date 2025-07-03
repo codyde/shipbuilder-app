@@ -210,8 +210,8 @@ export function ChatInterface({ className = '', onClose, open = true, onOpenChan
           </DrawerHeader>
 
           {/* Mobile Messages */}
-          <div className="flex-1 overflow-y-auto p-4 min-h-0">
-            <div className="flex flex-col gap-4">
+          <div className="flex-1 overflow-y-auto overscroll-contain p-4 min-h-0" style={{ maxHeight: 'calc(75vh - 140px)' }}>
+            <div className="flex flex-col gap-4 min-h-fit">
               {messages
                 .filter(message => message.role === 'user' || message.role === 'assistant')
                 .map((message) => (

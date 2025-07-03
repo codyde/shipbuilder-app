@@ -460,7 +460,7 @@ export function MVPBuilder({ className = '', onClose, open = true, onOpenChange 
           </DrawerHeader>
 
           {/* Content */}
-          <div className="flex-1 p-3 space-y-3 overflow-y-auto min-h-0">
+          <div className="flex-1 p-3 space-y-3 overflow-y-auto overscroll-contain min-h-0" style={{ maxHeight: 'calc(85vh - 140px)' }}>
             {!mvpPlan ? (
               <>
                 <div className="text-center space-y-3">
