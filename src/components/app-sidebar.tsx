@@ -39,7 +39,6 @@ import {
   Archive,
   Folder,
   Settings,
-  MessageCircle,
   LogOut,
   CheckSquare,
   Rocket,
@@ -54,7 +53,6 @@ interface AppSidebarProps {
   currentView: View
   onViewChange: (view: View) => void
   onProjectSelect: (projectId: string) => void
-  onChatToggle: () => void
   onMVPBuilderToggle: () => void
   onNewProject: () => void
 }
@@ -92,7 +90,7 @@ const navigationItems = [
   },
 ]
 
-export function AppSidebar({ currentView, onViewChange, onProjectSelect, onChatToggle, onMVPBuilderToggle, onNewProject }: AppSidebarProps) {
+export function AppSidebar({ currentView, onViewChange, onProjectSelect, onMVPBuilderToggle, onNewProject }: AppSidebarProps) {
   const { projects, deleteProject } = useProjects()
   const { user, logout } = useAuth()
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -171,7 +169,7 @@ export function AppSidebar({ currentView, onViewChange, onProjectSelect, onChatT
             className="w-full h-9 text-sm font-medium bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-md group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:p-0 min-w-0"
           >
             <Rocket className="w-4 h-4 group-data-[collapsible=icon]:mr-0 mr-2 flex-shrink-0" />
-            <span className="group-data-[collapsible=icon]:sr-only truncate min-w-0">Build MVP</span>
+            <span className="group-data-[collapsible=icon]:sr-only truncate min-w-0">AI Assistant</span>
           </Button>
           <Button
             onClick={onNewProject}
@@ -257,16 +255,6 @@ export function AppSidebar({ currentView, onViewChange, onProjectSelect, onChatT
 
       <div className="mt-auto border-t p-2">
         <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton 
-              className="h-7" 
-              tooltip="AI Chat"
-              onClick={onChatToggle}
-            >
-              <MessageCircle className="h-8 w-8" />
-              <span className="text-xs">AI Chat</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton 
               className="h-7" 

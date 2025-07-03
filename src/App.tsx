@@ -9,8 +9,7 @@ import { ProjectView } from '@/components/project-view'
 import { TaskView } from '@/components/task-view'
 import { AllTasksView } from '@/components/all-tasks-view'
 import { SettingsView } from '@/components/settings-view'
-import { ChatInterface } from '@/components/ChatInterface'
-import { MVPBuilder } from '@/components/MVPBuilder'
+import { AIAssistant } from '@/components/AIAssistant'
 import { CommandMenu } from '@/components/command-menu'
 import { LoginScreen } from '@/components/LoginScreen'
 import { LoadingAnimation } from '@/components/ui/loading-animation'
@@ -25,8 +24,8 @@ function AppContent() {
   const [currentView, setCurrentView] = useState<View>('all-issues')
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [commandMenuOpen, setCommandMenuOpen] = useState(false)
-  const [chatOpen, setChatOpen] = useState(false)
-  const [mvpBuilderOpen, setMvpBuilderOpen] = useState(false)
+  const [aiAssistantOpen, setAiAssistantOpen] = useState(false)
+  const [initialTab, setInitialTab] = useState<'mvp' | 'chat'>('mvp')
   const [newProjectDialogOpen, setNewProjectDialogOpen] = useState(false)
 
   const handleViewChange = (view: View) => {
@@ -106,8 +105,10 @@ function AppContent() {
             currentView={currentView}
             onViewChange={handleViewChange}
             onProjectSelect={handleProjectSelect}
-            onChatToggle={() => setChatOpen(!chatOpen)}
-            onMVPBuilderToggle={() => setMvpBuilderOpen(!mvpBuilderOpen)}
+            onMVPBuilderToggle={() => {
+              setInitialTab('mvp')
+              setAiAssistantOpen(!aiAssistantOpen)
+            }}
             onNewProject={handleNewProject}
           />
           <SidebarInset>
@@ -130,15 +131,11 @@ function AppContent() {
             )}
           </SidebarInset>
         </div>
-        <ChatInterface 
-          open={chatOpen} 
-          onOpenChange={setChatOpen}
-          onClose={() => setChatOpen(false)} 
-        />
-        <MVPBuilder
-          open={mvpBuilderOpen}
-          onOpenChange={setMvpBuilderOpen}
-          onClose={() => setMvpBuilderOpen(false)}
+        <AIAssistant
+          open={aiAssistantOpen}
+          onOpenChange={setAiAssistantOpen}
+          onClose={() => setAiAssistantOpen(false)}
+          initialTab={initialTab}
         />
         <GlobalTaskPopout />
         <CommandMenu 
