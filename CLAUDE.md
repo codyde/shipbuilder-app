@@ -164,8 +164,15 @@ The application uses human-readable slug-based identifiers for projects and task
 
 #### OAuth Configuration (Sentry)
 - `SENTRY_DSN` - Sentry project DSN for error tracking
-- `SENTRY_CLIENT_ID` - OAuth client ID for Sentry authentication
-- `SENTRY_CLIENT_SECRET` - OAuth client secret for Sentry authentication
+- `SENTRY_OAUTH_CLIENT_ID` - OAuth client ID for Sentry authentication
+- `SENTRY_OAUTH_CLIENT_SECRET` - OAuth client secret for Sentry authentication
+- `SENTRY_OAUTH_REDIRECT_URI` - OAuth callback URL for Sentry (e.g., `http://localhost:3001/api/auth/sentry/callback`)
+- `SENTRY_BASE_URL` - Sentry instance URL (default: https://sentry.io)
+
+#### OAuth Configuration (Google)
+- `GOOGLE_OAUTH_CLIENT_ID` - OAuth client ID for Google authentication
+- `GOOGLE_OAUTH_CLIENT_SECRET` - OAuth client secret for Google authentication  
+- `GOOGLE_OAUTH_REDIRECT_URI` - OAuth callback URL for Google (e.g., `http://localhost:3001/api/auth/google/callback`)
 
 #### Frontend (Client) Variables
 - `VITE_API_BASE_URL` - API base URL (default: `http://localhost:3001`)
@@ -175,9 +182,19 @@ The application uses human-readable slug-based identifiers for projects and task
 1. Copy `.env.example` to `.env` and configure required variables
 2. Set up PostgreSQL database and configure `DATABASE_URL`
 3. Obtain Anthropic API key for AI functionality
-4. Configure Sentry OAuth for authentication (or use alternative OAuth provider)
+4. **Configure OAuth Providers:**
+   - **Sentry OAuth**: Configure Sentry OAuth credentials and redirect URI
+   - **Google OAuth**: Set up Google Cloud Console project, enable Google+ API, and configure OAuth credentials
 5. Run `npx drizzle-kit push` to initialize database schema
 6. Frontend serves on port 5173, backend on port 3001
+
+### Google OAuth Setup
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new project or select existing project
+3. Enable the Google+ API (or Google People API)
+4. Go to "Credentials" → "Create Credentials" → "OAuth 2.0 Client IDs"
+5. Set authorized redirect URIs to include your callback URL (e.g., `http://localhost:3001/api/auth/google/callback`)
+6. Copy the Client ID and Client Secret to your `.env` file
 
 ## Authentication System
 
@@ -186,8 +203,9 @@ The application uses a comprehensive OAuth authentication system with JWT tokens
 
 #### Supported Providers
 - **Sentry OAuth** - Primary authentication provider with organization-based access
+- **Google OAuth** - Fully implemented Google OAuth 2.0 integration with email verification
 - **GitHub OAuth** - Alternative provider (configured but may need setup)
-- **Google OAuth** - Alternative provider (configured but may need setup)
+- **Developer Mode** - Email-based development authentication for testing
 
 #### Authentication Flow
 1. **Login**: User clicks "Login with Sentry" on LoginScreen
@@ -199,8 +217,11 @@ The application uses a comprehensive OAuth authentication system with JWT tokens
 7. **API Authorization**: JWT included in Authorization header for protected routes
 
 #### API Endpoints
-- `POST /api/auth/sentry` - Initiate Sentry OAuth flow
-- `GET /api/auth/sentry/callback` - Handle OAuth callback and create session
+- `GET /api/auth/sentry` - Initiate Sentry OAuth flow
+- `GET /api/auth/sentry/callback` - Handle Sentry OAuth callback and create session
+- `GET /api/auth/google` - Initiate Google OAuth flow
+- `GET /api/auth/google/callback` - Handle Google OAuth callback and create session
+- `POST /api/auth/developer` - Developer mode login for testing
 - `GET /api/auth/me` - Get current user information
 - `POST /api/auth/logout` - Clear user session
 
