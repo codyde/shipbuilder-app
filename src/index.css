@@ -24,6 +24,29 @@ body {
   overflow: hidden;
 }
 
+/* Prevent mobile zoom on input fields */
+@media (max-width: 768px) {
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="search"],
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+  
+  /* Ensure our UI components also respect the 16px minimum */
+  [data-slot="input"],
+  [data-slot="textarea"] {
+    font-size: 16px !important;
+  }
+}
 
 /* Custom scrollbar styles for dark theme */
 ::-webkit-scrollbar {
@@ -500,8 +523,6 @@ input, select, textarea, [role="combobox"] {
   --sidebar-border: oklch(0.291 0.036 45);
   --sidebar-ring: oklch(0.748 0.148 25);
 }
-
-
 
 .midnight {
   --background: oklch(0.08 0.05 250);
