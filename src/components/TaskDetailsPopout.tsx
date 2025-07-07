@@ -39,8 +39,8 @@ import { useDraggable } from '@/hooks/useDraggable'
 import { cn } from '@/lib/utils'
 import { logger } from '@/lib/logger'
 import { getApiUrl } from '@/lib/api-config'
-import { MonacoMarkdownEditor } from '@/components/MonacoMarkdownEditor'
-import { MonacoEditorModal } from '@/components/MonacoEditorModal'
+import { SimpleMarkdownEditor } from '@/components/SimpleMarkdownEditor'
+import { SimpleMarkdownModal } from '@/components/SimpleMarkdownModal'
 
 interface TaskDetailsPopoutProps {
   task: Task
@@ -538,13 +538,14 @@ export function TaskDetailsPopout({ task, isOpen, onClose, onMinimize }: TaskDet
           </div>
           {editingField === 'details' ? (
             <div className="space-y-2">
-              <MonacoMarkdownEditor
+              <SimpleMarkdownEditor
                 value={editValues.details}
                 onChange={(value) => setEditValues(prev => ({ ...prev, details: value }))}
                 readOnly={isGeneratingDetails}
                 height={140}
                 showExpandButton={true}
                 onExpand={() => setIsEditorModalOpen(true)}
+                placeholder={isGeneratingDetails ? "Generating implementation details..." : "Add detailed implementation information..."}
               />
               <div className="flex gap-2">
                 <Button 
@@ -636,8 +637,8 @@ export function TaskDetailsPopout({ task, isOpen, onClose, onMinimize }: TaskDet
         </div>
       </div>
 
-      {/* Monaco Editor Modal */}
-      <MonacoEditorModal
+      {/* Markdown Editor Modal */}
+      <SimpleMarkdownModal
         isOpen={isEditorModalOpen}
         onClose={() => setIsEditorModalOpen(false)}
         value={editValues.details}

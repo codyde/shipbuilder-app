@@ -37,8 +37,8 @@ import { useAuth } from '@/context/AuthContext'
 import { cn } from '@/lib/utils'
 import { logger } from '@/lib/logger'
 import { getApiUrl } from '@/lib/api-config'
-import { MonacoMarkdownEditor } from '@/components/MonacoMarkdownEditor'
-import { MonacoEditorModal } from '@/components/MonacoEditorModal'
+import { SimpleMarkdownEditor } from '@/components/SimpleMarkdownEditor'
+import { SimpleMarkdownModal } from '@/components/SimpleMarkdownModal'
 
 interface TaskDetailPanelProps {
   task: Task
@@ -541,13 +541,14 @@ export function TaskDetailPanel({ task, isOpen, onClose, onPopOut }: TaskDetailP
           </div>
           {editingField === 'details' ? (
             <div className="space-y-2">
-              <MonacoMarkdownEditor
+              <SimpleMarkdownEditor
                 value={editValues.details}
                 onChange={(value) => setEditValues(prev => ({ ...prev, details: value }))}
                 readOnly={isGeneratingDetails}
                 height={120}
                 showExpandButton={true}
                 onExpand={() => setIsEditorModalOpen(true)}
+                placeholder={isGeneratingDetails ? "Generating implementation details..." : "Add detailed implementation information..."}
               />
               <div className="flex gap-2">
                 <Button 
@@ -639,8 +640,8 @@ export function TaskDetailPanel({ task, isOpen, onClose, onPopOut }: TaskDetailP
         </div>
       </div>
 
-      {/* Monaco Editor Modal */}
-      <MonacoEditorModal
+      {/* Markdown Editor Modal */}
+      <SimpleMarkdownModal
         isOpen={isEditorModalOpen}
         onClose={() => setIsEditorModalOpen(false)}
         value={editValues.details}

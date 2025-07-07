@@ -60,7 +60,7 @@ export function MonacoMarkdownEditor({
       )}
       <Editor
         height={height}
-        language="markdown"
+        language="plaintext"
         theme={getMonacoTheme()}
         value={value}
         onChange={handleEditorChange}
@@ -74,14 +74,18 @@ export function MonacoMarkdownEditor({
           scrollBeyondLastLine: false,
           automaticLayout: true,
           fontSize: 14,
-          fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-          padding: { top: 8, bottom: 8 },
+          fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+          padding: { top: 12, bottom: 12 },
           scrollbar: {
             vertical: 'auto',
             horizontal: 'auto',
-            verticalScrollbarSize: 6,
-            horizontalScrollbarSize: 6
-          }
+            verticalScrollbarSize: 8,
+            horizontalScrollbarSize: 8
+          },
+          renderLineHighlight: 'none',
+          hideCursorInOverviewRuler: true,
+          overviewRulerBorder: false,
+          overviewRulerLanes: 0
         }}
       />
     </div>
