@@ -40,6 +40,7 @@ This is a full-stack project management application built with React + TypeScrip
   - `src/components/ConnectionStatus.tsx` - Real-time connection status indicator
   - `src/components/TaskHoverCard.tsx` - Task detail preview on hover
   - `src/components/ProjectHoverCard.tsx` - Project detail preview on hover
+  - `src/components/CopyableId.tsx` - Reusable component for copyable text with icon (used for project IDs and deletion dialogs)
 - **Types**: Centralized type definitions in `src/types/index.ts`
 - **Styling**: Tailwind CSS v4 with utility-first approach and responsive design
 
@@ -376,6 +377,7 @@ interface MVPPlan {
 - **Command Palette**: Cmd+K command menu for quick navigation and actions
 - **Real-time Updates**: Live UI updates when AI tools modify data
 - **Hover Cards**: Rich preview cards for tasks and projects
+- **Unified Deletion Dialogs**: Consistent project deletion experience across sidebar and project view with copyable project names following CopyableId pattern
 - **Responsive Design**: Mobile-first responsive layout with Tailwind CSS
 
 ### Security & Performance
@@ -392,8 +394,9 @@ interface MVPPlan {
 - **Debug Scripts**: Various debugging utilities in project root
 
 ### Code Organization
-- **Modular Components**: Reusable UI components with consistent patterns
+- **Modular Components**: Reusable UI components with consistent patterns (e.g., CopyableId component pattern used throughout)
 - **Type Safety**: Centralized types with runtime validation
 - **Context-based State**: Multiple React contexts for different concerns
 - **Service Layer**: Clean separation between database operations and API routes
 - **Middleware Architecture**: Composable Express middleware for cross-cutting concerns
+- **Design Consistency**: Standardized interaction patterns for copyable elements, deletion confirmations, and visual feedback
