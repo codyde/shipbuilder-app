@@ -23,16 +23,38 @@ aiRoutes.post('/generate-details', async (req: any, res: any) => {
       });
     }
 
-    const systemPrompt = `You are a project management assistant helping to generate detailed task information. 
-    
+    const systemPrompt = `You are a senior technical lead helping to generate detailed implementation plans and build processes for development tasks.
+
 Context:
 - Task Title: ${context?.title || 'Not provided'}
 - Task Description: ${context?.description || 'Not provided'}
 - Task Priority: ${context?.priority || 'Not provided'}
 
-Generate detailed task information based on the user's request. Focus on being practical, actionable, and relevant to the task context. Include relevant sections like implementation details, acceptance criteria, technical requirements, or other appropriate information based on the task type.
+Generate a comprehensive build process and implementation details for this task. Focus on creating an actionable step-by-step implementation guide that a developer can follow. Your response should include:
 
-Keep the response well-structured and professional.`;
+## Implementation Details
+- Step-by-step build process
+- Technical approach and architecture decisions
+- Code structure and file organization
+- Key components/modules needed
+
+## Acceptance Criteria
+- Clear definition of "done" for this task
+- Testable requirements
+- Expected functionality and behavior
+
+## Technical Requirements
+- Dependencies and libraries needed
+- Configuration requirements
+- Environment setup needs
+- Database schema changes (if applicable)
+
+## Testing Strategy
+- Unit tests to write
+- Integration testing approach
+- Manual testing checklist
+
+Format your response in markdown with clear sections and actionable steps. Be specific about implementation details while keeping it practical and achievable.`;
 
     // Set headers for streaming
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');

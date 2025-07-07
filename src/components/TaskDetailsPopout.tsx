@@ -39,6 +39,8 @@ import { useDraggable } from '@/hooks/useDraggable'
 import { cn } from '@/lib/utils'
 import { logger } from '@/lib/logger'
 import { getApiUrl } from '@/lib/api-config'
+import { MonacoMarkdownEditor } from '@/components/MonacoMarkdownEditor'
+import { MonacoEditorModal } from '@/components/MonacoEditorModal'
 
 interface TaskDetailsPopoutProps {
   task: Task
@@ -84,7 +86,7 @@ function AIGenerateDialog({ onGenerate, isLoading }: AIGenerateDialogProps) {
               id="prompt"
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              placeholder="e.g., 'Create a detailed implementation plan for this task with acceptance criteria and technical requirements'"
+              placeholder="e.g., 'Generate a complete build process with step-by-step implementation details, acceptance criteria, and testing strategy'"
               rows={4}
               autoFocus
             />
@@ -119,6 +121,7 @@ export function TaskDetailsPopout({ task, isOpen, onClose, onMinimize }: TaskDet
   const [comments, setComments] = useState<Comment[]>(task.comments || [])
   const [isGeneratingDetails, setIsGeneratingDetails] = useState(false)
   const detailsTextareaRef = useRef<HTMLTextAreaElement>(null)
+  const [isEditorModalOpen, setIsEditorModalOpen] = useState(false)
 
   // Draggable functionality
   const { ref: dragRef, handleMouseDown, style: dragStyle } = useDraggable({
@@ -343,6 +346,11 @@ export function TaskDetailsPopout({ task, isOpen, onClose, onMinimize }: TaskDet
     }
   }
 
+  const handleEditorModalSave = async () => {
+    await handleSave('details')
+    setIsEditorModalOpen(false)
+  }
+
   const getStatusColor = (status: TaskStatus) => {
     switch (status) {
       case TaskStatus.COMPLETED:
@@ -528,7 +536,7 @@ export function TaskDetailsPopout({ task, isOpen, onClose, onMinimize }: TaskDet
         {/* Details */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <Label className="text-sm font-medium">Details</Label>
+            <Label className="text-sm font-medium">Implementation Details</Label>
             <AIGenerateDialog 
               onGenerate={handleGenerateDetails}
               isLoading={isGeneratingDetails}
@@ -536,13 +544,14 @@ export function TaskDetailsPopout({ task, isOpen, onClose, onMinimize }: TaskDet
           </div>
           {editingField === 'details' ? (
             <div className="space-y-2">
-              <Textarea
-                ref={detailsTextareaRef}
+              <MonacoMarkdownEditor
                 value={editValues.details}
-                onChange={(e) => setEditValues(prev => ({ ...prev, details: e.target.value }))}
-                placeholder={isGeneratingDetails ? "Generating details..." : "Add detailed information..."}
+                onChange={(value) => setEditValues(prev => ({ ...prev, details: value }))}
+                placeholder={isGeneratingDetails ? "Generating implementation details..." : "Add detailed implementation information..."}
                 readOnly={isGeneratingDetails}
-                className={`h-[140px] resize-none ${isGeneratingDetails ? "bg-muted/50" : ""}`}
+                height={140}
+                showExpandButton={true}
+                onExpand={() => setIsEditorModalOpen(true)}
               />
               <div className="flex gap-2">
                 <Button 
@@ -570,7 +579,7 @@ export function TaskDetailsPopout({ task, isOpen, onClose, onMinimize }: TaskDet
               {task.details ? (
                 <div className="whitespace-pre-wrap">{task.details}</div>
               ) : (
-                <span className="text-muted-foreground">Add detailed information...</span>
+                <span className="text-muted-foreground">Add detailed implementation information...</span>
               )}
             </div>
           )}
@@ -633,6 +642,16 @@ export function TaskDetailsPopout({ task, isOpen, onClose, onMinimize }: TaskDet
           </div>
         </div>
       </div>
+
+      {/* Monaco Editor Modal */}
+      <MonacoEditorModal
+        isOpen={isEditorModalOpen}
+        onClose={() => setIsEditorModalOpen(false)}
+        value={editValues.details}
+        onChange={(value) => setEditValues(prev => ({ ...prev, details: value }))}
+        onSave={handleEditorModalSave}
+        title="Task Implementation Details"
+      />
     </div>
   )
 }
