@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { 
   X, 
   MessageSquare, 
@@ -120,7 +120,6 @@ export function TaskDetailPanel({ task, isOpen, onClose, onPopOut }: TaskDetailP
   const [newComment, setNewComment] = useState('')
   const [comments, setComments] = useState<Comment[]>(task.comments || [])
   const [isGeneratingDetails, setIsGeneratingDetails] = useState(false)
-  const detailsTextareaRef = useRef<HTMLTextAreaElement>(null)
   const [isEditorModalOpen, setIsEditorModalOpen] = useState(false)
 
   useEffect(() => {
@@ -328,11 +327,6 @@ export function TaskDetailPanel({ task, isOpen, onClose, onPopOut }: TaskDetailP
           
           // Update the details in real-time as we receive chunks
           setEditValues(prev => ({ ...prev, details: accumulatedText }))
-          
-          // Auto-scroll to bottom of textarea
-          if (detailsTextareaRef.current) {
-            detailsTextareaRef.current.scrollTop = detailsTextareaRef.current.scrollHeight
-          }
         }
 
         // Save the final details to the task
@@ -550,7 +544,6 @@ export function TaskDetailPanel({ task, isOpen, onClose, onPopOut }: TaskDetailP
               <MonacoMarkdownEditor
                 value={editValues.details}
                 onChange={(value) => setEditValues(prev => ({ ...prev, details: value }))}
-                placeholder={isGeneratingDetails ? "Generating implementation details..." : "Add detailed implementation information..."}
                 readOnly={isGeneratingDetails}
                 height={120}
                 showExpandButton={true}

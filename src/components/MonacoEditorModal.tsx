@@ -117,7 +117,6 @@ export function MonacoEditorModal({
             value={localValue}
             onChange={handleLocalChange}
             height="100%"
-            placeholder="Add detailed implementation information..."
           />
         </div>
 

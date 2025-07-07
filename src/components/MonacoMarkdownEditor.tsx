@@ -7,7 +7,6 @@ import { useTheme } from '@/context/ThemeContext'
 interface MonacoMarkdownEditorProps {
   value: string
   onChange: (value: string) => void
-  placeholder?: string
   height?: string | number
   readOnly?: boolean
   showExpandButton?: boolean
@@ -17,7 +16,6 @@ interface MonacoMarkdownEditorProps {
 export function MonacoMarkdownEditor({
   value,
   onChange,
-  placeholder = "Add detailed information...",
   height = 140,
   readOnly = false,
   showExpandButton = false,
@@ -37,25 +35,6 @@ export function MonacoMarkdownEditor({
 
   const handleEditorDidMount = (editor: unknown) => {
     editorRef.current = editor
-    
-    // Configure markdown-specific settings
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (editor as any).updateOptions({
-      wordWrap: 'on',
-      minimap: { enabled: false },
-      lineNumbers: 'off',
-      scrollBeyondLastLine: false,
-      automaticLayout: true,
-      fontSize: 14,
-      fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-      padding: { top: 8, bottom: 8 },
-      scrollbar: {
-        vertical: 'auto',
-        horizontal: 'auto',
-        verticalScrollbarSize: 6,
-        horizontalScrollbarSize: 6
-      }
-    })
   }
 
   const handleEditorChange = (value: string | undefined) => {
@@ -89,7 +68,20 @@ export function MonacoMarkdownEditor({
         loading={<div className="flex items-center justify-center h-full text-sm text-muted-foreground">Loading editor...</div>}
         options={{
           readOnly,
-          placeholder
+          wordWrap: 'on',
+          minimap: { enabled: false },
+          lineNumbers: 'off',
+          scrollBeyondLastLine: false,
+          automaticLayout: true,
+          fontSize: 14,
+          fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+          padding: { top: 8, bottom: 8 },
+          scrollbar: {
+            vertical: 'auto',
+            horizontal: 'auto',
+            verticalScrollbarSize: 6,
+            horizontalScrollbarSize: 6
+          }
         }}
       />
     </div>
