@@ -28,7 +28,9 @@ import {
   Circle, 
   Trash2,
   Settings,
-  Edit
+  Edit,
+  Copy,
+  Check
 } from 'lucide-react'
 import { useProjects } from '@/context/ProjectContext'
 import { TaskStatus, ProjectStatus } from '@/types/types'
@@ -81,6 +83,7 @@ export function ProjectView({ view, onProjectSelect, newProjectDialogOpen, onNew
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const [editingName, setEditingName] = useState('')
   const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null)
+  const [projectNameCopied, setProjectNameCopied] = useState(false)
   const [newProject, setNewProject] = useState({
     name: '',
     description: '',
@@ -131,6 +134,7 @@ export function ProjectView({ view, onProjectSelect, newProjectDialogOpen, onNew
     if (projectToManage) {
       setDeleteConfirmOpen(true)
       setDeleteConfirmText('')
+      setProjectNameCopied(false)
     }
   }
 
@@ -157,6 +161,21 @@ export function ProjectView({ view, onProjectSelect, newProjectDialogOpen, onNew
 
   const handleStatusChange = async (projectId: string, newStatus: ProjectStatus) => {
     await updateProject(projectId, { status: newStatus })
+  }
+
+  const handleCopyProjectName = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    
+    if (projectToManage?.name) {
+      try {
+        await navigator.clipboard.writeText(projectToManage.name)
+        setProjectNameCopied(true)
+        setTimeout(() => setProjectNameCopied(false), 2000)
+      } catch (error) {
+        console.error('Failed to copy project name:', error)
+      }
+    }
   }
 
   const filteredProjects = projects.filter(project => {
@@ -440,8 +459,26 @@ export function ProjectView({ view, onProjectSelect, newProjectDialogOpen, onNew
                 This action cannot be undone. This will permanently delete the project <strong>"{projectToManage?.name}"</strong> and all its tasks.
               </p>
               <p className="text-sm font-medium">
-                To confirm, type the project name exactly: <code className="bg-muted px-1 rounded text-xs">{projectToManage?.name}</code>
+                To confirm, type the project name exactly:
               </p>
+              <div className="inline-flex items-center gap-1 px-2 py-1 bg-muted/30 rounded border font-mono cursor-pointer hover:bg-muted/50 transition-colors" onClick={handleCopyProjectName} title="Click to copy project name">
+                <span className="text-sm text-foreground select-all">
+                  {projectToManage?.name}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0 hover:bg-muted-foreground/10 transition-colors"
+                  onClick={handleCopyProjectName}
+                  title="Copy project name"
+                >
+                  {projectNameCopied ? (
+                    <Check className="h-3 w-3 text-green-600" />
+                  ) : (
+                    <Copy className="h-3 w-3 text-muted-foreground" />
+                  )}
+                </Button>
+              </div>
             </div>
             <Input
               value={deleteConfirmText}
