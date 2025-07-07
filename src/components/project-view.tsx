@@ -28,7 +28,8 @@ import {
   Circle, 
   Trash2,
   Settings,
-  Edit
+  Edit,
+  Copy
 } from 'lucide-react'
 import { useProjects } from '@/context/ProjectContext'
 import { TaskStatus, ProjectStatus } from '@/types/types'
@@ -440,16 +441,25 @@ export function ProjectView({ view, onProjectSelect, newProjectDialogOpen, onNew
                 This action cannot be undone. This will permanently delete the project <strong>"{projectToManage?.name}"</strong> and all its tasks.
               </p>
               <p className="text-sm font-medium">
-                To confirm, type the project name exactly: <code 
-                  className="bg-muted px-1 rounded text-xs cursor-pointer hover:bg-muted/80 transition-colors"
+                To confirm, type the project name exactly:
+              </p>
+              <div className="flex items-center gap-2">
+                <code className="bg-muted px-2 py-1 rounded text-sm">{projectToManage?.name}</code>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-6 px-2"
                   onClick={() => {
                     if (projectToManage?.name) {
                       navigator.clipboard.writeText(projectToManage.name)
                     }
                   }}
                   title="Click to copy project name"
-                >{projectToManage?.name}</code>
-              </p>
+                >
+                  <Copy className="h-3 w-3" />
+                </Button>
+              </div>
             </div>
             <Input
               value={deleteConfirmText}
