@@ -461,8 +461,8 @@ export function ProjectView({ view, onProjectSelect, newProjectDialogOpen, onNew
               <p className="text-sm font-medium">
                 To confirm, type the project name exactly:
               </p>
-              <div className="flex items-center gap-1 px-2 py-1 bg-muted/30 rounded border font-mono cursor-pointer hover:bg-muted/50 transition-colors" onClick={handleCopyProjectName} title="Click to copy project name">
-                <span className="text-sm text-foreground select-all flex-1">
+              <div className="inline-flex items-center gap-1 px-2 py-1 bg-muted/30 rounded border font-mono cursor-pointer hover:bg-muted/50 transition-colors" onClick={handleCopyProjectName} title="Click to copy project name">
+                <span className="text-sm text-foreground select-all">
                   {projectToManage?.name}
                 </span>
                 <Button
