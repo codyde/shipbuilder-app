@@ -25,13 +25,10 @@ import { UserProfile } from '@/components/UserProfile'
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { 
   Circle, 
   CircleCheckBig, 
@@ -313,38 +310,53 @@ export function AppSidebar({ currentView, onViewChange, onProjectSelect, onMVPBu
       
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Delete Project</DialogTitle>
-            <DialogDescription>
-              This action cannot be undone. This will permanently delete the project "{projectToDelete?.name}" and all of its tasks.
-            </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            <Label htmlFor="confirmation" className="text-sm font-medium">
-              Type the project name "{projectToDelete?.name}" to confirm deletion:
-            </Label>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">
+                This action cannot be undone. This will permanently delete the project <strong>"{projectToDelete?.name}"</strong> and all its tasks.
+              </p>
+              <p className="text-sm font-medium">
+                To confirm, type the project name exactly: <code 
+                  className="bg-muted px-1 rounded text-xs cursor-pointer hover:bg-muted/80 transition-colors"
+                  onClick={() => {
+                    if (projectToDelete?.name) {
+                      navigator.clipboard.writeText(projectToDelete.name)
+                    }
+                  }}
+                  title="Click to copy project name"
+                >{projectToDelete?.name}</code>
+              </p>
+            </div>
             <Input
-              id="confirmation"
               value={confirmationText}
               onChange={(e) => setConfirmationText(e.target.value)}
-              placeholder={projectToDelete?.name}
-              className="mt-2"
+              placeholder="Type project name to confirm..."
+              autoFocus
               disabled={isDeleting}
             />
+            <div className="flex justify-end gap-2">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={cancelDelete}
+                disabled={isDeleting}
+              >
+                Cancel
+              </Button>
+              <Button 
+                type="button" 
+                variant="destructive" 
+                onClick={confirmDelete}
+                disabled={isDeleting || confirmationText !== projectToDelete?.name}
+              >
+                {isDeleting ? 'Deleting...' : 'Delete Project'}
+              </Button>
+            </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={cancelDelete} disabled={isDeleting}>
-              Cancel
-            </Button>
-            <Button 
-              variant="destructive" 
-              onClick={confirmDelete}
-              disabled={isDeleting || confirmationText !== projectToDelete?.name}
-            >
-              {isDeleting ? 'Deleting...' : 'Delete Project'}
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </Sidebar>

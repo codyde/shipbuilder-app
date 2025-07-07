@@ -440,7 +440,15 @@ export function ProjectView({ view, onProjectSelect, newProjectDialogOpen, onNew
                 This action cannot be undone. This will permanently delete the project <strong>"{projectToManage?.name}"</strong> and all its tasks.
               </p>
               <p className="text-sm font-medium">
-                To confirm, type the project name exactly: <code className="bg-muted px-1 rounded text-xs">{projectToManage?.name}</code>
+                To confirm, type the project name exactly: <code 
+                  className="bg-muted px-1 rounded text-xs cursor-pointer hover:bg-muted/80 transition-colors"
+                  onClick={() => {
+                    if (projectToManage?.name) {
+                      navigator.clipboard.writeText(projectToManage.name)
+                    }
+                  }}
+                  title="Click to copy project name"
+                >{projectToManage?.name}</code>
               </p>
             </div>
             <Input
