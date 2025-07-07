@@ -40,7 +40,8 @@ import {
   CheckSquare,
   Rocket,
   Trash2,
-  Copy
+  Copy,
+  Check
 } from 'lucide-react'
 import { useProjects } from '@/context/ProjectContext'
 import { useAuth } from '@/context/AuthContext'
@@ -95,6 +96,7 @@ export function AppSidebar({ currentView, onViewChange, onProjectSelect, onMVPBu
   const [projectToDelete, setProjectToDelete] = useState<{ id: string; name: string } | null>(null)
   const [confirmationText, setConfirmationText] = useState('')
   const [isDeleting, setIsDeleting] = useState(false)
+  const [projectNameCopied, setProjectNameCopied] = useState(false)
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -108,6 +110,22 @@ export function AppSidebar({ currentView, onViewChange, onProjectSelect, onMVPBu
     setProjectToDelete(project)
     setDeleteDialogOpen(true)
     setConfirmationText('')
+    setProjectNameCopied(false)
+  }
+
+  const handleCopyProjectName = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    
+    if (projectToDelete?.name) {
+      try {
+        await navigator.clipboard.writeText(projectToDelete.name)
+        setProjectNameCopied(true)
+        setTimeout(() => setProjectNameCopied(false), 2000)
+      } catch (error) {
+        console.error('Failed to copy project name:', error)
+      }
+    }
   }
 
   const confirmDelete = async () => {
@@ -323,21 +341,22 @@ export function AppSidebar({ currentView, onViewChange, onProjectSelect, onMVPBu
               <p className="text-sm font-medium">
                 To confirm, type the project name exactly:
               </p>
-              <div className="flex items-center gap-2">
-                <code className="bg-muted px-2 py-1 rounded text-sm">{projectToDelete?.name}</code>
+              <div className="flex items-center gap-1 px-2 py-1 bg-muted/30 rounded border font-mono cursor-pointer hover:bg-muted/50 transition-colors" onClick={handleCopyProjectName} title="Click to copy project name">
+                <span className="text-sm text-foreground select-all flex-1">
+                  {projectToDelete?.name}
+                </span>
                 <Button
-                  type="button"
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
-                  className="h-6 px-2 hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all duration-200 active:scale-95 active:bg-primary/90"
-                  onClick={() => {
-                    if (projectToDelete?.name) {
-                      navigator.clipboard.writeText(projectToDelete.name)
-                    }
-                  }}
-                  title="Click to copy project name"
+                  className="h-6 w-6 p-0 hover:bg-muted-foreground/10 transition-colors"
+                  onClick={handleCopyProjectName}
+                  title="Copy project name"
                 >
-                  <Copy className="h-3 w-3" />
+                  {projectNameCopied ? (
+                    <Check className="h-3 w-3 text-green-600" />
+                  ) : (
+                    <Copy className="h-3 w-3 text-muted-foreground" />
+                  )}
                 </Button>
               </div>
             </div>
