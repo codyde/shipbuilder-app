@@ -449,7 +449,7 @@ export function ProjectView({ view, onProjectSelect, newProjectDialogOpen, onNew
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="h-6 px-2"
+                  className="h-6 px-2 hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all duration-200 active:scale-95 active:bg-primary/90"
                   onClick={() => {
                     if (projectToManage?.name) {
                       navigator.clipboard.writeText(projectToManage.name)
