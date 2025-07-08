@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Button } from '@/components/ui/button'
 import { SimpleMarkdownEditor } from '@/components/SimpleMarkdownEditor'
 import { X, GripHorizontal, Save, Undo } from 'lucide-react'
@@ -69,8 +70,8 @@ export function SimpleMarkdownModal({
 
   if (!isOpen) return null
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50">
       <div
         ref={dragRef}
         style={dragStyle}
@@ -136,6 +137,7 @@ export function SimpleMarkdownModal({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

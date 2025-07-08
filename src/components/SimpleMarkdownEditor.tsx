@@ -1,10 +1,12 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { ExternalLink, Eye, Edit3 } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import rehypeHighlight from 'rehype-highlight'
+import { useTheme } from '@/context/ThemeContext'
 
 interface SimpleMarkdownEditorProps {
   value: string
@@ -26,6 +28,35 @@ export function SimpleMarkdownEditor({
   placeholder = "Add detailed implementation information..."
 }: SimpleMarkdownEditorProps) {
   const [activeTab, setActiveTab] = useState<"write" | "preview">("write")
+  const { theme } = useTheme()
+
+  // Load appropriate highlight.js theme
+  useEffect(() => {
+    const isDark = theme === 'dark' || theme === 'midnight' || theme === 'ocean'
+    const styleUrl = isDark 
+      ? 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css'
+      : 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css'
+    
+    // Remove existing highlight.js stylesheet
+    const existingStyle = document.querySelector('link[data-highlight-theme]')
+    if (existingStyle) {
+      existingStyle.remove()
+    }
+    
+    // Add new stylesheet
+    const link = document.createElement('link')
+    link.rel = 'stylesheet'
+    link.href = styleUrl
+    link.setAttribute('data-highlight-theme', 'true')
+    document.head.appendChild(link)
+    
+    return () => {
+      const style = document.querySelector('link[data-highlight-theme]')
+      if (style) {
+        style.remove()
+      }
+    }
+  }, [theme])
 
   const handleTabChange = (newTab: string) => {
     setActiveTab(newTab as "write" | "preview")
@@ -54,7 +85,10 @@ export function SimpleMarkdownEditor({
         >
           {value ? (
             <div className="prose prose-sm max-w-none prose-slate dark:prose-invert">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              <ReactMarkdown 
+                remarkPlugins={[remarkGfm]}
+                rehypePlugins={[rehypeHighlight]}
+              >
                 {value}
               </ReactMarkdown>
             </div>
@@ -92,7 +126,10 @@ export function SimpleMarkdownEditor({
             >
               {value ? (
                 <div className="prose prose-sm max-w-none prose-slate dark:prose-invert">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  <ReactMarkdown 
+                    remarkPlugins={[remarkGfm]}
+                    rehypePlugins={[rehypeHighlight]}
+                  >
                     {value}
                   </ReactMarkdown>
                 </div>
