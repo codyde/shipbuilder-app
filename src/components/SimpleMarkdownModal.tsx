@@ -50,13 +50,18 @@ export function SimpleMarkdownModal({
   // Prevent background scrolling when modal is open
   useEffect(() => {
     if (isOpen) {
-      document.body.style.overflow = 'hidden'
-    } else {
-      document.body.style.overflow = 'unset'
-    }
-    
-    return () => {
-      document.body.style.overflow = 'unset'
+      // Instead of hiding overflow completely, just prevent wheel events on document
+      const preventScroll = (e: WheelEvent) => {
+        if (!e.target || !(e.target as Element).closest('[data-modal-content]')) {
+          e.preventDefault()
+        }
+      }
+      
+      document.addEventListener('wheel', preventScroll, { passive: false })
+      
+      return () => {
+        document.removeEventListener('wheel', preventScroll)
+      }
     }
   }, [isOpen])
 
@@ -91,13 +96,12 @@ export function SimpleMarkdownModal({
   return createPortal(
     <div 
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50"
-      onWheel={(e) => e.stopPropagation()}
     >
       <div
         ref={dragRef}
         style={dragStyle}
-        className="bg-background border shadow-2xl rounded-lg flex flex-col w-[800px] h-[600px] overflow-hidden"
-        onWheel={(e) => e.stopPropagation()}
+        className="bg-background border shadow-2xl rounded-lg flex flex-col w-[800px] h-[600px]"
+        data-modal-content
       >
         {/* Draggable Header */}
         <div 

@@ -82,10 +82,6 @@ export function SimpleMarkdownEditor({
     <div 
       className="relative border rounded-md overflow-hidden flex flex-col"
       style={{ height: typeof height === 'string' && height.includes('%') ? height : 'auto' }}
-      onWheel={(e) => {
-        // Allow scrolling within the editor, prevent it from bubbling to parent
-        e.stopPropagation()
-      }}
     >
       {showExpandButton && onExpand && (
         <div className="absolute top-2 right-2 z-10">
@@ -106,6 +102,10 @@ export function SimpleMarkdownEditor({
           ref={readOnlyContainerRef}
           className="p-3 bg-muted/20 overflow-y-auto"
           style={{ height: typeof height === 'number' ? `${height}px` : height }}
+          onWheel={(e) => {
+            // Ensure readOnly div can handle wheel events for scrolling
+            e.stopPropagation()
+          }}
         >
           {value ? (
             <div className="prose prose-sm max-w-none prose-slate dark:prose-invert">
@@ -139,13 +139,17 @@ export function SimpleMarkdownEditor({
               value={value}
               onChange={(e) => onChange(e.target.value)}
               placeholder={placeholder}
-              className="border-0 rounded-none resize-none focus-visible:ring-0 focus-visible:ring-offset-0 h-full"
+              className="border-0 rounded-none resize-none focus-visible:ring-0 focus-visible:ring-offset-0 h-full overflow-y-auto"
               style={{ 
                 height: typeof height === 'string' && height.includes('%') 
                   ? 'calc(100% - 0px)' 
                   : typeof height === 'number' 
                     ? `${height}px` 
                     : height 
+              }}
+              onWheel={(e) => {
+                // Ensure textarea can handle wheel events for scrolling
+                e.stopPropagation()
               }}
             />
           </TabsContent>
@@ -159,6 +163,10 @@ export function SimpleMarkdownEditor({
                   : typeof height === 'number' 
                     ? `${height}px` 
                     : height 
+              }}
+              onWheel={(e) => {
+                // Ensure preview div can handle wheel events for scrolling
+                e.stopPropagation()
               }}
             >
               {value ? (
