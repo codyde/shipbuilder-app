@@ -102,10 +102,6 @@ export function SimpleMarkdownEditor({
           ref={readOnlyContainerRef}
           className="p-3 bg-muted/20 overflow-y-auto"
           style={{ height: typeof height === 'number' ? `${height}px` : height }}
-          onWheel={(e) => {
-            // Ensure readOnly div can handle wheel events for scrolling
-            e.stopPropagation()
-          }}
         >
           {value ? (
             <div className="prose prose-sm max-w-none prose-slate dark:prose-invert">
@@ -147,10 +143,6 @@ export function SimpleMarkdownEditor({
                     ? `${height}px` 
                     : height 
               }}
-              onWheel={(e) => {
-                // Ensure textarea can handle wheel events for scrolling
-                e.stopPropagation()
-              }}
             />
           </TabsContent>
           
@@ -163,10 +155,6 @@ export function SimpleMarkdownEditor({
                   : typeof height === 'number' 
                     ? `${height}px` 
                     : height 
-              }}
-              onWheel={(e) => {
-                // Ensure preview div can handle wheel events for scrolling
-                e.stopPropagation()
               }}
             >
               {value ? (
