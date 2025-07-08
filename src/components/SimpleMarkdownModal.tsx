@@ -47,6 +47,19 @@ export function SimpleMarkdownModal({
     setHasChanges(false)
   }, [value, isOpen])
 
+  // Prevent background scrolling when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = 'unset'
+    }
+    
+    return () => {
+      document.body.style.overflow = 'unset'
+    }
+  }, [isOpen])
+
   const handleLocalChange = (newValue: string) => {
     setLocalValue(newValue)
     setHasChanges(newValue !== value)
@@ -76,11 +89,15 @@ export function SimpleMarkdownModal({
   if (!isOpen) return null
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50">
+    <div 
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50"
+      onWheel={(e) => e.stopPropagation()}
+    >
       <div
         ref={dragRef}
         style={dragStyle}
         className="bg-background border shadow-2xl rounded-lg flex flex-col w-[800px] h-[600px] overflow-hidden"
+        onWheel={(e) => e.stopPropagation()}
       >
         {/* Draggable Header */}
         <div 

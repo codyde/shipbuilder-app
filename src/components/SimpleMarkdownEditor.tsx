@@ -82,6 +82,10 @@ export function SimpleMarkdownEditor({
     <div 
       className="relative border rounded-md overflow-hidden flex flex-col"
       style={{ height: typeof height === 'string' && height.includes('%') ? height : 'auto' }}
+      onWheel={(e) => {
+        // Allow scrolling within the editor, prevent it from bubbling to parent
+        e.stopPropagation()
+      }}
     >
       {showExpandButton && onExpand && (
         <div className="absolute top-2 right-2 z-10">
