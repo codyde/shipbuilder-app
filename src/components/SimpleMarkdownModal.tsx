@@ -154,7 +154,7 @@ export function SimpleMarkdownModal({
           <SimpleMarkdownEditor
             value={localValue}
             onChange={handleLocalChange}
-            height="100%"
+            height={400}
             placeholder="Add detailed implementation information..."
           />
         </div>
