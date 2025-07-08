@@ -6,7 +6,6 @@ import {
   Flag,
   User,
   Clock,
-  Sparkles,
   Send,
   ExternalLink
 } from 'lucide-react'
@@ -21,13 +20,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
@@ -39,6 +31,7 @@ import { logger } from '@/lib/logger'
 import { getApiUrl } from '@/lib/api-config'
 import { SimpleMarkdownEditor } from '@/components/SimpleMarkdownEditor'
 import { SimpleMarkdownModal } from '@/components/SimpleMarkdownModal'
+import { AIGenerateDialog } from '@/components/AIGenerateDialog'
 
 interface TaskDetailPanelProps {
   task: Task
@@ -47,62 +40,6 @@ interface TaskDetailPanelProps {
   onPopOut?: () => void
 }
 
-interface AIGenerateDialogProps {
-  onGenerate: (prompt: string) => void
-  isLoading: boolean
-}
-
-function AIGenerateDialog({ onGenerate, isLoading }: AIGenerateDialogProps) {
-  const [prompt, setPrompt] = useState('')
-  const [isOpen, setIsOpen] = useState(false)
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (prompt.trim()) {
-      onGenerate(prompt.trim())
-      setPrompt('')
-      setIsOpen(false)
-    }
-  }
-
-  return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm" disabled={isLoading}>
-          <Sparkles className="h-4 w-4 mr-2" />
-          {isLoading ? 'Generating...' : 'Generate with AI'}
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Generate Task Details with AI</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Label htmlFor="prompt">Describe what details you want to generate</Label>
-            <Textarea
-              id="prompt"
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder="e.g., 'Generate a complete build process with step-by-step implementation details, acceptance criteria, and testing strategy'"
-              rows={4}
-              autoFocus
-            />
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={!prompt.trim() || isLoading}>
-              <Sparkles className="h-4 w-4 mr-2" />
-              Generate
-            </Button>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
-  )
-}
 
 export function TaskDetailPanel({ task, isOpen, onClose, onPopOut }: TaskDetailPanelProps) {
   const { updateTask } = useProjects()
@@ -648,6 +585,8 @@ export function TaskDetailPanel({ task, isOpen, onClose, onPopOut }: TaskDetailP
         onChange={(value) => setEditValues(prev => ({ ...prev, details: value }))}
         onSave={handleEditorModalSave}
         title="Task Implementation Details"
+        onGenerateAI={handleGenerateDetails}
+        isGenerating={isGeneratingDetails}
       />
     </div>
   )

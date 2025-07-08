@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { Button } from '@/components/ui/button'
 import { SimpleMarkdownEditor } from '@/components/SimpleMarkdownEditor'
+import { AIGenerateDialog } from '@/components/AIGenerateDialog'
 import { X, GripHorizontal, Save, Undo } from 'lucide-react'
 import { useDraggable } from '@/hooks/useDraggable'
 
@@ -12,6 +13,8 @@ interface SimpleMarkdownModalProps {
   onChange: (value: string) => void
   onSave: () => void
   title?: string
+  onGenerateAI?: (prompt: string) => void
+  isGenerating?: boolean
 }
 
 export function SimpleMarkdownModal({
@@ -20,7 +23,9 @@ export function SimpleMarkdownModal({
   value,
   onChange,
   onSave,
-  title = "Task Implementation Details"
+  title = "Task Implementation Details",
+  onGenerateAI,
+  isGenerating = false
 }: SimpleMarkdownModalProps) {
   const [localValue, setLocalValue] = useState(value)
   const [hasChanges, setHasChanges] = useState(false)
@@ -92,6 +97,14 @@ export function SimpleMarkdownModal({
             )}
           </div>
           <div className="flex gap-2">
+            {onGenerateAI && (
+              <AIGenerateDialog
+                onGenerate={onGenerateAI}
+                isLoading={isGenerating}
+                buttonText="Generate with AI"
+                title="Generate Implementation Details"
+              />
+            )}
             {hasChanges && (
               <Button variant="ghost" size="sm" onClick={handleRevert} title="Revert changes">
                 <Undo className="h-4 w-4" />
