@@ -74,7 +74,7 @@ Format your response in markdown with clear sections and actionable steps. Be sp
         Sentry.captureException(error);
       },
       prompt: prompt,
-      maxTokens: 1,
+      maxTokens: 2000,
     });
 
     // Stream the text chunks to the client
