@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { ExternalLink, Eye, Edit3 } from 'lucide-react'
@@ -29,6 +29,8 @@ export function SimpleMarkdownEditor({
 }: SimpleMarkdownEditorProps) {
   const [activeTab, setActiveTab] = useState<"write" | "preview">("write")
   const { theme } = useTheme()
+  const readOnlyContainerRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // Load appropriate highlight.js theme
   useEffect(() => {
@@ -58,12 +60,29 @@ export function SimpleMarkdownEditor({
     }
   }, [theme])
 
+  // Auto-scroll to bottom when content changes and in readOnly mode (AI generation)
+  useEffect(() => {
+    if (readOnly && readOnlyContainerRef.current) {
+      readOnlyContainerRef.current.scrollTop = readOnlyContainerRef.current.scrollHeight
+    }
+  }, [value, readOnly])
+
+  // Auto-scroll textarea when content changes during generation
+  useEffect(() => {
+    if (!readOnly && activeTab === "write" && textareaRef.current) {
+      textareaRef.current.scrollTop = textareaRef.current.scrollHeight
+    }
+  }, [value, readOnly, activeTab])
+
   const handleTabChange = (newTab: string) => {
     setActiveTab(newTab as "write" | "preview")
   }
 
   return (
-    <div className="relative border rounded-md overflow-hidden">
+    <div 
+      className="relative border rounded-md overflow-hidden flex flex-col"
+      style={{ height: typeof height === 'string' && height.includes('%') ? height : 'auto' }}
+    >
       {showExpandButton && onExpand && (
         <div className="absolute top-2 right-2 z-10">
           <Button
@@ -80,8 +99,9 @@ export function SimpleMarkdownEditor({
       
       {readOnly ? (
         <div 
-          className="p-3 bg-muted/20"
-          style={{ minHeight: typeof height === 'number' ? `${height}px` : height }}
+          ref={readOnlyContainerRef}
+          className="p-3 bg-muted/20 overflow-y-auto"
+          style={{ height: typeof height === 'number' ? `${height}px` : height }}
         >
           {value ? (
             <div className="prose prose-sm max-w-none prose-slate dark:prose-invert">
@@ -97,8 +117,8 @@ export function SimpleMarkdownEditor({
           )}
         </div>
       ) : (
-        <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 rounded-none border-b h-8">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full flex flex-col flex-1">
+          <TabsList className="grid w-full grid-cols-2 rounded-none border-b h-8 flex-shrink-0">
             <TabsTrigger value="write" className="text-xs h-6">
               <Edit3 className="h-3 w-3 mr-1" />
               Write
@@ -109,20 +129,33 @@ export function SimpleMarkdownEditor({
             </TabsTrigger>
           </TabsList>
           
-          <TabsContent value="write" className="m-0">
+          <TabsContent value="write" className="m-0 flex-1">
             <Textarea
+              ref={textareaRef}
               value={value}
               onChange={(e) => onChange(e.target.value)}
               placeholder={placeholder}
-              className="border-0 rounded-none resize-none focus-visible:ring-0 focus-visible:ring-offset-0"
-              style={{ height: typeof height === 'number' ? `${height}px` : height }}
+              className="border-0 rounded-none resize-none focus-visible:ring-0 focus-visible:ring-offset-0 h-full"
+              style={{ 
+                height: typeof height === 'string' && height.includes('%') 
+                  ? 'calc(100% - 0px)' 
+                  : typeof height === 'number' 
+                    ? `${height}px` 
+                    : height 
+              }}
             />
           </TabsContent>
           
-          <TabsContent value="preview" className="m-0">
+          <TabsContent value="preview" className="m-0 flex-1">
             <div 
-              className="p-3 overflow-y-auto bg-muted/10"
-              style={{ height: typeof height === 'number' ? `${height}px` : height }}
+              className="p-3 overflow-y-auto bg-muted/10 h-full"
+              style={{ 
+                height: typeof height === 'string' && height.includes('%') 
+                  ? 'calc(100% - 0px)' 
+                  : typeof height === 'number' 
+                    ? `${height}px` 
+                    : height 
+              }}
             >
               {value ? (
                 <div className="prose prose-sm max-w-none prose-slate dark:prose-invert">

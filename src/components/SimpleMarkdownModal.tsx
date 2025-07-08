@@ -126,7 +126,7 @@ export function SimpleMarkdownModal({
         </div>
 
         {/* Editor Content */}
-        <div className="flex-1 p-4">
+        <div className="flex-1 p-4 min-h-0">
           <SimpleMarkdownEditor
             value={localValue}
             onChange={handleLocalChange}
