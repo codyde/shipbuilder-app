@@ -38,6 +38,7 @@ class DatabaseService {
       provider: user.provider || undefined,
       providerId: user.providerId || undefined,
       avatar: user.avatar || undefined,
+      aiProvider: user.aiProvider as 'anthropic' | 'openai',
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString(),
     };
@@ -55,6 +56,7 @@ class DatabaseService {
       provider: user.provider || undefined,
       providerId: user.providerId || undefined,
       avatar: user.avatar || undefined,
+      aiProvider: user.aiProvider as 'anthropic' | 'openai',
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString(),
     };
@@ -72,6 +74,7 @@ class DatabaseService {
       provider: user.provider || undefined,
       providerId: user.providerId || undefined,
       avatar: user.avatar || undefined,
+      aiProvider: user.aiProvider as 'anthropic' | 'openai',
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString(),
     };
@@ -93,6 +96,28 @@ class DatabaseService {
       provider: updated.provider || undefined,
       providerId: updated.providerId || undefined,
       avatar: updated.avatar || undefined,
+      createdAt: updated.createdAt.toISOString(),
+      updatedAt: updated.updatedAt.toISOString(),
+    };
+  }
+
+  async updateUserAIProvider(id: string, aiProvider: 'anthropic' | 'openai'): Promise<User | null> {
+    const [updated] = await db.update(users)
+      .set({
+        aiProvider,
+        updatedAt: sql`NOW()`,
+      })
+      .where(eq(users.id, id))
+      .returning();
+
+    if (!updated) return null;
+
+    return {
+      ...updated,
+      provider: updated.provider || undefined,
+      providerId: updated.providerId || undefined,
+      avatar: updated.avatar || undefined,
+      aiProvider: updated.aiProvider as 'anthropic' | 'openai',
       createdAt: updated.createdAt.toISOString(),
       updatedAt: updated.updatedAt.toISOString(),
     };

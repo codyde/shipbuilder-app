@@ -30,6 +30,7 @@ export interface User {
   provider?: string;
   providerId?: string;
   avatar?: string;
+  aiProvider: 'anthropic' | 'openai';
   createdAt: string;
   updatedAt: string;
 }

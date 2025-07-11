@@ -1,13 +1,16 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+All notable changes to the ShipBuilder project will be documented in this file.
 
 ## [Unreleased]
 
 ### Added
+- **AI Provider Switching**: Users can now choose between Anthropic Claude and OpenAI models
+  - Added support for OpenAI GPT-4o, GPT-4o Mini, and GPT-4 Turbo models
+  - New AI provider selection in Settings screen
+  - Dynamic provider switching affects all AI features (chat, MVP builder, task generation)
+  - Automatic detection of available providers based on configured API keys
+  - Database schema updated to store user's AI provider preference
 - **Human-Readable ID System**: Complete slug-based identifier implementation
   - Project IDs: `photoshare`, `awesome-app` (max 20 chars, alphanumeric + hyphens)
   - Task IDs: `photoshare-1`, `awesome-app-12` (max 20 chars, project-slug + number)

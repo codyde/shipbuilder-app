@@ -1,7 +1,7 @@
 import { databaseService } from '../db/database-service.js';
 import { Priority, TaskStatus } from '../types/types.js';
-import { anthropic } from '@ai-sdk/anthropic';
 import { generateText } from 'ai';
+import { AIProviderService } from '../services/ai-provider.js';
 
 export const createTaskTools = (userId: string) => ({
   createProject: {
@@ -266,11 +266,15 @@ export const createTaskTools = (userId: string) => ({
     },
     execute: async (args: { projectIdea: string }) => {
       try {
-        if (!process.env.ANTHROPIC_API_KEY) {
+        // Get the appropriate AI model based on user preferences
+        let model;
+        try {
+          model = await AIProviderService.getModel(userId);
+        } catch (error) {
           return {
             success: false,
-            error: 'ANTHROPIC_API_KEY not configured',
-            message: 'AI service not available'
+            error: 'AI service not available',
+            message: error instanceof Error ? error.message : 'Failed to get AI model'
           };
         }
 
@@ -318,7 +322,7 @@ Respond with a JSON object in this exact format:
 CRITICAL: Your response must be ONLY the JSON object, with no markdown formatting, no code blocks, no additional text before or after. Start directly with { and end with }.`;
 
         const result = await generateText({
-          model: anthropic('claude-sonnet-4-20250514'),
+          model,
           experimental_telemetry: {
             isEnabled: true,
             functionId: "generate-mvp"

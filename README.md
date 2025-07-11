@@ -53,9 +53,11 @@ A modern, full-stack project management application with AI-powered task creatio
 - **Swagger** - API documentation
 
 ### AI & Integrations
-- **Anthropic Claude Sonnet 4** - Advanced AI capabilities
+- **Anthropic Claude Sonnet 4 & Opus 4** - Advanced AI capabilities
+- **OpenAI GPT-4o & GPT-4o Mini** - Alternative AI model options
 - **Tool Calling** - Structured AI function execution
 - **Natural Language Processing** - Convert text to structured data
+- **Provider Switching** - Choose between Anthropic and OpenAI models in settings
 
 ### DevOps & Monitoring
 - **Sentry** - Error tracking and performance monitoring
@@ -67,7 +69,7 @@ A modern, full-stack project management application with AI-powered task creatio
 - **Node.js** 20+ 
 - **npm** or **yarn**
 - **PostgreSQL database** (Neon cloud database recommended)
-- **Anthropic API key** for AI functionality
+- **Anthropic API key** OR **OpenAI API key** for AI functionality
 
 ## 🛠️ Installation
 
@@ -86,7 +88,9 @@ A modern, full-stack project management application with AI-powered task creatio
    
    Create `.env` in the root directory:
    ```env
-   ANTHROPIC_API_KEY=your_anthropic_api_key_here
+   # Choose one or both AI providers
+   ANTHROPIC_API_KEY=your_anthropic_api_key_here  # For Claude models
+   OPENAI_API_KEY=your_openai_api_key_here        # For GPT models
    ```
    
    Create `server/.env`:
@@ -311,3 +315,32 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 Built with ❤️ using modern web technologies and AI-powered assistance.
+
+## 🤖 AI Provider Configuration
+
+ShipBuilder now supports both Anthropic Claude and OpenAI models. You can switch between providers in the Settings screen.
+
+### Supported Models
+
+**Anthropic:**
+- Claude Sonnet 4 (Default) - Balanced performance for most tasks
+- Claude Opus 4 - Most powerful model for complex tasks
+
+**OpenAI:**
+- GPT-4o - Latest model with strong performance
+- GPT-4o Mini - Faster, more cost-effective option
+- GPT-4 Turbo - Previous generation high-performance model
+
+### Switching Providers
+
+1. Navigate to Settings (gear icon in sidebar)
+2. Find the "AI Provider" section
+3. Select your preferred provider
+4. The change takes effect immediately for all AI features
+
+### API Key Requirements
+
+- **For Anthropic**: Set `ANTHROPIC_API_KEY` in your `.env` file
+- **For OpenAI**: Set `OPENAI_API_KEY` in your `.env` file
+- You can configure both to allow users to switch between providers
+- Only providers with valid API keys will be available in settings
