@@ -1,5 +1,6 @@
 import { Label } from '@/components/ui/label'
 import { useTheme, Theme } from '@/context/ThemeContext'
+import { useAuth } from '@/context/AuthContext'
 import { Palette, Moon, Sun, Waves, Sunset, Star, Monitor, Check, Bug, Sparkles, Brain, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useEffect, useState } from 'react'
@@ -76,6 +77,7 @@ const aiProviderOptions = [
 
 export function SettingsView() {
   const { theme, setTheme } = useTheme()
+  const { user } = useAuth()
   const [aiProvider, setAiProvider] = useState<'anthropic' | 'openai'>('anthropic')
   const [availableProviders, setAvailableProviders] = useState<string[]>([])
   const [loadingProviders, setLoadingProviders] = useState(true)
@@ -86,24 +88,39 @@ export function SettingsView() {
   useEffect(() => {
     const fetchProviders = async () => {
       try {
+        console.log('Current user:', user)
         const token = localStorage.getItem('authToken')
-        if (!token) {
+        console.log('Auth token exists:', !!token)
+        console.log('Token preview:', token ? `${token.substring(0, 20)}...` : 'null')
+        
+        if (!token || !user) {
+          console.log('No token or user, skipping provider fetch')
           setLoadingProviders(false)
           return
         }
 
-        const response = await fetch(getApiUrl('auth/ai-providers'), {
+        const url = getApiUrl('auth/ai-providers')
+        console.log('Fetching AI providers from:', url)
+        
+        const response = await fetch(url, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
         })
 
+        console.log('Response status:', response.status)
+        console.log('Response headers:', response.headers)
+        
         if (response.ok) {
           const data = await response.json()
+          console.log('AI providers data:', data)
           setAvailableProviders(data.providers || [])
           if (data.current) {
             setAiProvider(data.current)
           }
+        } else {
+          const errorData = await response.json()
+          console.error('Failed to fetch AI providers:', response.status, errorData)
         }
       } catch (error) {
         console.error('Failed to fetch AI providers:', error)
@@ -113,7 +130,7 @@ export function SettingsView() {
     }
 
     fetchProviders()
-  }, [])
+  }, [user]) // Add user to dependency array
 
   const handleThemeChange = (value: string) => {
     setTheme(value as Theme)
@@ -121,8 +138,17 @@ export function SettingsView() {
 
   const handleAIProviderChange = async (provider: 'anthropic' | 'openai') => {
     const token = localStorage.getItem('authToken')
+    console.log('Attempting to change provider to:', provider)
+    console.log('Auth token exists:', !!token)
+    console.log('User object:', user)
+    
     if (!token) {
       setError('You must be logged in to change AI provider')
+      return
+    }
+
+    if (!user) {
+      setError('User session not found. Please refresh the page.')
       return
     }
 
@@ -130,7 +156,10 @@ export function SettingsView() {
     setError(null)
 
     try {
-      const response = await fetch(getApiUrl('auth/ai-provider'), {
+      const url = getApiUrl('auth/ai-provider')
+      console.log('Making PUT request to:', url)
+      
+      const response = await fetch(url, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -139,10 +168,13 @@ export function SettingsView() {
         body: JSON.stringify({ provider })
       })
 
+      console.log('Update provider response status:', response.status)
+      const data = await response.json()
+      console.log('Update provider response data:', data)
+
       if (response.ok) {
         setAiProvider(provider)
       } else {
-        const data = await response.json()
         setError(data.error || 'Failed to update AI provider')
       }
     } catch (error) {
