@@ -111,7 +111,7 @@ export function SettingsView() {
         }
       } else {
         const errorData = await response.json()
-        setError('Failed to load AI provider settings: ${errorData}')
+        setError(`Failed to load AI provider settings: ${errorData.error || errorData.message || 'Unknown error'}`)
       }
     } catch (error) {
       setError('Unable to connect to server. Please check your connection.')
