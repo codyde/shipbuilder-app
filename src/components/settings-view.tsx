@@ -3,57 +3,57 @@ import { useTheme, Theme } from '@/context/ThemeContext'
 import { useAuth } from '@/context/AuthContext'
 import { Palette, Moon, Sun, Waves, Sunset, Star, Monitor, Check, Bug, Sparkles, Brain, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { getApiUrl } from '@/lib/api-config'
 import { ErrorBoundary } from './ErrorBoundary'
 
 const themeOptions = [
-  { 
-    value: 'system', 
-    label: 'System', 
-    icon: Monitor, 
+  {
+    value: 'system',
+    label: 'System',
+    icon: Monitor,
     description: 'Follow system preference',
     colors: { primary: '#64748b', secondary: '#e2e8f0', background: '#ffffff' }
   },
-  { 
-    value: 'light', 
-    label: 'Light', 
-    icon: Sun, 
+  {
+    value: 'light',
+    label: 'Light',
+    icon: Sun,
     description: 'Clean light theme',
     colors: { primary: '#0f172a', secondary: '#64748b', background: '#ffffff' }
   },
-  { 
-    value: 'dark', 
-    label: 'Dark', 
-    icon: Moon, 
+  {
+    value: 'dark',
+    label: 'Dark',
+    icon: Moon,
     description: 'Dark theme with high contrast',
     colors: { primary: '#f8fafc', secondary: '#64748b', background: '#0f172a' }
   },
-  { 
-    value: 'ocean', 
-    label: 'Ocean', 
-    icon: Waves, 
+  {
+    value: 'ocean',
+    label: 'Ocean',
+    icon: Waves,
     description: 'Deep blues and teals',
     colors: { primary: '#0891b2', secondary: '#06b6d4', background: '#164e63' }
   },
-  { 
-    value: 'sunset', 
-    label: 'Sunset', 
-    icon: Sunset, 
+  {
+    value: 'sunset',
+    label: 'Sunset',
+    icon: Sunset,
     description: 'Warm oranges and yellows',
     colors: { primary: '#f97316', secondary: '#fbbf24', background: '#7c2d12' }
   },
-  { 
-    value: 'midnight', 
-    label: 'Midnight', 
-    icon: Star, 
+  {
+    value: 'midnight',
+    label: 'Midnight',
+    icon: Star,
     description: 'Deep blues and purples like a starry night',
     colors: { primary: '#6366f1', secondary: '#8b5cf6', background: '#1e1b4b' }
   },
-  { 
-    value: 'sentry', 
-    label: 'Sentry', 
-    icon: Bug, 
+  {
+    value: 'sentry',
+    label: 'Sentry',
+    icon: Bug,
     description: 'Dark purple theme inspired by Sentry',
     colors: { primary: '#8b5cf6', secondary: '#a78bfa', background: '#1a1b3a' }
   },
@@ -89,14 +89,14 @@ export function SettingsView() {
   const fetchProviders = useCallback(async () => {
     try {
       const token = localStorage.getItem('authToken')
-      
+
       if (!token || !user) {
         setLoadingProviders(false)
         return
       }
 
       const url = getApiUrl('auth/ai-providers')
-      
+
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -111,7 +111,7 @@ export function SettingsView() {
         }
       } else {
         const errorData = await response.json()
-        setError('Failed to load AI provider settings')
+        setError('Failed to load AI provider settings: ${errorData}')
       }
     } catch (error) {
       setError('Unable to connect to server. Please check your connection.')
@@ -130,7 +130,7 @@ export function SettingsView() {
 
   const handleAIProviderChange = async (provider: 'anthropic' | 'openai') => {
     const token = localStorage.getItem('authToken')
-    
+
     if (!token) {
       setError('You must be logged in to change AI provider')
       return
@@ -146,7 +146,7 @@ export function SettingsView() {
 
     try {
       const url = getApiUrl('auth/ai-provider')
-      
+
       const response = await fetch(url, {
         method: 'PUT',
         headers: {
@@ -180,7 +180,7 @@ export function SettingsView() {
           </p>
         </div>
       </div>
-      
+
       <div className="flex-1 overflow-auto px-4 md:px-8 py-6">
         <div className="max-w-4xl space-y-8">
           {/* Appearance Section */}
@@ -204,35 +204,35 @@ export function SettingsView() {
                   Choose your preferred color scheme
                 </p>
               </div>
-              
+
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {themeOptions.map((option) => {
                   const Icon = option.icon
                   const isSelected = theme === option.value
-                  
+
                   return (
                     <button
                       key={option.value}
                       onClick={() => handleThemeChange(option.value)}
                       className={cn(
                         "relative group flex flex-col items-start p-4 rounded-lg border-2 text-left transition-all duration-200 hover:shadow-md hover:scale-[1.02]",
-                        isSelected 
-                          ? "border-primary bg-primary/5 shadow-sm" 
+                        isSelected
+                          ? "border-primary bg-primary/5 shadow-sm"
                           : "border-border hover:border-primary/50 bg-card"
                       )}
                     >
                       {/* Color Preview */}
                       <div className="flex items-center gap-3 mb-3 w-full">
                         <div className="flex gap-1">
-                          <div 
+                          <div
                             className="w-3 h-3 rounded-full border border-border/20"
                             style={{ backgroundColor: option.colors.background }}
                           />
-                          <div 
+                          <div
                             className="w-3 h-3 rounded-full border border-border/20"
                             style={{ backgroundColor: option.colors.primary }}
                           />
-                          <div 
+                          <div
                             className="w-3 h-3 rounded-full border border-border/20"
                             style={{ backgroundColor: option.colors.secondary }}
                           />
@@ -250,27 +250,27 @@ export function SettingsView() {
                         <Icon className="h-4 w-4 text-foreground/80" />
                         <span className="font-medium text-sm">{option.label}</span>
                       </div>
-                      
+
                       <p className="text-xs text-muted-foreground leading-relaxed">
                         {option.description}
                       </p>
 
                       {/* Mini Preview */}
-                      <div 
+                      <div
                         className="mt-3 w-full h-8 rounded border border-border/20 overflow-hidden"
                         style={{ backgroundColor: option.colors.background }}
                       >
                         <div className="flex h-full">
-                          <div 
-                            className="flex-1" 
+                          <div
+                            className="flex-1"
                             style={{ backgroundColor: option.colors.background }}
                           />
-                          <div 
-                            className="w-6" 
+                          <div
+                            className="w-6"
                             style={{ backgroundColor: option.colors.primary }}
                           />
-                          <div 
-                            className="w-4" 
+                          <div
+                            className="w-4"
                             style={{ backgroundColor: option.colors.secondary }}
                           />
                         </div>
@@ -340,7 +340,7 @@ export function SettingsView() {
                       const Icon = option.icon
                       const isSelected = aiProvider === option.value
                       const isAvailable = availableProviders.includes(option.value)
-                      
+
                       return (
                         <button
                           key={option.value}
@@ -348,8 +348,8 @@ export function SettingsView() {
                           disabled={!isAvailable || updatingProvider}
                           className={cn(
                             "relative group flex flex-col items-start p-4 rounded-lg border-2 text-left transition-all duration-200",
-                            isSelected 
-                              ? "border-primary bg-primary/5 shadow-sm" 
+                            isSelected
+                              ? "border-primary bg-primary/5 shadow-sm"
                               : "border-border bg-card",
                             isAvailable
                               ? "hover:shadow-md hover:scale-[1.02] hover:border-primary/50 cursor-pointer"
@@ -366,7 +366,7 @@ export function SettingsView() {
                               </div>
                             )}
                           </div>
-                          
+
                           <p className="text-xs text-muted-foreground mb-3">
                             {option.description}
                           </p>
