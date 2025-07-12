@@ -40,10 +40,10 @@ export class AIProviderService {
 
     // Check if appropriate API key is set
     if (provider === 'anthropic' && !process.env.ANTHROPIC_API_KEY) {
-      throw new Error('ANTHROPIC_API_KEY environment variable is not set');
+      throw new Error(`${provider} AI provider is not available. Please configure the required API key.`);
     }
     if (provider === 'openai' && !process.env.OPENAI_API_KEY) {
-      throw new Error('OPENAI_API_KEY environment variable is not set');
+      throw new Error(`${provider} AI provider is not available. Please configure the required API key.`);
     }
 
     // Return the appropriate model

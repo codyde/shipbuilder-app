@@ -3,8 +3,9 @@ import { useTheme, Theme } from '@/context/ThemeContext'
 import { useAuth } from '@/context/AuthContext'
 import { Palette, Moon, Sun, Waves, Sunset, Star, Monitor, Check, Bug, Sparkles, Brain, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { getApiUrl } from '@/lib/api-config'
+import { ErrorBoundary } from './ErrorBoundary'
 
 const themeOptions = [
   { 
@@ -85,52 +86,43 @@ export function SettingsView() {
   const [error, setError] = useState<string | null>(null)
 
   // Fetch available AI providers and current selection
-  useEffect(() => {
-    const fetchProviders = async () => {
-      try {
-        console.log('Current user:', user)
-        const token = localStorage.getItem('authToken')
-        console.log('Auth token exists:', !!token)
-        console.log('Token preview:', token ? `${token.substring(0, 20)}...` : 'null')
-        
-        if (!token || !user) {
-          console.log('No token or user, skipping provider fetch')
-          setLoadingProviders(false)
-          return
-        }
-
-        const url = getApiUrl('auth/ai-providers')
-        console.log('Fetching AI providers from:', url)
-        
-        const response = await fetch(url, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        })
-
-        console.log('Response status:', response.status)
-        console.log('Response headers:', response.headers)
-        
-        if (response.ok) {
-          const data = await response.json()
-          console.log('AI providers data:', data)
-          setAvailableProviders(data.providers || [])
-          if (data.current) {
-            setAiProvider(data.current)
-          }
-        } else {
-          const errorData = await response.json()
-          console.error('Failed to fetch AI providers:', response.status, errorData)
-        }
-      } catch (error) {
-        console.error('Failed to fetch AI providers:', error)
-      } finally {
+  const fetchProviders = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('authToken')
+      
+      if (!token || !user) {
         setLoadingProviders(false)
+        return
       }
-    }
 
+      const url = getApiUrl('auth/ai-providers')
+      
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setAvailableProviders(data.providers || [])
+        if (data.current) {
+          setAiProvider(data.current)
+        }
+      } else {
+        const errorData = await response.json()
+        setError('Failed to load AI provider settings')
+      }
+    } catch (error) {
+      setError('Unable to connect to server. Please check your connection.')
+    } finally {
+      setLoadingProviders(false)
+    }
+  }, [user?.id]) // Only depend on user.id to prevent unnecessary re-renders
+
+  useEffect(() => {
     fetchProviders()
-  }, [user]) // Add user to dependency array
+  }, [fetchProviders])
 
   const handleThemeChange = (value: string) => {
     setTheme(value as Theme)
@@ -138,9 +130,6 @@ export function SettingsView() {
 
   const handleAIProviderChange = async (provider: 'anthropic' | 'openai') => {
     const token = localStorage.getItem('authToken')
-    console.log('Attempting to change provider to:', provider)
-    console.log('Auth token exists:', !!token)
-    console.log('User object:', user)
     
     if (!token) {
       setError('You must be logged in to change AI provider')
@@ -157,7 +146,6 @@ export function SettingsView() {
 
     try {
       const url = getApiUrl('auth/ai-provider')
-      console.log('Making PUT request to:', url)
       
       const response = await fetch(url, {
         method: 'PUT',
@@ -168,9 +156,7 @@ export function SettingsView() {
         body: JSON.stringify({ provider })
       })
 
-      console.log('Update provider response status:', response.status)
       const data = await response.json()
-      console.log('Update provider response data:', data)
 
       if (response.ok) {
         setAiProvider(provider)
@@ -178,8 +164,7 @@ export function SettingsView() {
         setError(data.error || 'Failed to update AI provider')
       }
     } catch (error) {
-      console.error('Failed to update AI provider:', error)
-      setError('Failed to update AI provider')
+      setError('Failed to update AI provider. Please try again.')
     } finally {
       setUpdatingProvider(false)
     }
@@ -298,98 +283,120 @@ export function SettingsView() {
           </div>
 
           {/* AI Provider Section */}
-          <div className="space-y-6 border-t pt-6">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10">
-                <Sparkles className="h-4 w-4 text-primary" />
+          <ErrorBoundary
+            fallback={
+              <div className="space-y-6 border-t pt-6">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold">AI Provider</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Choose your preferred AI model provider
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <p className="text-sm">Unable to load AI provider settings. Please refresh the page.</p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-lg font-semibold">AI Provider</h2>
-                <p className="text-sm text-muted-foreground">
-                  Choose your preferred AI model provider
-                </p>
-              </div>
-            </div>
-
-            {error && (
-              <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive">
-                <AlertCircle className="h-4 w-4" />
-                <p className="text-sm">{error}</p>
-              </div>
-            )}
-
-            <div className="space-y-4">
-              <div>
-                <Label className="text-sm font-medium">AI Model Provider</Label>
-                <p className="text-xs text-muted-foreground mt-1 mb-4">
-                  Select between different AI providers and models
-                </p>
+            }
+          >
+            <div className="space-y-6 border-t pt-6">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold">AI Provider</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Choose your preferred AI model provider
+                  </p>
+                </div>
               </div>
 
-              {loadingProviders ? (
-                <div className="text-sm text-muted-foreground">Loading available providers...</div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {aiProviderOptions.map((option) => {
-                    const Icon = option.icon
-                    const isSelected = aiProvider === option.value
-                    const isAvailable = availableProviders.includes(option.value)
-                    
-                    return (
-                      <button
-                        key={option.value}
-                        onClick={() => isAvailable && handleAIProviderChange(option.value as 'anthropic' | 'openai')}
-                        disabled={!isAvailable || updatingProvider}
-                        className={cn(
-                          "relative group flex flex-col items-start p-4 rounded-lg border-2 text-left transition-all duration-200",
-                          isSelected 
-                            ? "border-primary bg-primary/5 shadow-sm" 
-                            : "border-border bg-card",
-                          isAvailable
-                            ? "hover:shadow-md hover:scale-[1.02] hover:border-primary/50 cursor-pointer"
-                            : "opacity-50 cursor-not-allowed"
-                        )}
-                      >
-                        <div className="flex items-center gap-3 mb-3 w-full">
-                          <Icon className="h-5 w-5 text-foreground/80" />
-                          <span className="font-medium">{option.label}</span>
-                          <div className="flex-1" />
-                          {isSelected && (
-                            <div className="flex items-center justify-center w-5 h-5 rounded-full bg-primary text-primary-foreground">
-                              <Check className="h-3 w-3" />
-                            </div>
-                          )}
-                        </div>
-                        
-                        <p className="text-xs text-muted-foreground mb-3">
-                          {option.description}
-                        </p>
-
-                        <div className="text-xs text-muted-foreground">
-                          <span className="font-medium">Available models:</span>
-                          <div className="mt-1 space-y-1">
-                            {option.models.map((model) => (
-                              <div key={model} className="text-xs">• {model}</div>
-                            ))}
-                          </div>
-                        </div>
-
-                        {!isAvailable && (
-                          <div className="mt-2 text-xs text-destructive">
-                            API key not configured
-                          </div>
-                        )}
-                      </button>
-                    )
-                  })}
+              {error && (
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <p className="text-sm">{error}</p>
                 </div>
               )}
 
-              <p className="text-xs text-muted-foreground mt-4">
-                Note: Make sure the appropriate API keys are configured in your environment variables.
-              </p>
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-sm font-medium">AI Model Provider</Label>
+                  <p className="text-xs text-muted-foreground mt-1 mb-4">
+                    Select between different AI providers and models
+                  </p>
+                </div>
+
+                {loadingProviders ? (
+                  <div className="text-sm text-muted-foreground">Loading available providers...</div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {aiProviderOptions.map((option) => {
+                      const Icon = option.icon
+                      const isSelected = aiProvider === option.value
+                      const isAvailable = availableProviders.includes(option.value)
+                      
+                      return (
+                        <button
+                          key={option.value}
+                          onClick={() => isAvailable && handleAIProviderChange(option.value as 'anthropic' | 'openai')}
+                          disabled={!isAvailable || updatingProvider}
+                          className={cn(
+                            "relative group flex flex-col items-start p-4 rounded-lg border-2 text-left transition-all duration-200",
+                            isSelected 
+                              ? "border-primary bg-primary/5 shadow-sm" 
+                              : "border-border bg-card",
+                            isAvailable
+                              ? "hover:shadow-md hover:scale-[1.02] hover:border-primary/50 cursor-pointer"
+                              : "opacity-50 cursor-not-allowed"
+                          )}
+                        >
+                          <div className="flex items-center gap-3 mb-3 w-full">
+                            <Icon className="h-5 w-5 text-foreground/80" />
+                            <span className="font-medium">{option.label}</span>
+                            <div className="flex-1" />
+                            {isSelected && (
+                              <div className="flex items-center justify-center w-5 h-5 rounded-full bg-primary text-primary-foreground">
+                                <Check className="h-3 w-3" />
+                              </div>
+                            )}
+                          </div>
+                          
+                          <p className="text-xs text-muted-foreground mb-3">
+                            {option.description}
+                          </p>
+
+                          <div className="text-xs text-muted-foreground">
+                            <span className="font-medium">Available models:</span>
+                            <div className="mt-1 space-y-1">
+                              {option.models.map((model) => (
+                                <div key={model} className="text-xs">• {model}</div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {!isAvailable && (
+                            <div className="mt-2 text-xs text-destructive">
+                              API key not configured
+                            </div>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+
+                <p className="text-xs text-muted-foreground mt-4">
+                  Note: Make sure the appropriate API keys are configured in your environment variables.
+                </p>
+              </div>
             </div>
-          </div>
+          </ErrorBoundary>
 
           {/* Future sections can be added here */}
           <div className="border-t pt-6">

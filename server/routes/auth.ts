@@ -519,22 +519,6 @@ router.put('/ai-provider', authenticateUser, async (req: any, res: any) => {
   }
 });
 
-// Test endpoint for AI providers (no auth required)
-router.get('/ai-providers-test', async (req: any, res: any) => {
-  try {
-    const { AIProviderService } = await import('../services/ai-provider.js');
-    const availableProviders = AIProviderService.getAvailableProviders();
-    
-    res.json({ 
-      providers: availableProviders,
-      test: true,
-      message: 'This is a test endpoint without authentication'
-    });
-  } catch (error) {
-    console.error('Error in test endpoint:', error);
-    res.status(500).json({ error: 'Failed to get AI providers in test' });
-  }
-});
 
 // Get available AI providers
 router.get('/ai-providers', authenticateUser, async (req: any, res: any) => {
