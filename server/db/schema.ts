@@ -5,6 +5,7 @@ import { relations } from 'drizzle-orm';
 export const taskStatusEnum = pgEnum('task_status', ['backlog', 'in_progress', 'completed']);
 export const projectStatusEnum = pgEnum('project_status', ['active', 'backlog', 'completed', 'archived']);
 export const priorityEnum = pgEnum('priority', ['low', 'medium', 'high']);
+export const aiProviderEnum = pgEnum('ai_provider', ['anthropic', 'openai']);
 
 // Tables
 export const users = pgTable('users', {
@@ -14,6 +15,7 @@ export const users = pgTable('users', {
   provider: text('provider'), // 'github', 'google', 'fake', 'sentry'
   providerId: text('provider_id'),
   avatar: text('avatar'), // Avatar URL from OAuth provider
+  aiProvider: aiProviderEnum('ai_provider').notNull().default('anthropic'), // AI provider preference
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

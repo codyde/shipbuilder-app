@@ -107,6 +107,7 @@ export function verifyJWT(token: string): JWTPayload {
 export async function authenticateUser(req: Request, res: Response, next: NextFunction) {
   try {
     const authHeader = req.headers.authorization;
+    console.log('Auth middleware - Authorization header:', authHeader ? 'Present' : 'Missing');
     
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       logSecurityEvent(SecurityEvent.PERMISSION_DENIED, req, { reason: 'missing_auth_header' }, 'medium');
@@ -115,6 +116,7 @@ export async function authenticateUser(req: Request, res: Response, next: NextFu
     }
 
     const token = authHeader.substring(7); // Remove "Bearer " prefix
+    console.log('Auth middleware - Token preview:', token.substring(0, 20) + '...');
     
     // Check if token looks like an API key
     if (isValidApiKeyFormat(token)) {
@@ -178,8 +180,10 @@ export async function authenticateUser(req: Request, res: Response, next: NextFu
     let payload: JWTPayload;
     try {
       payload = verifyJWT(token);
+      console.log('Auth middleware - JWT verified successfully, userId:', payload.userId);
     } catch (jwtError) {
       const errorMessage = jwtError instanceof Error ? jwtError.message : 'Invalid token';
+      console.log('Auth middleware - JWT verification failed:', errorMessage);
       
       if (errorMessage.includes('expired')) {
         logSecurityEvent(SecurityEvent.EXPIRED_TOKEN, req, { error: errorMessage }, 'medium');
@@ -193,9 +197,11 @@ export async function authenticateUser(req: Request, res: Response, next: NextFu
     }
 
     // Get user from database to ensure they still exist
+    console.log('Auth middleware - Looking up user:', payload.userId);
     const user = await databaseService.getUserById(payload.userId);
     
     if (!user) {
+      console.log('Auth middleware - User not found in database');
       logSecurityEvent(SecurityEvent.SUSPICIOUS_ACTIVITY, req, { 
         reason: 'valid_jwt_but_user_not_found', 
         userId: payload.userId 
@@ -204,6 +210,8 @@ export async function authenticateUser(req: Request, res: Response, next: NextFu
       return;
     }
 
+    console.log('Auth middleware - User found:', user.email);
+    
     // Add user to request
     req.user = {
       id: user.id,
@@ -212,6 +220,7 @@ export async function authenticateUser(req: Request, res: Response, next: NextFu
       provider: user.provider || 'unknown'
     };
 
+    console.log('Auth middleware - req.user set successfully');
     next();
   } catch (error) {
     logSecurityEvent(SecurityEvent.SUSPICIOUS_ACTIVITY, req, { 

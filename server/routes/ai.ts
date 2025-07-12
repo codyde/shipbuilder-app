@@ -1,10 +1,10 @@
 import express from 'express';
-import { anthropic } from '@ai-sdk/anthropic';
 import { streamText, generateText, tool } from 'ai';
 import { z } from 'zod';
 import { databaseService } from '../db/database-service.js';
 import { Priority } from '../types/types.js';
 import * as Sentry from '@sentry/node';
+import { AIProviderService } from '../services/ai-provider.js';
 
 export const aiRoutes = express.Router();
 
@@ -16,10 +16,20 @@ aiRoutes.post('/generate-details', async (req: any, res: any) => {
       return res.status(400).json({ error: 'Prompt is required' });
     }
 
-    if (!process.env.ANTHROPIC_API_KEY) {
-      console.error('ANTHROPIC_API_KEY not set');
+    // Get authenticated user ID
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    // Get the appropriate AI model based on user preferences
+    let model;
+    try {
+      model = await AIProviderService.getModel(userId);
+    } catch (error) {
+      console.error('Error getting AI model:', error);
       return res.status(500).json({ 
-        error: 'ANTHROPIC_API_KEY environment variable is not set' 
+        error: error instanceof Error ? error.message : 'Failed to get AI model' 
       });
     }
 
@@ -63,7 +73,7 @@ Format your response in markdown with clear sections and actionable steps. Be sp
     res.setHeader('Connection', 'keep-alive');
 
     const result = await streamText({
-      model: anthropic('claude-sonnet-4-20250514'),
+      model,
       experimental_telemetry: {
         isEnabled: true,
         functionId: "generate-details"
@@ -108,10 +118,14 @@ aiRoutes.post('/generatemvp', async (req: any, res: any) => {
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
-    if (!process.env.ANTHROPIC_API_KEY) {
-      console.error('ANTHROPIC_API_KEY not set');
+    // Get the appropriate AI model based on user preferences
+    let model;
+    try {
+      model = await AIProviderService.getModel(userId);
+    } catch (error) {
+      console.error('Error getting AI model:', error);
       return res.status(500).json({ 
-        error: 'ANTHROPIC_API_KEY environment variable is not set' 
+        error: error instanceof Error ? error.message : 'Failed to get AI model' 
       });
     }
 
@@ -164,7 +178,7 @@ CRITICAL: Your response must be ONLY the JSON object, with no markdown formattin
     res.setHeader('Connection', 'keep-alive');
 
     const result = await streamText({
-      model: anthropic('claude-sonnet-4-20250514'),
+      model,
       experimental_telemetry: {
         isEnabled: true,
         functionId: "generate-mvp-stream"
@@ -202,10 +216,14 @@ aiRoutes.post('/create-mvp-project', async (req: any, res: any) => {
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
-    if (!process.env.ANTHROPIC_API_KEY) {
-      console.error('ANTHROPIC_API_KEY not set');
+    // Get the appropriate AI model based on user preferences
+    let model;
+    try {
+      model = await AIProviderService.getModel(userId);
+    } catch (error) {
+      console.error('Error getting AI model:', error);
       return res.status(500).json({ 
-        error: 'ANTHROPIC_API_KEY environment variable is not set' 
+        error: error instanceof Error ? error.message : 'Failed to get AI model' 
       });
     }
 
@@ -214,7 +232,7 @@ aiRoutes.post('/create-mvp-project', async (req: any, res: any) => {
     const taskTools = createTaskTools(userId);
 
     const result = streamText({
-      model: anthropic('claude-sonnet-4-20250514'),
+      model,
       experimental_telemetry: {
         isEnabled: true,
         functionId: "create-mvp-project"

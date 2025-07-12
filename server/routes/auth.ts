@@ -486,4 +486,61 @@ router.get('/google/callback', oauthCallbackRateLimit, async (req, res) => {
   }
 });
 
+// Update AI provider preference
+router.put('/ai-provider', authenticateUser, async (req: any, res: any) => {
+  try {
+    console.log('AI Provider Update Request:', {
+      headers: req.headers,
+      user: req.user,
+      body: req.body
+    });
+    
+    const userId = req.user?.id;
+    
+    if (!userId) {
+      console.error('No user ID found in request:', { user: req.user });
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    const { provider } = req.body;
+    
+    if (!provider || !['anthropic', 'openai'].includes(provider)) {
+      return res.status(400).json({ error: 'Invalid AI provider. Must be "anthropic" or "openai"' });
+    }
+
+    // Update user's AI provider preference
+    const { AIProviderService } = await import('../services/ai-provider.js');
+    await AIProviderService.updateUserProvider(userId, provider as 'anthropic' | 'openai');
+
+    res.json({ success: true, provider });
+  } catch (error) {
+    console.error('Error updating AI provider:', error);
+    res.status(500).json({ error: 'Failed to update AI provider preference' });
+  }
+});
+
+
+// Get available AI providers
+router.get('/ai-providers', authenticateUser, async (req: any, res: any) => {
+  try {
+    const { AIProviderService } = await import('../services/ai-provider.js');
+    const availableProviders = AIProviderService.getAvailableProviders();
+    
+    // Get user's current provider preference if authenticated
+    let currentProvider = null;
+    if (req.user?.id) {
+      const user = await databaseService.getUserById(req.user.id);
+      currentProvider = user?.aiProvider || 'anthropic';
+    }
+    
+    res.json({ 
+      providers: availableProviders,
+      current: currentProvider
+    });
+  } catch (error) {
+    console.error('Error getting AI providers:', error);
+    res.status(500).json({ error: 'Failed to get AI providers' });
+  }
+});
+
 export default router;

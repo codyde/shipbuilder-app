@@ -1,8 +1,8 @@
 import express from 'express';
 import { streamText, tool } from 'ai';
-import { anthropic } from '@ai-sdk/anthropic';
 import { createTaskTools } from '../tools/task-tools.js';
 import { z } from 'zod';
+import { AIProviderService } from '../services/ai-provider.js';
 
 export const chatRoutes = express.Router();
 
@@ -10,25 +10,28 @@ chatRoutes.post('/stream', async (req: any, res: any) => {
   try {
     const { messages } = req.body;
 
-    if (!process.env.ANTHROPIC_API_KEY) {
-      console.error('ANTHROPIC_API_KEY not set');
-      return res.status(500).json({ 
-        error: 'ANTHROPIC_API_KEY environment variable is not set' 
-      });
-    }
-
-
     // Get authenticated user ID
     const userId = req.user?.id;
     if (!userId) {
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
+    // Get the appropriate AI model based on user preferences
+    let model;
+    try {
+      model = await AIProviderService.getModel(userId);
+    } catch (error) {
+      console.error('Error getting AI model:', error);
+      return res.status(500).json({ 
+        error: error instanceof Error ? error.message : 'Failed to get AI model' 
+      });
+    }
+
     // Create task tools with user context
     const taskTools = createTaskTools(userId);
 
     const result = streamText({
-      model: anthropic('claude-sonnet-4-20250514'),
+      model,
       maxTokens: 1000,
       experimental_telemetry: {
         isEnabled: true,

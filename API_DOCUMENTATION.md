@@ -595,6 +595,76 @@ curl -X POST http://localhost:3001/api/chat/stream \
 
 ---
 
+### AI Provider Management
+
+#### 1. Get Available AI Providers
+```http
+GET /api/auth/ai-providers
+```
+
+Get the list of available AI providers and the user's current selection.
+
+**Headers:**
+- `Authorization: Bearer <token>` - Required for getting current selection
+
+**Response:**
+```json
+{
+  "providers": ["anthropic", "openai"],
+  "current": "anthropic"
+}
+```
+
+**Example:**
+```bash
+curl -X GET http://localhost:3001/api/auth/ai-providers \
+  -H "Authorization: Bearer <your_token>"
+```
+
+---
+
+#### 2. Update AI Provider Preference
+```http
+PUT /api/auth/ai-provider
+```
+
+Update the user's preferred AI provider.
+
+**Headers:**
+- `Authorization: Bearer <token>` - Required
+
+**Request Body:**
+```json
+{
+  "provider": "anthropic" | "openai"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "provider": "openai"
+}
+```
+
+**Error Response:**
+```json
+{
+  "error": "Invalid AI provider. Must be \"anthropic\" or \"openai\""
+}
+```
+
+**Example:**
+```bash
+curl -X PUT http://localhost:3001/api/auth/ai-provider \
+  -H "Authorization: Bearer <your_token>" \
+  -H "Content-Type: application/json" \
+  -d '{"provider": "openai"}'
+```
+
+---
+
 ### Health Check
 
 #### 1. Health Check
