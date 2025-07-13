@@ -2,6 +2,7 @@ import { databaseService } from '../db/database-service.js';
 import { Priority, TaskStatus } from '../types/types.js';
 import { generateText } from 'ai';
 import { AIProviderService } from '../services/ai-provider.js';
+import * as Sentry from '@sentry/node';
 
 export const createTaskTools = (userId: string) => ({
   createProject: {
@@ -22,13 +23,54 @@ export const createTaskTools = (userId: string) => ({
     },
     execute: async (args: { name: string; description?: string }) => {
       try {
+        // Log project creation attempt
+        Sentry.addBreadcrumb({
+          message: 'Attempting to create project',
+          category: 'project.create',
+          data: {
+            userId,
+            projectName: args.name,
+            hasDescription: !!args.description
+          },
+          level: 'info'
+        });
+
         const project = await databaseService.createProject(args, userId);
+        
+        // Log successful project creation
+        Sentry.addBreadcrumb({
+          message: 'Project created successfully',
+          category: 'project.create.success',
+          data: {
+            userId,
+            projectId: project.id,
+            projectName: project.name
+          },
+          level: 'info'
+        });
+
+        console.log(`[PROJECT_CREATED] User: ${userId}, Project: ${project.id} (${project.name})`);
+
         return {
           success: true,
           data: project,
           message: `Created project "${project.name}" with ID ${project.id}`
         };
       } catch (error) {
+        // Log project creation failure
+        Sentry.captureException(error, {
+          tags: {
+            operation: 'project.create',
+            userId: userId
+          },
+          extra: {
+            projectName: args.name,
+            description: args.description
+          }
+        });
+
+        console.error(`[PROJECT_CREATE_FAILED] User: ${userId}, Name: ${args.name}, Error:`, error);
+
         return {
           success: false,
           error: 'Failed to create project',
@@ -69,20 +111,84 @@ export const createTaskTools = (userId: string) => ({
     },
     execute: async (args: { projectId: string; title: string; description?: string; priority?: Priority; dueDate?: string }) => {
       try {
+        // Log task creation attempt
+        Sentry.addBreadcrumb({
+          message: 'Attempting to create task',
+          category: 'task.create',
+          data: {
+            userId,
+            projectId: args.projectId,
+            taskTitle: args.title,
+            priority: args.priority,
+            hasDescription: !!args.description,
+            hasDueDate: !!args.dueDate
+          },
+          level: 'info'
+        });
+
         const task = await databaseService.createTask(args, userId);
         if (!task) {
+          // Log null task error (likely project not found)
+          Sentry.captureMessage('Task creation returned null - project not found', {
+            level: 'warning',
+            tags: {
+              operation: 'task.create',
+              userId: userId
+            },
+            extra: {
+              projectId: args.projectId,
+              taskTitle: args.title,
+              priority: args.priority
+            }
+          });
+
+          console.error(`[TASK_CREATE_PROJECT_NOT_FOUND] User: ${userId}, Project: ${args.projectId}, Title: ${args.title}`);
+
           return {
             success: false,
             error: 'Project not found',
             message: `Could not find project with ID ${args.projectId}`
           };
         }
+
+        // Log successful task creation
+        Sentry.addBreadcrumb({
+          message: 'Task created successfully',
+          category: 'task.create.success',
+          data: {
+            userId,
+            projectId: args.projectId,
+            taskId: task.id,
+            taskTitle: task.title
+          },
+          level: 'info'
+        });
+
+        console.log(`[TASK_CREATED] User: ${userId}, Project: ${args.projectId}, Task: ${task.id} (${task.title})`);
+
         return {
           success: true,
           data: task,
           message: `Created task "${task.title}" in project ${args.projectId}`
         };
       } catch (error) {
+        // Log task creation failure
+        Sentry.captureException(error, {
+          tags: {
+            operation: 'task.create',
+            userId: userId
+          },
+          extra: {
+            projectId: args.projectId,
+            taskTitle: args.title,
+            priority: args.priority,
+            description: args.description,
+            dueDate: args.dueDate
+          }
+        });
+
+        console.error(`[TASK_CREATE_FAILED] User: ${userId}, Project: ${args.projectId}, Title: ${args.title}, Error:`, error);
+
         return {
           success: false,
           error: 'Failed to create task',

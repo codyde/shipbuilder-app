@@ -3,15 +3,49 @@ import { streamText, tool } from 'ai';
 import { createTaskTools } from '../tools/task-tools.js';
 import { z } from 'zod';
 import { AIProviderService } from '../services/ai-provider.js';
+import { databaseService } from '../db/database-service.js';
+import * as Sentry from '@sentry/node';
+
+// Utility function to detect and log AI errors (same as ai.ts)
+function logAIError(error: any, context: { userId: string; operation: string; provider?: string }) {
+  const errorMessage = error?.message || error?.toString() || 'Unknown error';
+  const errorCode = error?.code || error?.status || error?.statusCode;
+  
+  const isRateLimit = 
+    errorCode === 429 ||
+    errorMessage.toLowerCase().includes('rate limit') ||
+    errorMessage.toLowerCase().includes('quota exceeded') ||
+    errorMessage.toLowerCase().includes('too many requests');
+
+  console.error(`[AI_ERROR] ${context.operation.toUpperCase()}_FAILED - User: ${context.userId}, RateLimit: ${isRateLimit}, Error:`, error);
+
+  Sentry.captureException(error, {
+    tags: {
+      operation: context.operation,
+      userId: context.userId,
+      isRateLimit: isRateLimit,
+      aiProvider: context.provider
+    },
+    extra: {
+      errorMessage,
+      errorCode,
+      isRateLimit
+    },
+    level: isRateLimit ? 'warning' : 'error'
+  });
+}
 
 export const chatRoutes = express.Router();
 
 chatRoutes.post('/stream', async (req: any, res: any) => {
+  // Declare variables at function scope so they're accessible in catch blocks
+  let userId: string | undefined, userProvider: string | undefined;
+  
   try {
     const { messages } = req.body;
 
     // Get authenticated user ID
-    const userId = req.user?.id;
+    userId = req.user?.id;
     if (!userId) {
       return res.status(401).json({ error: 'User not authenticated' });
     }
@@ -22,8 +56,11 @@ chatRoutes.post('/stream', async (req: any, res: any) => {
       const config = await AIProviderService.getModelConfig(userId);
       model = config.model;
       providerOptions = config.providerOptions;
+      // Get user's provider for error context
+      const user = await databaseService.getUserById(userId);
+      userProvider = user?.aiProvider || 'anthropic';
     } catch (error) {
-      console.error('Error getting AI model:', error);
+      logAIError(error, { userId: userId || 'unknown', operation: 'get_model_config' });
       return res.status(500).json({ 
         error: error instanceof Error ? error.message : 'Failed to get AI model' 
       });
@@ -126,7 +163,7 @@ Be helpful and proactive in suggesting project management best practices.`,
       res.end();
     }
   } catch (error) {
-    console.error('Chat error:', error);
+    logAIError(error, { userId: userId || 'unknown', operation: 'chat_stream', provider: userProvider });
     if (!res.headersSent) {
       res.status(500).json({ error: 'Internal server error' });
     }

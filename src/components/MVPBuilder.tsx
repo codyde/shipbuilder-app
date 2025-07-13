@@ -205,13 +205,29 @@ export function MVPBuilder({ className = '', onClose, open = true, onOpenChange 
 
       // Parse the complete JSON response
       try {
+        console.log('[MVP_BUILDER] Raw response:', fullText);
+        console.log('[MVP_BUILDER] Response length:', fullText.length);
+        
         let cleanedText = fullText.trim();
+        
+        // Remove markdown code blocks
         if (cleanedText.startsWith('```json')) {
           cleanedText = cleanedText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
         } else if (cleanedText.startsWith('```')) {
           cleanedText = cleanedText.replace(/^```\s*/, '').replace(/\s*```$/, '');
         }
+        
+        // Try to extract JSON from the response if it contains extra text
+        const jsonStart = cleanedText.indexOf('{');
+        const jsonEnd = cleanedText.lastIndexOf('}');
+        
+        if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+          cleanedText = cleanedText.substring(jsonStart, jsonEnd + 1);
+        }
+        
         cleanedText = cleanedText.trim();
+        
+        console.log('[MVP_BUILDER] Cleaned text to parse:', cleanedText);
         
         const mvpPlan = JSON.parse(cleanedText);
         

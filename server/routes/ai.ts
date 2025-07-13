@@ -8,7 +8,84 @@ import { AIProviderService } from '../services/ai-provider.js';
 
 export const aiRoutes = express.Router();
 
+// Utility function to detect and categorize AI API errors
+function detectAIError(error: any): { type: string; isRateLimit: boolean; provider?: string; message: string } {
+  const errorMessage = error?.message || error?.toString() || 'Unknown error';
+  const errorCode = error?.code || error?.status || error?.statusCode;
+  
+  // Rate limiting detection patterns
+  const isRateLimit = 
+    errorCode === 429 ||
+    errorMessage.toLowerCase().includes('rate limit') ||
+    errorMessage.toLowerCase().includes('quota exceeded') ||
+    errorMessage.toLowerCase().includes('too many requests') ||
+    errorMessage.toLowerCase().includes('rate_limit_exceeded') ||
+    errorMessage.toLowerCase().includes('insufficient_quota');
+
+  // Provider-specific error detection
+  let provider = 'unknown';
+  if (errorMessage.includes('anthropic') || errorMessage.includes('claude')) {
+    provider = 'anthropic';
+  } else if (errorMessage.includes('openai') || errorMessage.includes('gpt')) {
+    provider = 'openai';
+  } else if (errorMessage.includes('xai') || errorMessage.includes('grok')) {
+    provider = 'xai';
+  }
+
+  // Error type categorization
+  let type = 'unknown';
+  if (isRateLimit) {
+    type = 'rate_limit';
+  } else if (errorCode === 401 || errorMessage.toLowerCase().includes('unauthorized') || errorMessage.toLowerCase().includes('invalid api key')) {
+    type = 'auth_error';
+  } else if (errorCode === 400 || errorMessage.toLowerCase().includes('bad request')) {
+    type = 'bad_request';
+  } else if (errorCode === 500 || errorMessage.toLowerCase().includes('internal server error')) {
+    type = 'server_error';
+  } else if (errorMessage.toLowerCase().includes('timeout') || errorMessage.toLowerCase().includes('timed out')) {
+    type = 'timeout';
+  } else if (errorMessage.toLowerCase().includes('network') || errorMessage.toLowerCase().includes('fetch')) {
+    type = 'network_error';
+  }
+
+  return {
+    type,
+    isRateLimit,
+    provider,
+    message: errorMessage
+  };
+}
+
+// Enhanced error logging function
+function logAIError(error: any, context: { userId: string; operation: string; provider?: string }) {
+  const errorInfo = detectAIError(error);
+  
+  console.error(`[AI_ERROR] ${context.operation.toUpperCase()}_FAILED - User: ${context.userId}, Type: ${errorInfo.type}, Provider: ${errorInfo.provider}, RateLimit: ${errorInfo.isRateLimit}, Error:`, error);
+
+  Sentry.captureException(error, {
+    tags: {
+      operation: context.operation,
+      userId: context.userId,
+      errorType: errorInfo.type,
+      isRateLimit: errorInfo.isRateLimit,
+      aiProvider: errorInfo.provider || context.provider
+    },
+    extra: {
+      errorMessage: errorInfo.message,
+      errorCode: error?.code || error?.status || error?.statusCode,
+      isRateLimit: errorInfo.isRateLimit,
+      detectedProvider: errorInfo.provider
+    },
+    level: errorInfo.isRateLimit ? 'warning' : 'error'
+  });
+
+  return errorInfo;
+}
+
 aiRoutes.post('/generate-details', async (req: any, res: any) => {
+  // Declare variables at function scope so they're accessible in catch blocks
+  let userId: string | undefined, userProvider: string | undefined;
+  
   try {
     const { prompt, context } = req.body;
     
@@ -17,17 +94,15 @@ aiRoutes.post('/generate-details', async (req: any, res: any) => {
     }
 
     // Get authenticated user ID
-    const userId = req.user?.id;
+    userId = req.user?.id;
     if (!userId) {
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
-    // Get the appropriate AI model and provider options based on user preferences
-    let model, providerOptions;
+    // Get the appropriate AI model based on user preferences
+    let model;
     try {
-      const config = await AIProviderService.getModelConfig(userId);
-      model = config.model;
-      providerOptions = config.providerOptions;
+      model = await AIProviderService.getModel(userId);
     } catch (error) {
       console.error('Error getting AI model:', error);
       return res.status(500).json({ 
@@ -78,11 +153,9 @@ Format your response in markdown with clear sections and actionable steps. Be sp
       system: systemPrompt,
       onError: (error) => {
         console.error('AI generation error:', error);
-        Sentry.captureException(error);
       },
       prompt: prompt,
       maxTokens: 2000,
-      ...(Object.keys(providerOptions).length > 0 && { providerOptions })
     });
 
     // Stream the text chunks to the client
@@ -116,12 +189,11 @@ aiRoutes.post('/generatemvp', async (req: any, res: any) => {
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
-    // Get the appropriate AI model and provider options based on user preferences
-    let model, providerOptions;
+    // Get the appropriate AI model based on user preferences
+    let model;
     try {
-      const config = await AIProviderService.getModelConfig(userId);
-      model = config.model;
-      providerOptions = config.providerOptions;
+      model = await AIProviderService.getModel(userId);
+      console.log(`[MVP_DEBUG] Model obtained for user ${userId}, model type:`, typeof model);
     } catch (error) {
       console.error('Error getting AI model:', error);
       return res.status(500).json({ 
@@ -177,6 +249,7 @@ CRITICAL: Your response must be ONLY the JSON object, with no markdown formattin
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
+    console.log(`[MVP_DEBUG] Starting streamText call for user ${userId}`);
     const result = await streamText({
       model,
       experimental_telemetry: {
@@ -186,24 +259,34 @@ CRITICAL: Your response must be ONLY the JSON object, with no markdown formattin
       system: systemPrompt,
       prompt: `Create an MVP plan for: ${projectIdea}`,
       maxTokens: 2000,
-      ...(Object.keys(providerOptions).length > 0 && { providerOptions })
     });
 
+    console.log(`[MVP_DEBUG] streamText call completed, starting to iterate chunks`);
+    
     // Stream the text chunks to the client
-    let fullText = '';
+    let chunkCount = 0;
     for await (const chunk of result.textStream) {
-      fullText += chunk;
+      chunkCount++;
+      console.log(`[MVP_DEBUG] Chunk ${chunkCount}: ${chunk.substring(0, 50)}...`);
       res.write(chunk);
     }
 
+    console.log(`[MVP_DEBUG] Streaming completed, total chunks: ${chunkCount}`);
     res.end();
   } catch (error) {
     console.error('MVP generation error:', error);
-    res.status(500).json({ error: 'Failed to generate MVP plan' });
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Failed to generate MVP plan' });
+    } else {
+      res.end();
+    }
   }
 });
 
 aiRoutes.post('/create-mvp-project', async (req: any, res: any) => {
+  // Declare variables at function scope so they're accessible in catch blocks
+  let userId: string | undefined, userProvider: string | undefined;
+  
   try {
     const { mvpPlan } = req.body;
     
@@ -212,19 +295,25 @@ aiRoutes.post('/create-mvp-project', async (req: any, res: any) => {
     }
 
     // Get authenticated user ID
-    const userId = req.user?.id;
+    userId = req.user?.id;
     if (!userId) {
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
-    // Get the appropriate AI model and provider options based on user preferences
+    // Get the appropriate AI model and provider options for tool calling
     let model, providerOptions;
     try {
-      const config = await AIProviderService.getModelConfig(userId);
+      // For tool calling, we need to use getModelConfig with context
+      const config = await AIProviderService.getModelConfig(userId, 'tool-calling');
       model = config.model;
       providerOptions = config.providerOptions;
+      // Get user's provider for error context
+      const user = await databaseService.getUserById(userId);
+      userProvider = user?.aiProvider || 'anthropic';
+      
+      console.log(`[CREATE_MVP_PROJECT] Using provider: ${userProvider} with tool-calling context`);
     } catch (error) {
-      console.error('Error getting AI model:', error);
+      logAIError(error, { userId: userId || 'unknown', operation: 'get_model_config' });
       return res.status(500).json({ 
         error: error instanceof Error ? error.message : 'Failed to get AI model' 
       });
@@ -233,6 +322,14 @@ aiRoutes.post('/create-mvp-project', async (req: any, res: any) => {
     // Import task tools (same as chat.ts)
     const { createTaskTools } = await import('../tools/task-tools.js');
     const taskTools = createTaskTools(userId);
+
+    console.log(`[CREATE_MVP_PROJECT] Starting project creation for user ${userId} with provider ${userProvider}`);
+    console.log(`[CREATE_MVP_PROJECT] MVP Plan:`, JSON.stringify(mvpPlan, null, 2));
+    console.log(`[CREATE_MVP_PROJECT] Model config:`, {
+      hasModel: !!model,
+      providerOptions: JSON.stringify(providerOptions),
+      userProvider: userProvider
+    });
 
     const result = streamText({
       model,
@@ -276,7 +373,7 @@ The user will be very disappointed if you only create the project but not the ta
           description: taskTools.createProject.description,
           parameters: z.object({
             name: z.string().describe('The name of the project'),
-            description: z.string().describe('Comprehensive description including tech stack and core features')
+            description: z.string().optional().describe('Optional description of the project')
           }),
           execute: async (args) => taskTools.createProject.execute(args)
         }),
@@ -285,8 +382,9 @@ The user will be very disappointed if you only create the project but not the ta
           parameters: z.object({
             projectId: z.string().describe('The ID of the project to add the task to'),
             title: z.string().describe('The title of the task'),
-            description: z.string().describe('Detailed description of what needs to be done, structured as a prompt that an AI can use to generate code for that specific task. It should be a detailed description of the task, written from the perspective of a senior developer focused on that task space.'),
-            priority: z.enum(['low', 'medium', 'high']).optional().describe('Priority level of the task')
+            description: z.string().optional().describe('Optional description of the task'),
+            priority: z.enum(['low', 'medium', 'high']).optional().describe('Priority level of the task'),
+            dueDate: z.string().optional().describe('Optional due date in ISO format')
           }),
           execute: async (args) => taskTools.createTask.execute(args)
         })
@@ -305,13 +403,24 @@ The user will be very disappointed if you only create the project but not the ta
     if (response.body) {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
+      let chunkCount = 0;
       
       try {
         while (true) {
           const { done, value } = await reader.read();
-          if (done) break;
+          if (done) {
+            console.log(`[CREATE_MVP_PROJECT] Streaming completed for user ${userId}, total chunks: ${chunkCount}`);
+            break;
+          }
           
           const chunk = decoder.decode(value, { stream: true });
+          chunkCount++;
+          
+          // Log chunk content to see if tool calls are happening
+          if (chunk.includes('tool_call') || chunk.includes('createProject') || chunk.includes('createTask')) {
+            console.log(`[CREATE_MVP_PROJECT] Tool call detected in chunk ${chunkCount} for user ${userId}: ${chunk.substring(0, 200)}`);
+          }
+          
           res.write(chunk);
         }
       } finally {
@@ -319,10 +428,11 @@ The user will be very disappointed if you only create the project but not the ta
         res.end();
       }
     } else {
+      console.log(`[CREATE_MVP_PROJECT] No response body for user ${userId}`);
       res.end();
     }
   } catch (error) {
-    console.error('MVP project creation error:', error);
+    logAIError(error, { userId: userId || 'unknown', operation: 'create_mvp_project', provider: userProvider });
     if (!res.headersSent) {
       res.status(500).json({ error: 'Internal server error' });
     }

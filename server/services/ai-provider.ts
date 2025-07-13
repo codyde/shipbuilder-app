@@ -3,6 +3,7 @@ import { openai } from '@ai-sdk/openai';
 import { xai } from '@ai-sdk/xai';
 import { LanguageModel } from 'ai';
 import { databaseService } from '../db/database-service.js';
+import * as Sentry from '@sentry/node';
 
 export type AIProvider = 'anthropic' | 'openai' | 'xai';
 
@@ -45,35 +46,128 @@ export class AIProviderService {
   /**
    * Get both model and provider options for user preferences
    */
-  static async getModelConfig(userId: string): Promise<{model: LanguageModel, providerOptions: Record<string, any>}> {
-    // Get user preferences
-    const user = await databaseService.getUserById(userId);
-    const provider = user?.aiProvider || 'anthropic';
+  static async getModelConfig(userId: string, context?: string): Promise<{model: LanguageModel, providerOptions: Record<string, any>}> {
+    try {
+      // Log model configuration request
+      Sentry.addBreadcrumb({
+        message: 'Getting AI model configuration',
+        category: 'ai.model.config',
+        data: { userId },
+        level: 'info'
+      });
 
-    // Check if appropriate API key is set
-    if (provider === 'anthropic' && !process.env.ANTHROPIC_API_KEY) {
-      throw new Error(`${provider} AI provider is not available. Please configure the required API key.`);
-    }
-    if (provider === 'openai' && !process.env.OPENAI_API_KEY) {
-      throw new Error(`${provider} AI provider is not available. Please configure the required API key.`);
-    }
-    if (provider === 'xai' && !process.env.XAI_API_KEY) {
-      throw new Error(`${provider} AI provider is not available. Please configure the required API key.`);
-    }
+      // Get user preferences
+      const user = await databaseService.getUserById(userId);
+      const provider = user?.aiProvider || 'anthropic';
 
-    // Return the appropriate model and provider options
-    return {
-      model: this.getModelByProvider(provider),
-      providerOptions: this.getProviderOptions(provider)
-    };
+      console.log(`[AI_MODEL_CONFIG] User: ${userId}, Provider: ${provider}`);
+
+      // Log provider selection
+      Sentry.addBreadcrumb({
+        message: 'AI provider selected',
+        category: 'ai.provider.select',
+        data: {
+          userId,
+          provider,
+          isUserDefined: !!user?.aiProvider
+        },
+        level: 'info'
+      });
+
+      // Check if appropriate API key is set
+      if (provider === 'anthropic' && !process.env.ANTHROPIC_API_KEY) {
+        const error = new Error(`${provider} AI provider is not available. Please configure the required API key.`);
+        Sentry.captureException(error, {
+          tags: {
+            operation: 'ai.config',
+            provider: provider,
+            userId: userId
+          },
+          extra: {
+            reason: 'missing_api_key'
+          }
+        });
+        throw error;
+      }
+      if (provider === 'openai' && !process.env.OPENAI_API_KEY) {
+        const error = new Error(`${provider} AI provider is not available. Please configure the required API key.`);
+        Sentry.captureException(error, {
+          tags: {
+            operation: 'ai.config',
+            provider: provider,
+            userId: userId
+          },
+          extra: {
+            reason: 'missing_api_key'
+          }
+        });
+        throw error;
+      }
+      if (provider === 'xai' && !process.env.XAI_API_KEY) {
+        const error = new Error(`${provider} AI provider is not available. Please configure the required API key.`);
+        Sentry.captureException(error, {
+          tags: {
+            operation: 'ai.config',
+            provider: provider,
+            userId: userId
+          },
+          extra: {
+            reason: 'missing_api_key'
+          }
+        });
+        throw error;
+      }
+
+      // Return the appropriate model and provider options
+      const model = this.getModelByProvider(provider);
+      const providerOptions = this.getProviderOptions(provider, context);
+
+      // Log successful configuration
+      Sentry.addBreadcrumb({
+        message: 'AI model configuration successful',
+        category: 'ai.model.config.success',
+        data: {
+          userId,
+          provider,
+          modelName: this.getModelName(provider),
+          hasProviderOptions: Object.keys(providerOptions).length > 0
+        },
+        level: 'info'
+      });
+
+      console.log(`[AI_MODEL_CONFIG_SUCCESS] User: ${userId}, Provider: ${provider}, Model: ${this.getModelName(provider)}`);
+
+      return {
+        model,
+        providerOptions
+      };
+    } catch (error) {
+      // Log model configuration failure
+      Sentry.captureException(error, {
+        tags: {
+          operation: 'ai.model.config',
+          userId: userId
+        },
+        extra: {
+          errorMessage: error instanceof Error ? error.message : 'Unknown error'
+        }
+      });
+
+      console.error(`[AI_MODEL_CONFIG_FAILED] User: ${userId}, Error:`, error);
+      throw error;
+    }
   }
 
   /**
    * Get provider options for detailed reasoning (for OpenAI o3-mini)
    */
-  static getProviderOptions(provider: AIProvider): Record<string, any> {
+  static getProviderOptions(provider: AIProvider, context?: string): Record<string, any> {
     switch (provider) {
       case 'openai':
+        // For tool calling contexts, don't use reasoningSummary as it may interfere
+        if (context === 'tool-calling') {
+          return {};
+        }
         return {
           openai: {
             reasoningSummary: 'detailed'
@@ -93,14 +187,13 @@ export class AIProviderService {
         return anthropic(MODEL_CONFIGS.anthropic);
       
       case 'openai':
-        return openai.responses(MODEL_CONFIGS.openai);
+        return openai(MODEL_CONFIGS.openai);
       
       case 'xai':
         return xai(MODEL_CONFIGS.xai);
       
       default:
-        // Default to Anthropic if unknown provider
-        return anthropic(MODEL_CONFIGS.anthropic);
+        throw new Error(`Unknown AI provider: ${provider}`);
     }
   }
 
