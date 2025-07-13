@@ -64,22 +64,22 @@ const aiProviderOptions = [
     value: 'anthropic',
     label: 'Anthropic Claude',
     icon: Brain,
-    description: 'Claude Sonnet 4 model',
-    models: ['Claude Sonnet 4']
+    description: 'Claude 4 Sonnet model',
+    models: ['Claude 4 Sonnet']
   },
   {
     value: 'openai',
     label: 'OpenAI',
     icon: Sparkles,
-    description: 'GPT-4o model',
-    models: ['GPT-4o']
+    description: 'o3-mini with detailed reasoning',
+    models: ['o3-mini (Detailed Reasoning)']
   },
   {
     value: 'xai',
     label: 'xAI Grok',
     icon: Zap,
-    description: 'Grok Beta model',
-    models: ['Grok Beta']
+    description: 'Grok-4 model',
+    models: ['Grok-4']
   }
 ] as const
 

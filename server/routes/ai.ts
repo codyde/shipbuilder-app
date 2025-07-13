@@ -22,10 +22,12 @@ aiRoutes.post('/generate-details', async (req: any, res: any) => {
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
-    // Get the appropriate AI model based on user preferences
-    let model;
+    // Get the appropriate AI model and provider options based on user preferences
+    let model, providerOptions;
     try {
-      model = await AIProviderService.getModel(userId);
+      const config = await AIProviderService.getModelConfig(userId);
+      model = config.model;
+      providerOptions = config.providerOptions;
     } catch (error) {
       console.error('Error getting AI model:', error);
       return res.status(500).json({ 
@@ -80,6 +82,7 @@ Format your response in markdown with clear sections and actionable steps. Be sp
       },
       prompt: prompt,
       maxTokens: 2000,
+      ...(Object.keys(providerOptions).length > 0 && { providerOptions })
     });
 
     // Stream the text chunks to the client
@@ -113,10 +116,12 @@ aiRoutes.post('/generatemvp', async (req: any, res: any) => {
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
-    // Get the appropriate AI model based on user preferences
-    let model;
+    // Get the appropriate AI model and provider options based on user preferences
+    let model, providerOptions;
     try {
-      model = await AIProviderService.getModel(userId);
+      const config = await AIProviderService.getModelConfig(userId);
+      model = config.model;
+      providerOptions = config.providerOptions;
     } catch (error) {
       console.error('Error getting AI model:', error);
       return res.status(500).json({ 
@@ -181,6 +186,7 @@ CRITICAL: Your response must be ONLY the JSON object, with no markdown formattin
       system: systemPrompt,
       prompt: `Create an MVP plan for: ${projectIdea}`,
       maxTokens: 2000,
+      ...(Object.keys(providerOptions).length > 0 && { providerOptions })
     });
 
     // Stream the text chunks to the client
@@ -211,10 +217,12 @@ aiRoutes.post('/create-mvp-project', async (req: any, res: any) => {
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
-    // Get the appropriate AI model based on user preferences
-    let model;
+    // Get the appropriate AI model and provider options based on user preferences
+    let model, providerOptions;
     try {
-      model = await AIProviderService.getModel(userId);
+      const config = await AIProviderService.getModelConfig(userId);
+      model = config.model;
+      providerOptions = config.providerOptions;
     } catch (error) {
       console.error('Error getting AI model:', error);
       return res.status(500).json({ 
@@ -282,7 +290,8 @@ The user will be very disappointed if you only create the project but not the ta
           }),
           execute: async (args) => taskTools.createTask.execute(args)
         })
-      }
+      },
+      ...(Object.keys(providerOptions).length > 0 && { providerOptions })
     });
 
     const response = result.toDataStreamResponse();

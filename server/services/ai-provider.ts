@@ -13,9 +13,9 @@ export interface AIModelConfig {
 
 // Model configurations for each provider
 const MODEL_CONFIGS = {
-  anthropic: 'claude-sonnet-4-20250514',
-  openai: 'gpt-4o',
-  xai: 'grok-beta',
+  anthropic: 'claude-4-sonnet-20250514',
+  openai: 'o3-mini',
+  xai: 'grok-4',
 } as const;
 
 export class AIProviderService {
@@ -43,6 +43,48 @@ export class AIProviderService {
   }
 
   /**
+   * Get both model and provider options for user preferences
+   */
+  static async getModelConfig(userId: string): Promise<{model: LanguageModel, providerOptions: Record<string, any>}> {
+    // Get user preferences
+    const user = await databaseService.getUserById(userId);
+    const provider = user?.aiProvider || 'anthropic';
+
+    // Check if appropriate API key is set
+    if (provider === 'anthropic' && !process.env.ANTHROPIC_API_KEY) {
+      throw new Error(`${provider} AI provider is not available. Please configure the required API key.`);
+    }
+    if (provider === 'openai' && !process.env.OPENAI_API_KEY) {
+      throw new Error(`${provider} AI provider is not available. Please configure the required API key.`);
+    }
+    if (provider === 'xai' && !process.env.XAI_API_KEY) {
+      throw new Error(`${provider} AI provider is not available. Please configure the required API key.`);
+    }
+
+    // Return the appropriate model and provider options
+    return {
+      model: this.getModelByProvider(provider),
+      providerOptions: this.getProviderOptions(provider)
+    };
+  }
+
+  /**
+   * Get provider options for detailed reasoning (for OpenAI o3-mini)
+   */
+  static getProviderOptions(provider: AIProvider): Record<string, any> {
+    switch (provider) {
+      case 'openai':
+        return {
+          openai: {
+            reasoningSummary: 'detailed'
+          }
+        };
+      default:
+        return {};
+    }
+  }
+
+  /**
    * Get a specific model by provider
    */
   static getModelByProvider(provider: AIProvider): LanguageModel {
@@ -51,7 +93,7 @@ export class AIProviderService {
         return anthropic(MODEL_CONFIGS.anthropic);
       
       case 'openai':
-        return openai(MODEL_CONFIGS.openai);
+        return openai.responses(MODEL_CONFIGS.openai);
       
       case 'xai':
         return xai(MODEL_CONFIGS.xai);
@@ -68,16 +110,16 @@ export class AIProviderService {
   static getModelName(provider: AIProvider): string {
     switch (provider) {
       case 'anthropic':
-        return 'Claude Sonnet 4';
+        return 'Claude 4 Sonnet';
       
       case 'openai':
-        return 'GPT-4o';
+        return 'o3-mini (Detailed Reasoning)';
       
       case 'xai':
-        return 'Grok Beta';
+        return 'Grok-4';
       
       default:
-        return 'Claude Sonnet 4';
+        return 'Claude 4 Sonnet';
     }
   }
 

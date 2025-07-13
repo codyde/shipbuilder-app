@@ -17,9 +17,11 @@ chatRoutes.post('/stream', async (req: any, res: any) => {
     }
 
     // Get the appropriate AI model based on user preferences
-    let model;
+    let model, providerOptions;
     try {
-      model = await AIProviderService.getModel(userId);
+      const config = await AIProviderService.getModelConfig(userId);
+      model = config.model;
+      providerOptions = config.providerOptions;
     } catch (error) {
       console.error('Error getting AI model:', error);
       return res.status(500).json({ 
@@ -92,7 +94,8 @@ Be helpful and proactive in suggesting project management best practices.`,
           }),
           execute: async (args) => taskTools.getProject.execute(args)
         })
-      }
+      },
+      ...(Object.keys(providerOptions).length > 0 && { providerOptions })
     });
 
     const response = result.toDataStreamResponse();

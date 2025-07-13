@@ -267,9 +267,11 @@ export const createTaskTools = (userId: string) => ({
     execute: async (args: { projectIdea: string }) => {
       try {
         // Get the appropriate AI model based on user preferences
-        let model;
+        let model, providerOptions;
         try {
-          model = await AIProviderService.getModel(userId);
+          const config = await AIProviderService.getModelConfig(userId);
+          model = config.model;
+          providerOptions = config.providerOptions;
         } catch (error) {
           return {
             success: false,
@@ -330,6 +332,7 @@ CRITICAL: Your response must be ONLY the JSON object, with no markdown formattin
           system: systemPrompt,
           prompt: `Create an MVP plan for: ${args.projectIdea}`,
           maxTokens: 2000,
+          ...(Object.keys(providerOptions).length > 0 && { providerOptions })
         });
 
         // Parse the AI response
