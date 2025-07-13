@@ -72,7 +72,7 @@ const aiProviderOptions = [
     label: 'OpenAI',
     icon: Sparkles,
     description: 'GPT-4o & GPT-4o Mini models',
-    models: ['GPT-4o', 'GPT-4o Mini', 'GPT-4 Turbo']
+    models: ['GPT-4o', 'GPT-4o Mini']
   },
   {
     value: 'xai',

@@ -25,7 +25,6 @@ const MODEL_CONFIGS = {
     models: {
       'gpt-4o': 'gpt-4o',
       'gpt-4o-mini': 'gpt-4o-mini',
-      'gpt-4-turbo': 'gpt-4-turbo',
     }
   },
   xai: {
@@ -34,7 +33,6 @@ const MODEL_CONFIGS = {
       'grok-beta': 'grok-beta',
       'grok-3': 'grok-3',
       'grok-3-fast': 'grok-3-fast',
-      'grok-3-mini': 'grok-3-mini',
     }
   }
 } as const;
