@@ -29,9 +29,12 @@ const MODEL_CONFIGS = {
     }
   },
   xai: {
-    default: 'grok-4',
+    default: 'grok-beta',
     models: {
-      'grok-4': 'grok-4',
+      'grok-beta': 'grok-beta',
+      'grok-3': 'grok-3',
+      'grok-3-fast': 'grok-3-fast',
+      'grok-3-mini': 'grok-3-mini',
     }
   }
 } as const;
@@ -74,7 +77,9 @@ export class AIProviderService {
         return openai(openaiModel);
       
       case 'xai':
-        const xaiModel = MODEL_CONFIGS.xai.models['grok-4'];
+        const xaiModel = modelType === 'fast' ? MODEL_CONFIGS.xai.models['grok-3-fast'] : 
+                        modelType === 'powerful' ? MODEL_CONFIGS.xai.models['grok-3'] : 
+                        MODEL_CONFIGS.xai.models['grok-beta'];
         return xai(xaiModel);
       
       default:
@@ -95,7 +100,9 @@ export class AIProviderService {
         return modelType === 'fast' ? 'GPT-4o Mini' : 'GPT-4o';
       
       case 'xai':
-        return 'Grok-4';
+        return modelType === 'fast' ? 'Grok-3 Fast' : 
+               modelType === 'powerful' ? 'Grok-3' : 
+               'Grok Beta';
       
       default:
         return 'Claude Sonnet 4';

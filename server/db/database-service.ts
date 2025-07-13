@@ -117,7 +117,7 @@ class DatabaseService {
       provider: updated.provider || undefined,
       providerId: updated.providerId || undefined,
       avatar: updated.avatar || undefined,
-      aiProvider: updated.aiProvider as 'anthropic' | 'openai',
+      aiProvider: updated.aiProvider as 'anthropic' | 'openai' | 'xai',
       createdAt: updated.createdAt.toISOString(),
       updatedAt: updated.updatedAt.toISOString(),
     };

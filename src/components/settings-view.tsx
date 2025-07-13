@@ -78,8 +78,8 @@ const aiProviderOptions = [
     value: 'xai',
     label: 'xAI Grok',
     icon: Zap,
-    description: 'Grok-4 model',
-    models: ['Grok-4']
+    description: 'Grok Beta, Grok-3, and Grok-3 Fast models',
+    models: ['Grok Beta', 'Grok-3', 'Grok-3 Fast']
   }
 ] as const
 
