@@ -504,13 +504,13 @@ router.put('/ai-provider', authenticateUser, async (req: any, res: any) => {
 
     const { provider } = req.body;
     
-    if (!provider || !['anthropic', 'openai'].includes(provider)) {
-      return res.status(400).json({ error: 'Invalid AI provider. Must be "anthropic" or "openai"' });
+    if (!provider || !['anthropic', 'openai', 'xai'].includes(provider)) {
+      return res.status(400).json({ error: 'Invalid AI provider. Must be "anthropic", "openai", or "xai"' });
     }
 
     // Update user's AI provider preference
     const { AIProviderService } = await import('../services/ai-provider.js');
-    await AIProviderService.updateUserProvider(userId, provider as 'anthropic' | 'openai');
+    await AIProviderService.updateUserProvider(userId, provider as 'anthropic' | 'openai' | 'xai');
 
     res.json({ success: true, provider });
   } catch (error) {
