@@ -13,35 +13,16 @@ export interface AIModelConfig {
 
 // Model configurations for each provider
 const MODEL_CONFIGS = {
-  anthropic: {
-    default: 'claude-sonnet-4-20250514',
-    models: {
-      sonnet: 'claude-sonnet-4-20250514',
-      opus: 'claude-opus-4-20250514',
-    }
-  },
-  openai: {
-    default: 'gpt-4o',
-    models: {
-      'gpt-4o': 'gpt-4o',
-      'gpt-4o-mini': 'gpt-4o-mini',
-    }
-  },
-  xai: {
-    default: 'grok-beta',
-    models: {
-      'grok-beta': 'grok-beta',
-      'grok-3': 'grok-3',
-      'grok-3-fast': 'grok-3-fast',
-    }
-  }
+  anthropic: 'claude-sonnet-4-20250514',
+  openai: 'gpt-4o',
+  xai: 'grok-beta',
 } as const;
 
 export class AIProviderService {
   /**
    * Get the AI model based on user preferences
    */
-  static async getModel(userId: string, modelType: 'default' | 'fast' | 'powerful' = 'default'): Promise<LanguageModel> {
+  static async getModel(userId: string): Promise<LanguageModel> {
     // Get user preferences
     const user = await databaseService.getUserById(userId);
     const provider = user?.aiProvider || 'anthropic';
@@ -58,49 +39,42 @@ export class AIProviderService {
     }
 
     // Return the appropriate model
-    return this.getModelByProvider(provider, modelType);
+    return this.getModelByProvider(provider);
   }
 
   /**
    * Get a specific model by provider
    */
-  static getModelByProvider(provider: AIProvider, modelType: 'default' | 'fast' | 'powerful' = 'default'): LanguageModel {
+  static getModelByProvider(provider: AIProvider): LanguageModel {
     switch (provider) {
       case 'anthropic':
-        const anthropicModel = modelType === 'powerful' ? MODEL_CONFIGS.anthropic.models.opus : MODEL_CONFIGS.anthropic.models.sonnet;
-        return anthropic(anthropicModel);
+        return anthropic(MODEL_CONFIGS.anthropic);
       
       case 'openai':
-        const openaiModel = modelType === 'fast' ? MODEL_CONFIGS.openai.models['gpt-4o-mini'] : MODEL_CONFIGS.openai.models['gpt-4o'];
-        return openai(openaiModel);
+        return openai(MODEL_CONFIGS.openai);
       
       case 'xai':
-        const xaiModel = modelType === 'fast' ? MODEL_CONFIGS.xai.models['grok-3-fast'] : 
-                        modelType === 'powerful' ? MODEL_CONFIGS.xai.models['grok-3'] : 
-                        MODEL_CONFIGS.xai.models['grok-beta'];
-        return xai(xaiModel);
+        return xai(MODEL_CONFIGS.xai);
       
       default:
         // Default to Anthropic if unknown provider
-        return anthropic(MODEL_CONFIGS.anthropic.default);
+        return anthropic(MODEL_CONFIGS.anthropic);
     }
   }
 
   /**
    * Get model name for display
    */
-  static getModelName(provider: AIProvider, modelType: 'default' | 'fast' | 'powerful' = 'default'): string {
+  static getModelName(provider: AIProvider): string {
     switch (provider) {
       case 'anthropic':
-        return modelType === 'powerful' ? 'Claude Opus 4' : 'Claude Sonnet 4';
+        return 'Claude Sonnet 4';
       
       case 'openai':
-        return modelType === 'fast' ? 'GPT-4o Mini' : 'GPT-4o';
+        return 'GPT-4o';
       
       case 'xai':
-        return modelType === 'fast' ? 'Grok-3 Fast' : 
-               modelType === 'powerful' ? 'Grok-3' : 
-               'Grok Beta';
+        return 'Grok Beta';
       
       default:
         return 'Claude Sonnet 4';
