@@ -59,11 +59,6 @@ Generate a comprehensive build process and implementation details for this task.
 - Environment setup needs
 - Database schema changes (if applicable)
 
-## Testing Strategy
-- Unit tests to write
-- Integration testing approach
-- Manual testing checklist
-
 Format your response in markdown with clear sections and actionable steps. Be specific about implementation details while keeping it practical and achievable.`;
 
     // Set headers for streaming
@@ -136,7 +131,7 @@ Based on the user's project idea, create a comprehensive MVP plan that includes:
 1. A clear project name and description
 2. Core features that are essential for the MVP (keep it minimal but functional)
 3. Recommended tech stack (frontend, backend, database, hosting)
-4. Detailed development tasks broken down into actionable items
+4. Detailed development tasks broken down into actionable items that would enable the MVP to be built and launched quickly while still providing the core functionality. 
 
 Focus on creating an MVP that can be built and launched quickly while still providing value to users. Prioritize essential features only.
 

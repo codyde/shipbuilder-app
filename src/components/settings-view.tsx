@@ -1,7 +1,7 @@
 import { Label } from '@/components/ui/label'
 import { useTheme, Theme } from '@/context/ThemeContext'
 import { useAuth } from '@/context/AuthContext'
-import { Palette, Moon, Sun, Waves, Sunset, Star, Monitor, Check, Bug, Sparkles, Brain, AlertCircle } from 'lucide-react'
+import { Palette, Moon, Sun, Waves, Sunset, Star, Monitor, Check, Bug, Sparkles, Brain, AlertCircle, Zap } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useEffect, useState, useCallback } from 'react'
 import { getApiUrl } from '@/lib/api-config'
@@ -73,13 +73,20 @@ const aiProviderOptions = [
     icon: Sparkles,
     description: 'GPT-4o & GPT-4o Mini models',
     models: ['GPT-4o', 'GPT-4o Mini', 'GPT-4 Turbo']
+  },
+  {
+    value: 'xai',
+    label: 'xAI Grok',
+    icon: Zap,
+    description: 'Grok-4 model',
+    models: ['Grok-4']
   }
 ] as const
 
 export function SettingsView() {
   const { theme, setTheme } = useTheme()
   const { user } = useAuth()
-  const [aiProvider, setAiProvider] = useState<'anthropic' | 'openai'>('anthropic')
+  const [aiProvider, setAiProvider] = useState<'anthropic' | 'openai' | 'xai'>('anthropic')
   const [availableProviders, setAvailableProviders] = useState<string[]>([])
   const [loadingProviders, setLoadingProviders] = useState(true)
   const [updatingProvider, setUpdatingProvider] = useState(false)
@@ -128,7 +135,7 @@ export function SettingsView() {
     setTheme(value as Theme)
   }
 
-  const handleAIProviderChange = async (provider: 'anthropic' | 'openai') => {
+  const handleAIProviderChange = async (provider: 'anthropic' | 'openai' | 'xai') => {
     const token = localStorage.getItem('authToken')
 
     if (!token) {
@@ -344,7 +351,7 @@ export function SettingsView() {
                       return (
                         <button
                           key={option.value}
-                          onClick={() => isAvailable && handleAIProviderChange(option.value as 'anthropic' | 'openai')}
+                          onClick={() => isAvailable && handleAIProviderChange(option.value as 'anthropic' | 'openai' | 'xai')}
                           disabled={!isAvailable || updatingProvider}
                           className={cn(
                             "relative group flex flex-col items-start p-4 rounded-lg border-2 text-left transition-all duration-200",

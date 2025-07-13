@@ -38,7 +38,7 @@ class DatabaseService {
       provider: user.provider || undefined,
       providerId: user.providerId || undefined,
       avatar: user.avatar || undefined,
-      aiProvider: user.aiProvider as 'anthropic' | 'openai',
+      aiProvider: user.aiProvider as 'anthropic' | 'openai' | 'xai',
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString(),
     };
@@ -56,7 +56,7 @@ class DatabaseService {
       provider: user.provider || undefined,
       providerId: user.providerId || undefined,
       avatar: user.avatar || undefined,
-      aiProvider: user.aiProvider as 'anthropic' | 'openai',
+      aiProvider: user.aiProvider as 'anthropic' | 'openai' | 'xai',
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString(),
     };
@@ -74,7 +74,7 @@ class DatabaseService {
       provider: user.provider || undefined,
       providerId: user.providerId || undefined,
       avatar: user.avatar || undefined,
-      aiProvider: user.aiProvider as 'anthropic' | 'openai',
+      aiProvider: user.aiProvider as 'anthropic' | 'openai' | 'xai',
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString(),
     };
@@ -101,7 +101,7 @@ class DatabaseService {
     };
   }
 
-  async updateUserAIProvider(id: string, aiProvider: 'anthropic' | 'openai'): Promise<User | null> {
+  async updateUserAIProvider(id: string, aiProvider: 'anthropic' | 'openai' | 'xai'): Promise<User | null> {
     const [updated] = await db.update(users)
       .set({
         aiProvider,

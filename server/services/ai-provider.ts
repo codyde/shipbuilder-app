@@ -1,9 +1,10 @@
 import { anthropic } from '@ai-sdk/anthropic';
 import { openai } from '@ai-sdk/openai';
+import { xai } from '@ai-sdk/xai';
 import { LanguageModel } from 'ai';
 import { databaseService } from '../db/database-service.js';
 
-export type AIProvider = 'anthropic' | 'openai';
+export type AIProvider = 'anthropic' | 'openai' | 'xai';
 
 export interface AIModelConfig {
   provider: AIProvider;
@@ -26,6 +27,12 @@ const MODEL_CONFIGS = {
       'gpt-4o-mini': 'gpt-4o-mini',
       'gpt-4-turbo': 'gpt-4-turbo',
     }
+  },
+  xai: {
+    default: 'grok-4',
+    models: {
+      'grok-4': 'grok-4',
+    }
   }
 } as const;
 
@@ -43,6 +50,9 @@ export class AIProviderService {
       throw new Error(`${provider} AI provider is not available. Please configure the required API key.`);
     }
     if (provider === 'openai' && !process.env.OPENAI_API_KEY) {
+      throw new Error(`${provider} AI provider is not available. Please configure the required API key.`);
+    }
+    if (provider === 'xai' && !process.env.XAI_API_KEY) {
       throw new Error(`${provider} AI provider is not available. Please configure the required API key.`);
     }
 
@@ -63,6 +73,10 @@ export class AIProviderService {
         const openaiModel = modelType === 'fast' ? MODEL_CONFIGS.openai.models['gpt-4o-mini'] : MODEL_CONFIGS.openai.models['gpt-4o'];
         return openai(openaiModel);
       
+      case 'xai':
+        const xaiModel = MODEL_CONFIGS.xai.models['grok-4'];
+        return xai(xaiModel);
+      
       default:
         // Default to Anthropic if unknown provider
         return anthropic(MODEL_CONFIGS.anthropic.default);
@@ -79,6 +93,9 @@ export class AIProviderService {
       
       case 'openai':
         return modelType === 'fast' ? 'GPT-4o Mini' : 'GPT-4o';
+      
+      case 'xai':
+        return 'Grok-4';
       
       default:
         return 'Claude Sonnet 4';
@@ -101,6 +118,8 @@ export class AIProviderService {
         return !!process.env.ANTHROPIC_API_KEY;
       case 'openai':
         return !!process.env.OPENAI_API_KEY;
+      case 'xai':
+        return !!process.env.XAI_API_KEY;
       default:
         return false;
     }
@@ -113,6 +132,7 @@ export class AIProviderService {
     const providers: AIProvider[] = [];
     if (this.isProviderAvailable('anthropic')) providers.push('anthropic');
     if (this.isProviderAvailable('openai')) providers.push('openai');
+    if (this.isProviderAvailable('xai')) providers.push('xai');
     return providers;
   }
 }
