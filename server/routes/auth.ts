@@ -77,7 +77,6 @@ router.post('/developer', async (req: any, res: any) => {
           demoEmail: demoEmail
         }, 'low');
         
-        console.log('Created new developer user:', { id: user.id, email: demoEmail, originalEmail: email });
       } catch (dbError) {
         console.error('Failed to create developer user:', dbError);
         return res.status(500).json({ error: 'Failed to create developer account' });
@@ -90,7 +89,6 @@ router.post('/developer', async (req: any, res: any) => {
         demoEmail: demoEmail
       }, 'low');
       
-      console.log('Developer user login:', { id: user.id, email: demoEmail, originalEmail: email });
     }
     
     // Generate JWT token
@@ -170,31 +168,6 @@ router.get('/sentry/callback', oauthCallbackRateLimit, async (req, res) => {
       const result = await sentryOAuthService.completeOAuthFlow(code as string);
       sentryUser = result.user;
       
-      // Detailed logging for profile data analysis
-      logger.info('=== SENTRY OAUTH PROFILE DATA ===', {
-        timestamp: new Date().toISOString(),
-        fullSentryUser: sentryUser,
-        userFields: {
-          id: sentryUser.id,
-          email: sentryUser.email,
-          name: sentryUser.name,
-          username: sentryUser.username,
-          avatar: sentryUser.avatar,
-        },
-        accessToken: result.accessToken ? 'present' : 'missing',
-        accessTokenLength: result.accessToken ? result.accessToken.length : 0
-      });
-      
-      console.log('\n=== SENTRY USER PROFILE DATA ===');
-      console.log('Timestamp:', new Date().toISOString());
-      console.log('Raw Sentry User Object:', JSON.stringify(sentryUser, null, 2));
-      console.log('User ID:', sentryUser.id);
-      console.log('Email:', sentryUser.email);
-      console.log('Name:', sentryUser.name);
-      console.log('Username:', sentryUser.username);
-      console.log('Avatar:', sentryUser.avatar);
-      console.log('Access Token Present:', !!result.accessToken);
-      console.log('================================\n');
       
       logger.info('Successfully got Sentry user', {
         id: sentryUser.id,
@@ -353,31 +326,6 @@ router.get('/google/callback', oauthCallbackRateLimit, async (req, res) => {
       const result = await googleOAuthService.completeOAuthFlow(code as string);
       googleUser = result.user;
       
-      // Detailed logging for Google profile data analysis
-      logger.info('=== GOOGLE OAUTH PROFILE DATA ===', {
-        timestamp: new Date().toISOString(),
-        fullGoogleUser: googleUser,
-        userFields: {
-          id: googleUser.id,
-          email: googleUser.email,
-          name: googleUser.name,
-          verified_email: googleUser.verified_email,
-          picture: googleUser.picture,
-        },
-        accessToken: result.accessToken ? 'present' : 'missing',
-        accessTokenLength: result.accessToken ? result.accessToken.length : 0
-      });
-      
-      console.log('\n=== GOOGLE USER PROFILE DATA ===');
-      console.log('Timestamp:', new Date().toISOString());
-      console.log('Raw Google User Object:', JSON.stringify(googleUser, null, 2));
-      console.log('User ID:', googleUser.id);
-      console.log('Email:', googleUser.email);
-      console.log('Name:', googleUser.name);
-      console.log('Verified Email:', googleUser.verified_email);
-      console.log('Picture:', googleUser.picture);
-      console.log('Access Token Present:', !!result.accessToken);
-      console.log('================================\n');
       
       logger.info('Successfully got Google user', {
         id: googleUser.id,
@@ -489,11 +437,6 @@ router.get('/google/callback', oauthCallbackRateLimit, async (req, res) => {
 // Update AI provider preference
 router.put('/ai-provider', authenticateUser, async (req: any, res: any) => {
   try {
-    console.log('AI Provider Update Request:', {
-      headers: req.headers,
-      user: req.user,
-      body: req.body
-    });
     
     const userId = req.user?.id;
     
@@ -504,13 +447,13 @@ router.put('/ai-provider', authenticateUser, async (req: any, res: any) => {
 
     const { provider } = req.body;
     
-    if (!provider || !['anthropic', 'openai'].includes(provider)) {
-      return res.status(400).json({ error: 'Invalid AI provider. Must be "anthropic" or "openai"' });
+    if (!provider || !['anthropic', 'openai', 'xai'].includes(provider)) {
+      return res.status(400).json({ error: 'Invalid AI provider. Must be "anthropic", "openai", or "xai"' });
     }
 
     // Update user's AI provider preference
     const { AIProviderService } = await import('../services/ai-provider.js');
-    await AIProviderService.updateUserProvider(userId, provider as 'anthropic' | 'openai');
+    await AIProviderService.updateUserProvider(userId, provider as 'anthropic' | 'openai' | 'xai');
 
     res.json({ success: true, provider });
   } catch (error) {

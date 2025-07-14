@@ -1,5 +1,4 @@
 import React, { useRef, useEffect } from 'react';
-import { useChat } from 'ai/react';
 import { useProjects } from '@/context/ProjectContext';
 import { useAuth } from '@/context/AuthContext';
 import { ToolInvocation } from '@/types/types';
@@ -8,6 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { MarkdownRenderer } from '@/components/ui/markdown-renderer';
+import { ToolStatusDisplay } from '@/components/ui/tool-status-display';
+import { useChatWithStatus } from '@/hooks/useChatWithStatus';
 import { X, MessageCircle, Send, ChevronDown, GripHorizontal } from 'lucide-react';
 import { useDraggable } from '@/hooks/useDraggable';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -103,7 +104,16 @@ export function ChatInterface({ className = '', onClose, open = true, onOpenChan
     },
   });
 
-  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
+  const { 
+    messages, 
+    input, 
+    handleInputChange, 
+    handleSubmit, 
+    isLoading,
+    statusMessages,
+    isToolExecuting,
+    clearStatusMessages
+  } = useChatWithStatus({
     api: getApiUrl('chat/stream'),
     fetch: async (url, options) => {
       const token = localStorage.getItem('authToken');
@@ -225,12 +235,18 @@ export function ChatInterface({ className = '', onClose, open = true, onOpenChan
                 .map((message) => (
                   <ChatMessage key={message.id} message={message} />
                 ))}
-              {isLoading && (
+              {(isLoading || isToolExecuting) && (
                 <div className="flex items-center gap-2 text-muted-foreground text-sm">
                   <div className="w-2 h-2 bg-current rounded-full animate-pulse"></div>
-                  <span>AI is thinking...</span>
+                  <span>{isToolExecuting ? 'Executing tools...' : 'AI is thinking...'}</span>
                 </div>
               )}
+              
+              {/* Tool Status Display for Mobile */}
+              {statusMessages.length > 0 && (
+                <ToolStatusDisplay className="bg-muted/30" maxItems={5} autoScroll />
+              )}
+              
               <div ref={messagesEndRef} />
             </div>
           </div>
@@ -348,15 +364,25 @@ export function ChatInterface({ className = '', onClose, open = true, onOpenChan
                   .map((message) => (
                     <ChatMessage key={message.id} message={message} />
                   ))}
-                {isLoading && (
+                {(isLoading || isToolExecuting) && (
                   <div className="max-w-[85%] self-start">
                     <Card className="p-3 bg-muted">
                       <div className="typing-indicator flex gap-1 items-center">
                         <span className="w-2 h-2 bg-muted-foreground/50 rounded-full animate-pulse"></span>
                         <span className="w-2 h-2 bg-muted-foreground/50 rounded-full animate-pulse [animation-delay:0.2s]"></span>
                         <span className="w-2 h-2 bg-muted-foreground/50 rounded-full animate-pulse [animation-delay:0.4s]"></span>
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          {isToolExecuting ? 'Executing tools...' : 'AI is thinking...'}
+                        </span>
                       </div>
                     </Card>
+                  </div>
+                )}
+                
+                {/* Tool Status Display for Desktop */}
+                {statusMessages.length > 0 && (
+                  <div className="w-full">
+                    <ToolStatusDisplay className="bg-muted/30" maxItems={8} autoScroll />
                   </div>
                 )}
               </>
