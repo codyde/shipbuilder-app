@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Accordion } from '@/components/ui/accordion';
 import { ToolStatusDisplay } from '@/components/ui/tool-status-display';
 import { useMVPStatusStream } from '@/hooks/useMVPStatusStream';
-import { X, Lightbulb, GripHorizontal, Loader2, Rocket, CheckCircle, Progress } from 'lucide-react';
+import { X, Lightbulb, GripHorizontal, Loader2, Rocket, CheckCircle } from 'lucide-react';
 import { useDraggable } from '@/hooks/useDraggable';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { getApiUrl } from '@/lib/api-config';
@@ -69,7 +69,6 @@ export function MVPBuilder({ className = '', onClose, open = true, onOpenChange 
     totalTasksCount,
     progress,
     createMVPProject,
-    cancelCreation,
     clearStatusMessages
   } = useMVPStatusStream({
     onComplete: () => {

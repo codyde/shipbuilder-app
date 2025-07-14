@@ -112,7 +112,6 @@ export function ChatInterface({ className = '', onClose, open = true, onOpenChan
     isLoading,
     statusMessages,
     isToolExecuting,
-    clearStatusMessages
   } = useChatWithStatus({
     api: getApiUrl('chat/stream'),
     fetch: async (url, options) => {
@@ -153,7 +152,7 @@ export function ChatInterface({ className = '', onClose, open = true, onOpenChan
     onClose?.();
   };
 
-  const handleFormSubmit = (e: React.FormEvent) => {
+  const handleFormSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     
     if (!user) {
