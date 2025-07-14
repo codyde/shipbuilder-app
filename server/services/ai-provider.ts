@@ -35,15 +35,20 @@ export class AIProviderService {
     const user = await databaseService.getUserById(userId);
     const provider = user?.aiProvider || 'anthropic';
 
-    // Check if appropriate API key is set
-    if (provider === 'anthropic' && !process.env.ANTHROPIC_API_KEY) {
-      throw new Error(`${provider} AI provider is not available. Please configure the required API key.`);
-    }
-    if (provider === 'openai' && !process.env.OPENAI_API_KEY) {
-      throw new Error(`${provider} AI provider is not available. Please configure the required API key.`);
-    }
-    if (provider === 'xai' && !process.env.XAI_API_KEY) {
-      throw new Error(`${provider} AI provider is not available. Please configure the required API key.`);
+    // Check if appropriate API key is set with fallback logic
+    if (!this.isProviderAvailable(provider)) {
+      console.warn(`Preferred provider ${provider} is not available, checking for fallbacks`);
+      
+      // Try to find an available provider as fallback
+      const availableProviders = this.getAvailableProviders();
+      if (availableProviders.length === 0) {
+        throw new Error('No AI providers are available. Please configure at least one API key (ANTHROPIC_API_KEY, OPENAI_API_KEY, or XAI_API_KEY).');
+      }
+      
+      const fallbackProvider = availableProviders[0];
+      console.warn(`Using fallback provider: ${fallbackProvider}`);
+      
+      return this.getModelByProvider(fallbackProvider);
     }
 
     // Return the appropriate model
@@ -54,16 +59,35 @@ export class AIProviderService {
    * Get unified tool calling model (GPT-4o-mini with Claude fallback)
    */
   static async getToolCallingModel(userId: string): Promise<{model: LanguageModel, providerOptions: Record<string, any>}> {
-    try {
-      const model = openai('gpt-4o-mini');
-      const providerOptions = this.getProviderOptions('openai', 'tool-calling');
-      return { model, providerOptions };
-    } catch (error) {
-      console.warn('GPT-4o-mini not available, falling back to Claude Sonnet 4');
+    // Check if OpenAI is available first
+    if (this.isProviderAvailable('openai')) {
+      try {
+        const model = openai('gpt-4o-mini');
+        const providerOptions = this.getProviderOptions('openai', 'tool-calling');
+        return { model, providerOptions };
+      } catch (error) {
+        console.warn('Error creating OpenAI model, falling back to Claude:', error);
+      }
+    }
+    
+    // Fallback to Claude if OpenAI is not available or failed
+    if (this.isProviderAvailable('anthropic')) {
+      console.warn('Using Claude Sonnet 4 for tool calling');
       const model = anthropic('claude-sonnet-4-20250514');
       const providerOptions = this.getProviderOptions('anthropic', 'tool-calling');
       return { model, providerOptions };
     }
+    
+    // If neither primary providers are available, check for XAI
+    if (this.isProviderAvailable('xai')) {
+      console.warn('Using XAI Grok for tool calling');
+      const model = xai('grok-4');
+      const providerOptions = this.getProviderOptions('xai', 'tool-calling');
+      return { model, providerOptions };
+    }
+    
+    // No providers available
+    throw new Error('No AI providers are available for tool calling. Please configure at least one API key (ANTHROPIC_API_KEY, OPENAI_API_KEY, or XAI_API_KEY).');
   }
 
   /**
@@ -86,7 +110,7 @@ export class AIProviderService {
       Sentry.addBreadcrumb({
         message: 'Getting AI model configuration',
         category: 'ai.model.config',
-        data: { userId },
+        data: { userIdHash: this.hashUserId(userId) },
         level: 'info'
       });
 
@@ -100,7 +124,7 @@ export class AIProviderService {
         message: 'AI provider selected',
         category: 'ai.provider.select',
         data: {
-          userId,
+          userIdHash: this.hashUserId(userId),
           provider,
           isUserDefined: !!user?.aiProvider
         },
@@ -170,7 +194,7 @@ export class AIProviderService {
         message: 'AI model configuration successful',
         category: 'ai.model.config.success',
         data: {
-          userId,
+          userIdHash: this.hashUserId(userId),
           provider,
           modelName: actualModelName,
           displayName: this.getModelDisplayName(provider, actualModelName),
@@ -385,5 +409,13 @@ export class AIProviderService {
     if (this.isProviderAvailable('openai')) providers.push('openai');
     if (this.isProviderAvailable('xai')) providers.push('xai');
     return providers;
+  }
+
+  /**
+   * Hash user ID for secure logging (prevents PII exposure in logs)
+   */
+  static hashUserId(userId: string): string {
+    const crypto = require('crypto');
+    return crypto.createHash('sha256').update(userId).digest('hex').substring(0, 8);
   }
 }

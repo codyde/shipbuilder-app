@@ -403,6 +403,11 @@ aiRoutes.post('/create-mvp-project', async (req: any, res: any) => {
             parallelCallCount: step.toolCalls.length,
             toolNames: step.toolCalls.map(tc => tc.toolName)
           });
+          
+          // Prevent race condition by throwing an error
+          const error = new Error(`Parallel tool calls detected (${step.toolCalls.length} calls). This can cause race conditions. Please retry the operation.`);
+          error.name = 'ParallelToolCallError';
+          throw error;
         }
         
         // Track task creation progress
@@ -514,10 +519,12 @@ The user will be very disappointed if you only create the project but not all th
     
     // Stream the response body with status updates integration
     if (response.body) {
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
+      let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
       
       try {
+        reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        
         while (true) {
           const { done, value } = await reader.read();
           if (done) {
@@ -547,7 +554,14 @@ The user will be very disappointed if you only create the project but not all th
               }
             }
           } catch (parseError) {
-            // Ignore parsing errors for non-JSON chunks
+            // Log specific parsing errors for debugging
+            console.warn(`JSON parsing error in chunk: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`);
+            logger.warn('JSON parsing error in streaming chunk', {
+              userId,
+              provider: userProvider,
+              error: parseError instanceof Error ? parseError.message : 'Unknown error',
+              chunkPreview: chunk.substring(0, 100)
+            });
           }
           
           res.write(chunk);
@@ -563,7 +577,14 @@ The user will be very disappointed if you only create the project but not all th
           taskCount: mvpPlan.tasks.length
         });
       } finally {
-        reader.releaseLock();
+        // Safe cleanup - only release lock if reader exists
+        if (reader) {
+          try {
+            reader.releaseLock();
+          } catch (releaseError) {
+            console.warn('Error releasing reader lock:', releaseError);
+          }
+        }
         statusStreamer.close();
       }
     } else {
