@@ -13,14 +13,15 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+
+      - name: Deploy Backend
+        env:
+          SVC_ID: 418527b7-d2ad-4e69-9693-cf98e661739d
+        working-directory: ./server
+        run: railway up --service=${{ env.SVC_ID }}
       
       - name: Deploy Frontend
         env:
           SVC_ID: 24f5dd80-edae-4e36-a9c0-3f58ce04ff8b
         run: railway up --service=${{ env.SVC_ID }}
       
-      - name: Deploy Backend
-        env:
-          SVC_ID: 418527b7-d2ad-4e69-9693-cf98e661739d
-        working-directory: ./server
-        run: railway up --service=${{ env.SVC_ID }}
