@@ -300,7 +300,7 @@ export function SettingsView() {
                   <div>
                     <h2 className="text-lg font-semibold">AI Provider</h2>
                     <p className="text-sm text-muted-foreground">
-                      Choose your preferred AI model provider
+                      Choose your preferred AI model provider (affects MVP generation only - tool calling uses unified model)
                     </p>
                   </div>
                 </div>
@@ -319,7 +319,7 @@ export function SettingsView() {
                 <div>
                   <h2 className="text-lg font-semibold">AI Provider</h2>
                   <p className="text-sm text-muted-foreground">
-                    Choose your preferred AI model provider
+                    Choose your preferred AI model provider (affects MVP generation only - tool calling uses unified model)
                   </p>
                 </div>
               </div>

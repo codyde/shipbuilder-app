@@ -25,16 +25,18 @@ export class StatusStreamer {
   private context: StreamingContext;
   private closed: boolean = false;
 
-  constructor(res: Response, context: StreamingContext) {
+  constructor(res: Response, context: StreamingContext, setHeaders: boolean = true) {
     this.res = res;
     this.context = context;
     
-    // Set streaming headers
-    this.res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    this.res.setHeader('Transfer-Encoding', 'chunked');
-    this.res.setHeader('Cache-Control', 'no-cache');
-    this.res.setHeader('Connection', 'keep-alive');
-    this.res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
+    // Set streaming headers only if requested
+    if (setHeaders) {
+      this.res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      this.res.setHeader('Transfer-Encoding', 'chunked');
+      this.res.setHeader('Cache-Control', 'no-cache');
+      this.res.setHeader('Connection', 'keep-alive');
+      this.res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
+    }
   }
 
   private formatMessage(message: StatusMessage): string {
@@ -191,8 +193,8 @@ export class StatusStreamer {
     }
   }
 
-  public static createWrapper(res: Response, context: StreamingContext) {
-    return new StatusStreamer(res, context);
+  public static createWrapper(res: Response, context: StreamingContext, setHeaders: boolean = true) {
+    return new StatusStreamer(res, context, setHeaders);
   }
 }
 

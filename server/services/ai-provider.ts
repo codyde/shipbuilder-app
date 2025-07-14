@@ -51,6 +51,33 @@ export class AIProviderService {
   }
 
   /**
+   * Get unified tool calling model (GPT-4o-mini with Claude fallback)
+   */
+  static async getToolCallingModel(userId: string): Promise<{model: LanguageModel, providerOptions: Record<string, any>}> {
+    try {
+      const model = openai('gpt-4o-mini');
+      const providerOptions = this.getProviderOptions('openai', 'tool-calling');
+      return { model, providerOptions };
+    } catch (error) {
+      console.warn('GPT-4o-mini not available, falling back to Claude Sonnet 4');
+      const model = anthropic('claude-sonnet-4-20250514');
+      const providerOptions = this.getProviderOptions('anthropic', 'tool-calling');
+      return { model, providerOptions };
+    }
+  }
+
+  /**
+   * Get MVP generation model (user's selected provider)
+   */
+  static async getMVPGenerationModel(userId: string): Promise<{model: LanguageModel, providerOptions: Record<string, any>}> {
+    const user = await databaseService.getUserById(userId);
+    const provider = user?.aiProvider || 'anthropic';
+    const model = await this.getModel(userId);
+    const providerOptions = this.getProviderOptions(provider, 'mvp-generation');
+    return { model, providerOptions };
+  }
+
+  /**
    * Get both model and provider options for user preferences
    */
   static async getModelConfig(userId: string, context?: string): Promise<{model: LanguageModel, providerOptions: Record<string, any>}> {
@@ -124,15 +151,12 @@ export class AIProviderService {
         throw error;
       }
 
-      // For tool calling contexts, check if we need a fallback model
+      // For tool calling contexts, use unified model
       let model;
       let actualModelName;
       
-      if (context === 'tool-calling' && !this.supportsToolCalling(provider)) {
-        // Use fallback model for tool calling
-        const fallbackModel = TOOL_CALLING_FALLBACKS[provider];
-        model = this.getModelByName(provider, fallbackModel);
-        actualModelName = fallbackModel;
+      if (context === 'tool-calling') {
+        return this.getToolCallingModel(userId);
       } else {
         // Use primary model
         model = this.getModelByProvider(provider);
@@ -209,7 +233,7 @@ export class AIProviderService {
         const actualModel = modelName || MODEL_CONFIGS.openai;
         
         // For tool calling contexts, don't use reasoningSummary as it may interfere
-        if (context === 'tool-calling') {
+        if (context === 'tool-calling' || context === 'mvp-generation') {
           return {};
         }
         
