@@ -3,8 +3,150 @@ import { streamText, generateText, tool } from 'ai';
 import { z } from 'zod';
 import { databaseService } from '../db/database-service.js';
 import { Priority } from '../types/types.js';
+import { StatusStreamer, wrapToolsWithStatus } from '../utils/status-streaming.js';
 import * as Sentry from '@sentry/node';
 import { AIProviderService } from '../services/ai-provider.js';
+
+const { logger } = Sentry;
+
+// XAI Non-streaming MVP handler (XAI doesn't support streaming + tool calling)
+async function handleXAINonStreamingMVP(req: any, res: any, options: {
+  model: any,
+  providerOptions: any,
+  taskTools: any,
+  mvpPlan: any,
+  userId: string,
+  userProvider: string
+}) {
+  const { model, taskTools, mvpPlan, userId, userProvider } = options;
+  
+  try {
+    // Set streaming headers to maintain compatibility
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Transfer-Encoding', 'chunked');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    // Helper function to send progress updates (compatible with unified status system)
+    const sendProgress = (message: string, type: string = 'status', operation?: string) => {
+      const statusMessage = {
+        type,
+        operation,
+        status: 'running',
+        message,
+        timestamp: new Date().toISOString(),
+        context: {
+          userId,
+          provider: userProvider,
+          operation: 'create_mvp_project'
+        }
+      };
+      res.write(`data: ${JSON.stringify(statusMessage)}\n\n`);
+    };
+
+    const sendToolStart = (toolName: string, args: any) => {
+      sendProgress(`🔧 Starting ${toolName}...`, 'tool-start', toolName);
+    };
+
+    const sendToolSuccess = (toolName: string, result: any) => {
+      const message = toolName === 'createProject' 
+        ? `✅ Project created: ${result.data?.name || result.data?.id}`
+        : `✅ Task created: ${result.data?.title || result.data?.id}`;
+      sendProgress(message, 'tool-success', toolName);
+    };
+
+    sendProgress(`🚀 Starting MVP creation for "${mvpPlan.projectName}" with ${mvpPlan.tasks.length} tasks`);
+    
+    // 1. Create Project
+    console.log(`\n🚀 [XAI_SEQUENTIAL] Creating project: ${mvpPlan.projectName}`);
+    sendToolStart('createProject', { name: mvpPlan.projectName, description: mvpPlan.description });
+    
+    const projectResult = await taskTools.createProject.execute({
+      name: mvpPlan.projectName,
+      description: mvpPlan.description
+    });
+    
+    if (!projectResult.success) {
+      sendProgress(`❌ Failed to create project: ${projectResult.error}`, 'tool-error', 'createProject');
+      res.end();
+      return;
+    }
+    
+    const projectId = projectResult.data.id;
+    sendToolSuccess('createProject', projectResult);
+    console.log(`   ✅ [XAI_SEQUENTIAL] Project created: ${projectId}`);
+    
+    // 2. Create Tasks Sequentially
+    let createdTasks = 0;
+    const totalTasks = mvpPlan.tasks.length;
+    
+    for (let i = 0; i < totalTasks; i++) {
+      const task = mvpPlan.tasks[i];
+      console.log(`\n📝 [XAI_SEQUENTIAL] Creating task ${i + 1}/${totalTasks}: ${task.title}`);
+      sendToolStart('createTask', { projectId, title: task.title, description: task.description, priority: task.priority });
+      
+      const taskResult = await taskTools.createTask.execute({
+        projectId: projectId,
+        title: task.title,
+        description: task.description,
+        priority: task.priority
+      });
+      
+      if (taskResult.success) {
+        createdTasks++;
+        sendToolSuccess('createTask', taskResult);
+        console.log(`   ✅ [XAI_SEQUENTIAL] Task created: ${taskResult.data.id}`);
+        
+        logger.info('XAI sequential task created', {
+          userId,
+          provider: userProvider,
+          taskId: taskResult.data.id,
+          taskTitle: task.title,
+          taskNumber: i + 1,
+          totalTasks
+        });
+      } else {
+        sendProgress(`❌ Failed to create task ${i + 1}: ${taskResult.error || 'Unknown error'}`, 'tool-error', 'createTask');
+        console.error(`   ❌ [XAI_SEQUENTIAL] Failed to create task ${i + 1}:`, taskResult.error);
+      }
+      
+      // Add small delay between tasks to avoid rate limiting
+      if (i < totalTasks - 1) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+    
+    // Send completion message
+    sendProgress(`🎉 MVP "${mvpPlan.projectName}" created successfully with ${createdTasks}/${totalTasks} tasks!`, 'stream-complete');
+    
+    console.log(`\n✨ [XAI_SEQUENTIAL] MVP creation completed: ${createdTasks}/${totalTasks} tasks created`);
+    logger.info('XAI sequential MVP creation completed', {
+      userId,
+      provider: userProvider,
+      projectName: mvpPlan.projectName,
+      tasksCreated: createdTasks,
+      totalTasks,
+      success: createdTasks === totalTasks
+    });
+    
+    res.end();
+    
+  } catch (error) {
+    console.error(`\n❌ [XAI_SEQUENTIAL] Error during sequential creation:`, error);
+    logger.error('XAI sequential MVP creation failed', {
+      userId,
+      provider: userProvider,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+    
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Internal server error' });
+    } else {
+      res.write(`data: {"type":"error","error":"Internal server error"}\n\n`);
+      res.end();
+    }
+  }
+}
 
 export const aiRoutes = express.Router();
 
@@ -99,12 +241,11 @@ aiRoutes.post('/generate-details', async (req: any, res: any) => {
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
-    // Get the appropriate AI model based on user preferences
+    // Get the appropriate AI model
     let model;
     try {
       model = await AIProviderService.getModel(userId);
     } catch (error) {
-      console.error('Error getting AI model:', error);
       return res.status(500).json({ 
         error: error instanceof Error ? error.message : 'Failed to get AI model' 
       });
@@ -155,7 +296,7 @@ Format your response in markdown with clear sections and actionable steps. Be sp
         console.error('AI generation error:', error);
       },
       prompt: prompt,
-      maxTokens: 2000,
+      // Removed maxTokens - not supported by responses API
     });
 
     // Stream the text chunks to the client
@@ -189,13 +330,11 @@ aiRoutes.post('/generatemvp', async (req: any, res: any) => {
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
-    // Get the appropriate AI model based on user preferences
+    // Get the appropriate AI model
     let model;
     try {
       model = await AIProviderService.getModel(userId);
-      console.log(`[MVP_DEBUG] Model obtained for user ${userId}, model type:`, typeof model);
     } catch (error) {
-      console.error('Error getting AI model:', error);
       return res.status(500).json({ 
         error: error instanceof Error ? error.message : 'Failed to get AI model' 
       });
@@ -249,7 +388,11 @@ CRITICAL: Your response must be ONLY the JSON object, with no markdown formattin
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
-    console.log(`[MVP_DEBUG] Starting streamText call for user ${userId}`);
+    // Get provider options for o3 reasoning summaries
+    const user = await databaseService.getUserById(userId);
+    const provider = user?.aiProvider || 'anthropic';
+    const providerOptions = AIProviderService.getProviderOptions(provider);
+    
     const result = await streamText({
       model,
       experimental_telemetry: {
@@ -258,20 +401,28 @@ CRITICAL: Your response must be ONLY the JSON object, with no markdown formattin
       },
       system: systemPrompt,
       prompt: `Create an MVP plan for: ${projectIdea}`,
-      maxTokens: 2000,
+      // Add provider options for reasoning summaries
+      ...(Object.keys(providerOptions).length > 0 && { providerOptions })
     });
 
-    console.log(`[MVP_DEBUG] streamText call completed, starting to iterate chunks`);
     
+    // Use standard streamText approach for o3-mini
+    const result2 = await streamText({
+      model,
+      experimental_telemetry: {
+        isEnabled: true,
+        functionId: "generate-mvp-stream"
+      },
+      system: systemPrompt,
+      prompt: `Create an MVP plan for: ${projectIdea}`,
+      // Add provider options for reasoning summaries
+      ...(Object.keys(providerOptions).length > 0 && { providerOptions })
+    });
+
     // Stream the text chunks to the client
-    let chunkCount = 0;
-    for await (const chunk of result.textStream) {
-      chunkCount++;
-      console.log(`[MVP_DEBUG] Chunk ${chunkCount}: ${chunk.substring(0, 50)}...`);
+    for await (const chunk of result2.textStream) {
       res.write(chunk);
     }
-
-    console.log(`[MVP_DEBUG] Streaming completed, total chunks: ${chunkCount}`);
     res.end();
   } catch (error) {
     console.error('MVP generation error:', error);
@@ -285,10 +436,10 @@ CRITICAL: Your response must be ONLY the JSON object, with no markdown formattin
 
 aiRoutes.post('/create-mvp-project', async (req: any, res: any) => {
   // Declare variables at function scope so they're accessible in catch blocks
-  let userId: string | undefined, userProvider: string | undefined;
+  let userId: string | undefined, userProvider: string | undefined, mvpPlan: any;
   
   try {
-    const { mvpPlan } = req.body;
+    mvpPlan = req.body.mvpPlan;
     
     if (!mvpPlan) {
       return res.status(400).json({ error: 'MVP plan is required' });
@@ -303,15 +454,16 @@ aiRoutes.post('/create-mvp-project', async (req: any, res: any) => {
     // Get the appropriate AI model and provider options for tool calling
     let model, providerOptions;
     try {
-      // For tool calling, we need to use getModelConfig with context
-      const config = await AIProviderService.getModelConfig(userId, 'tool-calling');
-      model = config.model;
-      providerOptions = config.providerOptions;
       // Get user's provider for error context
       const user = await databaseService.getUserById(userId);
       userProvider = user?.aiProvider || 'anthropic';
       
-      console.log(`[CREATE_MVP_PROJECT] Using provider: ${userProvider} with tool-calling context`);
+      
+      // For tool calling, we need to use getModelConfig with context
+      const config = await AIProviderService.getModelConfig(userId, 'tool-calling');
+      model = config.model;
+      providerOptions = config.providerOptions;
+      
     } catch (error) {
       logAIError(error, { userId: userId || 'unknown', operation: 'get_model_config' });
       return res.status(500).json({ 
@@ -323,21 +475,133 @@ aiRoutes.post('/create-mvp-project', async (req: any, res: any) => {
     const { createTaskTools } = await import('../tools/task-tools.js');
     const taskTools = createTaskTools(userId);
 
-    console.log(`[CREATE_MVP_PROJECT] Starting project creation for user ${userId} with provider ${userProvider}`);
-    console.log(`[CREATE_MVP_PROJECT] MVP Plan:`, JSON.stringify(mvpPlan, null, 2));
-    console.log(`[CREATE_MVP_PROJECT] Model config:`, {
-      hasModel: !!model,
-      providerOptions: JSON.stringify(providerOptions),
-      userProvider: userProvider
+    // Check if the current provider supports tool calling (including fallbacks)
+    const supportsToolCalling = AIProviderService.supportsToolCallingWithFallback(userProvider as any);
+
+    if (!supportsToolCalling) {
+      return res.status(400).json({ 
+        error: `The current AI provider (${userProvider}) does not support tool calling. Please switch to a different provider for MVP project creation.`,
+        code: 'TOOL_CALLING_NOT_SUPPORTED'
+      });
+    }
+
+    console.log(`\n\n🎆 \x1b[35m[MVP_CREATE]\x1b[0m Starting MVP creation\n   📝 Project: \x1b[33m${mvpPlan.projectName}\x1b[0m\n   🗺️ Tasks: \x1b[36m${mvpPlan.tasks.length}\x1b[0m\n   🤖 Provider: \x1b[32m${userProvider}\x1b[0m\n`);
+    logger.info('Starting MVP creation', {
+      userId,
+      provider: userProvider,
+      projectName: mvpPlan.projectName,
+      taskCount: mvpPlan.tasks.length
     });
 
+    // XAI doesn't support streaming with tool calling - use non-streaming mode
+    if (userProvider === 'xai') {
+      console.log(`   ⚠️  \x1b[33m[XAI_MODE]\x1b[0m Using non-streaming mode (XAI limitation with tool calling)`);
+      logger.info('Using non-streaming mode for XAI tool calling', {
+        userId,
+        provider: userProvider,
+        reason: 'XAI_streaming_tool_calling_not_supported'
+      });
+      
+      // Use non-streaming for XAI - this has its own status streaming implementation
+      return await handleXAINonStreamingMVP(req, res, {
+        model,
+        providerOptions,
+        taskTools,
+        mvpPlan,
+        userId,
+        userProvider
+      });
+    }
+
+    // Create status streamer for real-time updates (only for streaming providers)
+    const statusStreamer = StatusStreamer.createWrapper(res, {
+      userId,
+      provider: userProvider || 'unknown',
+      operation: 'create_mvp_project',
+      projectName: mvpPlan.projectName,
+      taskCount: mvpPlan.tasks.length
+    });
+
+    // Wrap tools with status updates for streaming providers
+    const wrappedTools = wrapToolsWithStatus({
+      createProject: taskTools.createProject,
+      createTask: taskTools.createTask
+    }, statusStreamer);
+
+    // Use streaming for other providers
     const result = streamText({
       model,
       experimental_telemetry: {
         isEnabled: true,
-        functionId: "create-mvp-project"
+        functionId: "create-mvp-project-enhanced"
       },
-      maxSteps: 25, // Allow enough steps for project + all tasks
+      maxSteps: 30, // Allow enough steps for large MVPs
+      abortSignal: AbortSignal.timeout(120000), // 2-minute timeout
+      onError: (error) => {
+        console.error(`\n🚨 \x1b[31m[MVP_STREAM_ERROR]\x1b[0m Provider: \x1b[33m${userProvider}\x1b[0m`, error);
+        logAIError(error, { 
+          userId: userId || 'unknown', 
+          operation: 'mvp_stream_error', 
+          provider: userProvider 
+        });
+        logger.error('MVP stream error occurred', {
+          userId,
+          provider: userProvider,
+          projectName: mvpPlan.projectName,
+          taskCount: mvpPlan.tasks.length,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      },
+      onStepFinish: (step) => {
+        // Enhanced logging to detect parallel function calling
+        console.log(`   🔄 \x1b[36m[MVP_STEP]\x1b[0m Provider: \x1b[33m${userProvider}\x1b[0m, Step: \x1b[32m${step.stepType}\x1b[0m, ToolCalls: \x1b[35m${step.toolCalls?.length || 0}\x1b[0m`);
+        
+        // CRITICAL: Check for parallel tool calls (Grok's parallel execution)
+        if (step.toolCalls && step.toolCalls.length > 1) {
+          console.log(`   🚨 \x1b[31m[PARALLEL_DETECTED]\x1b[0m Grok is trying \x1b[35m${step.toolCalls.length}\x1b[0m parallel tool calls!`);
+          console.log(`   🔍 \x1b[33m[PARALLEL_TOOLS]\x1b[0m Tools: ${step.toolCalls.map(tc => tc.toolName).join(', ')}`);
+          logger.warn('Parallel tool calls detected from Grok', {
+            userId,
+            provider: userProvider,
+            parallelCallCount: step.toolCalls.length,
+            toolNames: step.toolCalls.map(tc => tc.toolName)
+          });
+        }
+        
+        // Track task creation progress
+        if (step.toolCalls && step.toolCalls.length > 0) {
+          for (const toolCall of step.toolCalls) {
+            if (toolCall.toolName === 'createProject') {
+              console.log(`   🎆 \x1b[32m[MVP_PROGRESS]\x1b[0m Project created: \x1b[33m${toolCall.args?.name}\x1b[0m`);
+              logger.info('MVP project created in stream', {
+                userId,
+                provider: userProvider,
+                projectName: toolCall.args?.name
+              });
+            } else if (toolCall.toolName === 'createTask') {
+              console.log(`   📝 \x1b[32m[MVP_PROGRESS]\x1b[0m Task created: \x1b[33m${toolCall.args?.title}\x1b[0m`);
+              logger.info('MVP task created in stream', {
+                userId,
+                provider: userProvider,
+                taskTitle: toolCall.args?.title,
+                projectId: toolCall.args?.projectId
+              });
+            }
+          }
+        } else if (step.stepType === 'tool-result' && (!step.toolCalls || step.toolCalls.length === 0)) {
+          console.log(`   ⚠️  \x1b[33m[EMPTY_TOOL_RESULT]\x1b[0m No tool calls in result step - possible parallel call failure!`);
+          logger.warn('Empty tool result step detected', {
+            userId,
+            provider: userProvider,
+            stepType: step.stepType,
+            projectName: mvpPlan.projectName
+          });
+        }
+        
+        // Check if we're getting close to completion
+        const expectedTotal = mvpPlan.tasks.length + 1; // tasks + project
+        console.log(`   🎯 \x1b[36m[MVP_PROGRESS]\x1b[0m Expected total steps: \x1b[35m${expectedTotal}\x1b[0m`);
+      },
       messages: [
         {
           role: 'user',
@@ -354,39 +618,51 @@ ${mvpPlan.tasks.map((task: any, index: number) =>
 `${index + 1}. "${task.title}" (${task.priority})
    Description: ${task.description}`).join('\n')}
 
-STEP-BY-STEP INSTRUCTIONS:
+CRITICAL SEQUENTIAL EXECUTION REQUIREMENTS:
 1. First, use createProject to create the project with a comprehensive description
-2. Then use createTask to create ALL ${mvpPlan.tasks.length} tasks listed above
-3. You MUST create every single task - do not stop until all ${mvpPlan.tasks.length} tasks are created
-4. Use the project ID from step 1 for all createTask calls
+2. Wait for the project creation to complete before proceeding
+3. Then create tasks ONE BY ONE using createTask - DO NOT create multiple tasks simultaneously
+4. You MUST wait for each createTask call to complete before calling createTask again
+5. Create ALL ${mvpPlan.tasks.length} tasks sequentially - no parallel execution
+6. Use the project ID from step 1 for all createTask calls
 
-Please create the project and ALL ${mvpPlan.tasks.length} tasks now.`
+IMPORTANT: You must create tasks sequentially, not in parallel. Call createTask once, wait for it to complete, then call createTask again for the next task. Repeat until all ${mvpPlan.tasks.length} tasks are created.`
         }
       ],
       system: `You are creating an MVP project using the available tools. You must use both createProject and createTask tools to create a complete project.
 
-CRITICAL: You must create the project AND all the tasks. Do not stop after creating just the project. Continue calling createTask for every single task in the list.
+CRITICAL REQUIREMENTS:
+1. You must create the project AND all the tasks
+2. Do not stop after creating just the project
+3. SEQUENTIAL EXECUTION ONLY: Call createTask one at a time, wait for completion, then call the next one
+4. DO NOT use parallel function calling - create tasks sequentially
+5. Continue calling createTask until every single task is created
 
-The user will be very disappointed if you only create the project but not the tasks. Make sure you complete the entire job by creating every task.`,
+IMPORTANT: You are using the XAI provider which supports parallel function calling, but for this task you MUST execute functions sequentially. Call one createTask, wait for it to complete, then call the next createTask. Do not call multiple createTask functions simultaneously.
+
+The user will be very disappointed if you only create the project but not all the tasks. Make sure you complete the entire job by creating every task sequentially.`,
       tools: {
         createProject: tool({
-          description: taskTools.createProject.description,
+          description: wrappedTools.createProject.description,
           parameters: z.object({
             name: z.string().describe('The name of the project'),
-            description: z.string().optional().describe('Optional description of the project')
+            description: z.string().describe('Comprehensive description including tech stack and core features')
           }),
-          execute: async (args) => taskTools.createProject.execute(args)
+          execute: async (args) => {
+            return await wrappedTools.createProject.execute(args);
+          }
         }),
         createTask: tool({
-          description: taskTools.createTask.description,
+          description: wrappedTools.createTask.description,
           parameters: z.object({
             projectId: z.string().describe('The ID of the project to add the task to'),
             title: z.string().describe('The title of the task'),
-            description: z.string().optional().describe('Optional description of the task'),
-            priority: z.enum(['low', 'medium', 'high']).optional().describe('Priority level of the task'),
-            dueDate: z.string().optional().describe('Optional due date in ISO format')
+            description: z.string().describe('Detailed description of what needs to be done, structured as a prompt that an AI can use to generate code for that specific task. It should be a detailed description of the task, written from the perspective of a senior developer focused on that task space.'),
+            priority: z.enum(['low', 'medium', 'high']).optional().describe('Priority level of the task')
           }),
-          execute: async (args) => taskTools.createTask.execute(args)
+          execute: async (args) => {
+            return await wrappedTools.createTask.execute(args);
+          }
         })
       },
       ...(Object.keys(providerOptions).length > 0 && { providerOptions })
@@ -394,45 +670,79 @@ The user will be very disappointed if you only create the project but not the ta
 
     const response = result.toDataStreamResponse();
     
-    // Set headers from the AI SDK response (same as chat.ts)
-    response.headers.forEach((value, key) => {
-      res.setHeader(key, value);
-    });
+    // Send initial status update
+    statusStreamer.sendProgressUpdate(`🚀 Starting MVP creation for "${mvpPlan.projectName}" with ${mvpPlan.tasks.length} tasks`);
     
-    // Stream the response body (same as chat.ts)
+    // Skip setting headers from AI SDK response since StatusStreamer has already set streaming headers
+    
+    // Stream the response body with status updates integration
     if (response.body) {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      let chunkCount = 0;
       
       try {
         while (true) {
           const { done, value } = await reader.read();
           if (done) {
-            console.log(`[CREATE_MVP_PROJECT] Streaming completed for user ${userId}, total chunks: ${chunkCount}`);
             break;
           }
           
           const chunk = decoder.decode(value, { stream: true });
-          chunkCount++;
           
-          // Log chunk content to see if tool calls are happening
-          if (chunk.includes('tool_call') || chunk.includes('createProject') || chunk.includes('createTask')) {
-            console.log(`[CREATE_MVP_PROJECT] Tool call detected in chunk ${chunkCount} for user ${userId}: ${chunk.substring(0, 200)}`);
+          // Parse chunk to detect tool calls and send status updates
+          try {
+            const lines = chunk.split('\n');
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const data = JSON.parse(line.slice(6));
+                
+                // Send status updates for tool calls
+                if (data.type === 'tool-call') {
+                  statusStreamer.sendToolStart(data.toolName, data.args);
+                } else if (data.type === 'tool-result') {
+                  const result = JSON.parse(data.result);
+                  if (result.success !== false) {
+                    statusStreamer.sendToolSuccess(data.toolName, result);
+                  } else {
+                    statusStreamer.sendToolError(data.toolName, result);
+                  }
+                }
+              }
+            }
+          } catch (parseError) {
+            // Ignore parsing errors for non-JSON chunks
           }
           
           res.write(chunk);
         }
+        
+        statusStreamer.sendCompletion(`🎉 MVP "${mvpPlan.projectName}" created successfully with ${mvpPlan.tasks.length} tasks!`);
+        
+        console.log(`\n✨ \x1b[32m[MVP_CREATE]\x1b[0m Stream completed for project: \x1b[33m${mvpPlan.projectName}\x1b[0m\n${'='.repeat(60)}\n`);
+        logger.info('MVP creation stream completed', {
+          userId,
+          provider: userProvider,
+          projectName: mvpPlan.projectName,
+          taskCount: mvpPlan.tasks.length
+        });
       } finally {
         reader.releaseLock();
-        res.end();
+        statusStreamer.close();
       }
     } else {
-      console.log(`[CREATE_MVP_PROJECT] No response body for user ${userId}`);
-      res.end();
+      statusStreamer.close();
     }
   } catch (error) {
+    console.error(`\n🚨 \x1b[31m[MVP_CREATE]\x1b[0m Fatal error during MVP creation:`, error);
     logAIError(error, { userId: userId || 'unknown', operation: 'create_mvp_project', provider: userProvider });
+    logger.error('MVP creation failed', {
+      userId: userId || 'unknown',
+      provider: userProvider,
+      projectName: mvpPlan?.projectName,
+      taskCount: mvpPlan?.tasks?.length,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+    
     if (!res.headersSent) {
       res.status(500).json({ error: 'Internal server error' });
     }

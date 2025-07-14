@@ -21,6 +21,57 @@ class DatabaseService {
     return !!existing;
   }
 
+  private async generateUniqueTaskSlugInTransaction(projectId: string, tx: any, attempt: number = 1): Promise<string> {
+    const maxTaskLength = 20;
+    
+    // Use PostgreSQL advisory lock to prevent concurrent slug generation for the same project
+    const projectHashCode = this.hashStringToNumber(projectId);
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(${projectHashCode})`);
+    
+    // Add randomization to starting point to reduce collision probability
+    // On first attempt, start from 1, on subsequent attempts add randomness
+    const randomOffset = attempt > 1 ? Math.floor(Math.random() * 100) : 0;
+    const startingPoint = Math.max(1, randomOffset);
+    
+    // Find the next sequential number, ensuring total length stays within limit
+    for (let i = startingPoint; i <= startingPoint + 9999; i++) {
+      const suffix = `-${i}`;
+      const maxProjectLength = maxTaskLength - suffix.length;
+      
+      // Truncate project ID if needed to accommodate task number
+      const truncatedProjectId = projectId.length > maxProjectLength 
+        ? projectId.substring(0, maxProjectLength)
+        : projectId;
+      
+      const taskSlug = `${truncatedProjectId}${suffix}`;
+      
+      // Check if slug exists within the transaction
+      const existing = await tx.query.tasks.findFirst({
+        where: eq(tasks.id, taskSlug),
+      });
+      
+      if (!existing) {
+        return taskSlug;
+      }
+    }
+    
+    // Fallback: try with timestamp-based suffix to ensure uniqueness
+    const timestamp = Date.now().toString(36).slice(-4); // Last 4 chars of base36 timestamp
+    const fallbackSlug = `${projectId.substring(0, 15)}-${timestamp}`;
+    
+    return fallbackSlug;
+  }
+
+  private hashStringToNumber(str: string): number {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    return Math.abs(hash);
+  }
+
   // Users
   async createUser(email: string, name: string, provider?: string, providerId?: string, avatar?: string): Promise<User> {
     const [user] = await db.insert(users)
@@ -330,39 +381,62 @@ class DatabaseService {
     
     if (!project) return null;
 
-    // Generate unique task slug
-    const taskSlug = await generateUniqueTaskSlug(
-      input.projectId,
-      this.checkTaskSlugExists.bind(this)
-    );
+    // Retry mechanism to handle concurrent slug generation collisions
+    const maxRetries = 5;
+    let lastError: Error | null = null;
 
-    const [task] = await db.insert(tasks)
-      .values({
-        id: taskSlug,
-        projectId: input.projectId,
-        title: input.title,
-        description: input.description,
-        priority: input.priority || 'medium',
-        status: input.status || 'backlog',
-        dueDate: input.dueDate ? new Date(input.dueDate) : null,
-      })
-      .returning();
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        return await db.transaction(async (tx) => {
+          // Generate unique task slug within the transaction
+          // Add some randomness to reduce collision probability
+          const baseSlug = await this.generateUniqueTaskSlugInTransaction(input.projectId, tx, attempt);
 
-    // Update project's updatedAt
-    await db.update(projects)
-      .set({ updatedAt: sql`NOW()` })
-      .where(eq(projects.id, input.projectId));
+          const [task] = await tx.insert(tasks)
+            .values({
+              id: baseSlug,
+              projectId: input.projectId,
+              title: input.title,
+              description: input.description,
+              priority: input.priority || 'medium',
+              status: input.status || 'backlog',
+              dueDate: input.dueDate ? new Date(input.dueDate) : null,
+            })
+            .returning();
 
-    return {
-      ...task,
-      status: task.status as TaskStatus,
-      priority: task.priority as Priority,
-      description: task.description || undefined,
-      details: task.details || undefined,
-      dueDate: task.dueDate?.toISOString(),
-      createdAt: task.createdAt.toISOString(),
-      updatedAt: task.updatedAt.toISOString(),
-    };
+          // Update project's updatedAt within the same transaction
+          await tx.update(projects)
+            .set({ updatedAt: sql`NOW()` })
+            .where(eq(projects.id, input.projectId));
+
+          return {
+            ...task,
+            status: task.status as TaskStatus,
+            priority: task.priority as Priority,
+            description: task.description || undefined,
+            details: task.details || undefined,
+            dueDate: task.dueDate?.toISOString(),
+            createdAt: task.createdAt.toISOString(),
+            updatedAt: task.updatedAt.toISOString(),
+          };
+        });
+      } catch (error: any) {
+        // Check if it's a duplicate key constraint error
+        if (error?.code === '23505' && error?.constraint === 'tasks_pkey') {
+          lastError = error;
+          
+          // Add a small random delay to reduce collision probability
+          await new Promise(resolve => setTimeout(resolve, Math.random() * 100 + 50));
+          continue;
+        }
+        
+        // If it's not a duplicate key error, rethrow immediately
+        throw error;
+      }
+    }
+
+    // If all retries failed, throw the last error
+    throw lastError || new Error('Failed to create task after multiple attempts');
   }
 
   async getTask(projectId: string, taskId: string, userId: string): Promise<Task | null> {

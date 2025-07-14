@@ -4,6 +4,8 @@ import { generateText } from 'ai';
 import { AIProviderService } from '../services/ai-provider.js';
 import * as Sentry from '@sentry/node';
 
+const { logger } = Sentry;
+
 export const createTaskTools = (userId: string) => ({
   createProject: {
     description: 'Create a new project',
@@ -23,33 +25,23 @@ export const createTaskTools = (userId: string) => ({
     },
     execute: async (args: { name: string; description?: string }) => {
       try {
-        // Log project creation attempt
-        Sentry.addBreadcrumb({
-          message: 'Attempting to create project',
-          category: 'project.create',
-          data: {
-            userId,
-            projectName: args.name,
-            hasDescription: !!args.description
-          },
-          level: 'info'
+        console.log(`\n🚀 \x1b[36m[PROJECT_CREATE]\x1b[0m Starting project creation: \x1b[33m${args.name}\x1b[0m`);
+        logger.info('Attempting to create MVP project', {
+          userId,
+          projectName: args.name,
+          hasDescription: !!args.description
         });
 
         const project = await databaseService.createProject(args, userId);
         
-        // Log successful project creation
-        Sentry.addBreadcrumb({
-          message: 'Project created successfully',
-          category: 'project.create.success',
-          data: {
-            userId,
-            projectId: project.id,
-            projectName: project.name
-          },
-          level: 'info'
+        console.log(`✅ \x1b[32m[PROJECT_CREATE]\x1b[0m Project created successfully: \x1b[35m${project.id}\x1b[0m`);
+        logger.info('MVP project created successfully', {
+          userId,
+          projectId: project.id,
+          projectName: project.name,
+          projectDescription: project.description
         });
 
-        console.log(`[PROJECT_CREATED] User: ${userId}, Project: ${project.id} (${project.name})`);
 
         return {
           success: true,
@@ -57,19 +49,13 @@ export const createTaskTools = (userId: string) => ({
           message: `Created project "${project.name}" with ID ${project.id}`
         };
       } catch (error) {
-        // Log project creation failure
-        Sentry.captureException(error, {
-          tags: {
-            operation: 'project.create',
-            userId: userId
-          },
-          extra: {
-            projectName: args.name,
-            description: args.description
-          }
+        console.error(`\n❌ \x1b[31m[PROJECT_CREATE]\x1b[0m Error creating project:`, error);
+        logger.error('Failed to create MVP project', {
+          userId,
+          projectName: args.name,
+          description: args.description,
+          error: error instanceof Error ? error.message : 'Unknown error'
         });
-
-        console.error(`[PROJECT_CREATE_FAILED] User: ${userId}, Name: ${args.name}, Error:`, error);
 
         return {
           success: false,
@@ -111,38 +97,54 @@ export const createTaskTools = (userId: string) => ({
     },
     execute: async (args: { projectId: string; title: string; description?: string; priority?: Priority; dueDate?: string }) => {
       try {
-        // Log task creation attempt
-        Sentry.addBreadcrumb({
-          message: 'Attempting to create task',
-          category: 'task.create',
-          data: {
+        console.log(`\n📝 \x1b[34m[TASK_CREATE]\x1b[0m Starting task: \x1b[33m${args.title}\x1b[0m → \x1b[35m${args.projectId}\x1b[0m`);
+        logger.info('Attempting to create MVP task', {
+          userId,
+          projectId: args.projectId,
+          taskTitle: args.title,
+          priority: args.priority,
+          hasDescription: !!args.description,
+          hasDueDate: !!args.dueDate
+        });
+
+        // Check for existing task with same title in project (prevent duplicates)
+        const existingProject = await databaseService.getProject(args.projectId, userId);
+        console.log(`   \x1b[36m→\x1b[0m Found project: \x1b[32m${existingProject ? 'Yes' : 'No'}\x1b[0m, existing tasks: \x1b[33m${existingProject?.tasks?.length || 0}\x1b[0m`);
+        
+        if (existingProject?.tasks) {
+          const duplicateTask = existingProject.tasks.find(t => 
+            t.title.toLowerCase().trim() === args.title.toLowerCase().trim()
+          );
+          
+          if (duplicateTask) {
+            console.log(`   ⚠️  \x1b[33m[TASK_CREATE]\x1b[0m Duplicate task found, returning existing: \x1b[35m${duplicateTask.id}\x1b[0m`);
+            logger.warn('Duplicate task found, returning existing', {
+              userId,
+              projectId: args.projectId,
+              taskTitle: args.title,
+              existingTaskId: duplicateTask.id
+            });
+            
+            return {
+              success: true, // Return success to avoid confusing the AI
+              data: duplicateTask,
+              message: `Task "${args.title}" already exists in project with ID ${duplicateTask.id}`
+            };
+          }
+        }
+
+        console.log(`   \x1b[36m→\x1b[0m Calling databaseService.createTask...`);
+        const task = await databaseService.createTask(args, userId);
+        console.log(`   \x1b[36m→\x1b[0m Database response: ${task ? '\x1b[32mSuccess\x1b[0m' : '\x1b[31mNull/Failed\x1b[0m'}`);
+        
+        if (!task) {
+          console.error(`   ❌ \x1b[31m[TASK_CREATE]\x1b[0m Task creation returned null - project not found: \x1b[35m${args.projectId}\x1b[0m`);
+          logger.error('Task creation returned null - project not found', {
             userId,
             projectId: args.projectId,
             taskTitle: args.title,
-            priority: args.priority,
-            hasDescription: !!args.description,
-            hasDueDate: !!args.dueDate
-          },
-          level: 'info'
-        });
-
-        const task = await databaseService.createTask(args, userId);
-        if (!task) {
-          // Log null task error (likely project not found)
-          Sentry.captureMessage('Task creation returned null - project not found', {
-            level: 'warning',
-            tags: {
-              operation: 'task.create',
-              userId: userId
-            },
-            extra: {
-              projectId: args.projectId,
-              taskTitle: args.title,
-              priority: args.priority
-            }
+            priority: args.priority
           });
-
-          console.error(`[TASK_CREATE_PROJECT_NOT_FOUND] User: ${userId}, Project: ${args.projectId}, Title: ${args.title}`);
 
           return {
             success: false,
@@ -151,20 +153,16 @@ export const createTaskTools = (userId: string) => ({
           };
         }
 
-        // Log successful task creation
-        Sentry.addBreadcrumb({
-          message: 'Task created successfully',
-          category: 'task.create.success',
-          data: {
-            userId,
-            projectId: args.projectId,
-            taskId: task.id,
-            taskTitle: task.title
-          },
-          level: 'info'
+        console.log(`   ✅ \x1b[32m[TASK_CREATE]\x1b[0m Task created successfully: \x1b[35m${task.id}\x1b[0m\n`);
+        logger.info('MVP task created successfully', {
+          userId,
+          projectId: args.projectId,
+          taskId: task.id,
+          taskTitle: task.title,
+          taskPriority: task.priority,
+          hasDueDate: !!task.dueDate
         });
 
-        console.log(`[TASK_CREATED] User: ${userId}, Project: ${args.projectId}, Task: ${task.id} (${task.title})`);
 
         return {
           success: true,
@@ -172,22 +170,14 @@ export const createTaskTools = (userId: string) => ({
           message: `Created task "${task.title}" in project ${args.projectId}`
         };
       } catch (error) {
-        // Log task creation failure
-        Sentry.captureException(error, {
-          tags: {
-            operation: 'task.create',
-            userId: userId
-          },
-          extra: {
-            projectId: args.projectId,
-            taskTitle: args.title,
-            priority: args.priority,
-            description: args.description,
-            dueDate: args.dueDate
-          }
+        console.error(`\n❌ \x1b[31m[TASK_CREATE]\x1b[0m Error creating task:`, error);
+        logger.error('Failed to create MVP task', {
+          userId,
+          projectId: args.projectId,
+          taskTitle: args.title,
+          priority: args.priority,
+          error: error instanceof Error ? error.message : 'Unknown error'
         });
-
-        console.error(`[TASK_CREATE_FAILED] User: ${userId}, Project: ${args.projectId}, Title: ${args.title}, Error:`, error);
 
         return {
           success: false,

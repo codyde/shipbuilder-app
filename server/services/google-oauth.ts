@@ -241,20 +241,6 @@ export class GoogleOAuthService {
 
       const userData = await response.json();
       
-      // Detailed logging for Google user data
-      logger.info('=== USER DATA FROM GOOGLE API ===', {
-        timestamp: new Date().toISOString(),
-        endpoint: userUrl,
-        fullUserData: userData,
-        userDataKeys: Object.keys(userData)
-      });
-      
-      console.log('\n=== USER DATA FROM GOOGLE API ===');
-      console.log('Timestamp:', new Date().toISOString());
-      console.log('Endpoint:', userUrl);
-      console.log('Full User Data:', JSON.stringify(userData, null, 2));
-      console.log('User Data Keys:', Object.keys(userData));
-      console.log('=================================\n');
       
       logger.info(`Successfully received user data from Google`, {
         id: userData.id,

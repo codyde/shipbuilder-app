@@ -90,7 +90,7 @@ A modern, full-stack project management application with AI-powered task creatio
    ```env
    # Choose one or both AI providers
    ANTHROPIC_API_KEY=your_anthropic_api_key_here  # For Claude models
-   OPENAI_API_KEY=your_openai_api_key_here        # For GPT models
+   OPENAI_API_KEY=your_openai_api_key_here        # For o3-mini + GPT-4o-mini hybrid
    ```
    
    Create `server/.env`:
@@ -318,18 +318,20 @@ Built with ❤️ using modern web technologies and AI-powered assistance.
 
 ## 🤖 AI Provider Configuration
 
-ShipBuilder now supports both Anthropic Claude and OpenAI models. You can switch between providers in the Settings screen.
+ShipBuilder now supports multiple AI providers with intelligent model selection. You can switch between providers in the Settings screen.
 
 ### Supported Models
 
 **Anthropic:**
-- Claude Sonnet 4 (Default) - Balanced performance for most tasks
-- Claude Opus 4 - Most powerful model for complex tasks
+- Claude 4 Sonnet - Advanced reasoning with robust tool calling support
 
-**OpenAI:**
-- GPT-4o - Latest model with strong performance
-- GPT-4o Mini - Faster, more cost-effective option
-- GPT-4 Turbo - Previous generation high-performance model
+**OpenAI Hybrid:**
+- o3-mini - Superior reasoning for text generation and MVP planning
+- GPT-4o-mini - Reliable tool calling for project/task creation
+- Automatic model switching based on task type
+
+**xAI:**
+- Grok-4 - Fast reasoning with integrated tool support
 
 ### Switching Providers
 

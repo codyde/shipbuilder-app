@@ -14,9 +14,16 @@ export interface AIModelConfig {
 
 // Model configurations for each provider
 const MODEL_CONFIGS = {
-  anthropic: 'claude-4-sonnet-20250514',
+  anthropic: 'claude-sonnet-4-20250514',
   openai: 'o3-mini',
   xai: 'grok-4',
+} as const;
+
+// Tool calling fallback models (for when primary model doesn't support tools)
+const TOOL_CALLING_FALLBACKS = {
+  anthropic: 'claude-sonnet-4-20250514', // Claude already supports tools
+  openai: 'gpt-4o-mini', // Use GPT-4o-mini for tool calling when primary is o3-mini
+  xai: 'grok-4', // Grok already supports tools
 } as const;
 
 export class AIProviderService {
@@ -60,7 +67,6 @@ export class AIProviderService {
       const user = await databaseService.getUserById(userId);
       const provider = user?.aiProvider || 'anthropic';
 
-      console.log(`[AI_MODEL_CONFIG] User: ${userId}, Provider: ${provider}`);
 
       // Log provider selection
       Sentry.addBreadcrumb({
@@ -118,9 +124,22 @@ export class AIProviderService {
         throw error;
       }
 
-      // Return the appropriate model and provider options
-      const model = this.getModelByProvider(provider);
-      const providerOptions = this.getProviderOptions(provider, context);
+      // For tool calling contexts, check if we need a fallback model
+      let model;
+      let actualModelName;
+      
+      if (context === 'tool-calling' && !this.supportsToolCalling(provider)) {
+        // Use fallback model for tool calling
+        const fallbackModel = TOOL_CALLING_FALLBACKS[provider];
+        model = this.getModelByName(provider, fallbackModel);
+        actualModelName = fallbackModel;
+      } else {
+        // Use primary model
+        model = this.getModelByProvider(provider);
+        actualModelName = MODEL_CONFIGS[provider];
+      }
+      
+      const providerOptions = this.getProviderOptions(provider, context, actualModelName);
 
       // Log successful configuration
       Sentry.addBreadcrumb({
@@ -129,13 +148,14 @@ export class AIProviderService {
         data: {
           userId,
           provider,
-          modelName: this.getModelName(provider),
-          hasProviderOptions: Object.keys(providerOptions).length > 0
+          modelName: actualModelName,
+          displayName: this.getModelDisplayName(provider, actualModelName),
+          hasProviderOptions: Object.keys(providerOptions).length > 0,
+          isToolCallingFallback: context === 'tool-calling' && actualModelName !== MODEL_CONFIGS[provider]
         },
         level: 'info'
       });
 
-      console.log(`[AI_MODEL_CONFIG_SUCCESS] User: ${userId}, Provider: ${provider}, Model: ${this.getModelName(provider)}`);
 
       return {
         model,
@@ -153,26 +173,58 @@ export class AIProviderService {
         }
       });
 
-      console.error(`[AI_MODEL_CONFIG_FAILED] User: ${userId}, Error:`, error);
       throw error;
     }
   }
 
   /**
-   * Get provider options for detailed reasoning (for OpenAI o3-mini)
+   * Get a specific model by provider and model name
    */
-  static getProviderOptions(provider: AIProvider, context?: string): Record<string, any> {
+  static getModelByName(provider: AIProvider, modelName: string): LanguageModel {
+    try {
+      switch (provider) {
+        case 'anthropic':
+          return anthropic(modelName);
+        
+        case 'openai':
+          return openai(modelName);
+        
+        case 'xai':
+          return xai(modelName);
+        
+        default:
+          throw new Error(`Unknown AI provider: ${provider}`);
+      }
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * Get provider options for detailed reasoning (for OpenAI models)
+   */
+  static getProviderOptions(provider: AIProvider, context?: string, modelName?: string): Record<string, any> {
     switch (provider) {
       case 'openai':
+        const actualModel = modelName || MODEL_CONFIGS.openai;
+        
         // For tool calling contexts, don't use reasoningSummary as it may interfere
         if (context === 'tool-calling') {
           return {};
         }
-        return {
-          openai: {
-            reasoningSummary: 'detailed'
-          }
-        };
+        
+        // For o3 models, use reasoning summaries
+        if (actualModel.startsWith('o3')) {
+          return {
+            openai: {
+              reasoningSummary: 'detailed' // Enable reasoning summaries for o3 models
+            }
+          };
+        }
+        
+        // For other OpenAI models, no special options needed
+        return {};
+        
       default:
         return {};
     }
@@ -182,18 +234,23 @@ export class AIProviderService {
    * Get a specific model by provider
    */
   static getModelByProvider(provider: AIProvider): LanguageModel {
-    switch (provider) {
-      case 'anthropic':
-        return anthropic(MODEL_CONFIGS.anthropic);
-      
-      case 'openai':
-        return openai(MODEL_CONFIGS.openai);
-      
-      case 'xai':
-        return xai(MODEL_CONFIGS.xai);
-      
-      default:
-        throw new Error(`Unknown AI provider: ${provider}`);
+    try {
+      switch (provider) {
+        case 'anthropic':
+          return anthropic(MODEL_CONFIGS.anthropic);
+        
+        case 'openai':
+          // Use standard API for o3-mini (responses API only needed for full o3)
+          return openai(MODEL_CONFIGS.openai);
+        
+        case 'xai':
+          return xai(MODEL_CONFIGS.xai);
+        
+        default:
+          throw new Error(`Unknown AI provider: ${provider}`);
+      }
+    } catch (error) {
+      throw error;
     }
   }
 
@@ -206,13 +263,69 @@ export class AIProviderService {
         return 'Claude 4 Sonnet';
       
       case 'openai':
-        return 'o3-mini (Detailed Reasoning)';
+        return 'o3-mini (Detailed Reasoning) + GPT-4o-mini (Tool Calling)';
       
       case 'xai':
         return 'Grok-4';
       
       default:
         return 'Claude 4 Sonnet';
+    }
+  }
+
+  /**
+   * Get model display name for specific model
+   */
+  static getModelDisplayName(provider: AIProvider, modelName: string): string {
+    switch (provider) {
+      case 'anthropic':
+        return 'Claude 4 Sonnet';
+      
+      case 'openai':
+        if (modelName === 'o3-mini') {
+          return 'o3-mini (Detailed Reasoning)';
+        } else if (modelName === 'gpt-4o-mini') {
+          return 'GPT-4o-mini (Tool Calling)';
+        }
+        return modelName;
+      
+      case 'xai':
+        return 'Grok-4';
+      
+      default:
+        return modelName;
+    }
+  }
+
+  /**
+   * Check if a provider/model supports tool calling
+   */
+  static supportsToolCalling(provider: AIProvider): boolean {
+    switch (provider) {
+      case 'anthropic':
+        return true; // Claude supports tool calling
+      case 'openai':
+        // Primary model (o3-mini) has limited tool calling, but we have GPT-4o-mini fallback
+        return MODEL_CONFIGS.openai !== 'o3-mini';
+      case 'xai':
+        return true; // Grok supports tool calling
+      default:
+        return false;
+    }
+  }
+
+  /**
+   * Check if a provider supports tool calling (including fallbacks)
+   */
+  static supportsToolCallingWithFallback(provider: AIProvider): boolean {
+    // All providers now support tool calling via fallbacks
+    switch (provider) {
+      case 'anthropic':
+      case 'openai':
+      case 'xai':
+        return true;
+      default:
+        return false;
     }
   }
 

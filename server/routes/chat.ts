@@ -4,6 +4,7 @@ import { createTaskTools } from '../tools/task-tools.js';
 import { z } from 'zod';
 import { AIProviderService } from '../services/ai-provider.js';
 import { databaseService } from '../db/database-service.js';
+import { StatusStreamer, wrapToolsWithStatus } from '../utils/status-streaming.js';
 import * as Sentry from '@sentry/node';
 
 // Utility function to detect and log AI errors (same as ai.ts)
@@ -69,6 +70,22 @@ chatRoutes.post('/stream', async (req: any, res: any) => {
     // Create task tools with user context
     const taskTools = createTaskTools(userId);
 
+    // Create status streamer for real-time updates
+    const statusStreamer = StatusStreamer.createWrapper(res, {
+      userId,
+      provider: userProvider || 'unknown',
+      operation: 'chat_stream'
+    });
+
+    // Wrap tools with status updates
+    const wrappedTools = wrapToolsWithStatus({
+      createProject: taskTools.createProject,
+      createTask: taskTools.createTask,
+      updateTaskStatus: taskTools.updateTaskStatus,
+      listProjects: taskTools.listProjects,
+      getProject: taskTools.getProject
+    }, statusStreamer);
+
     const result = streamText({
       model,
       maxTokens: 1000,
@@ -92,15 +109,15 @@ You have access to these tools:
 Be helpful and proactive in suggesting project management best practices.`,
       tools: {
         createProject: tool({
-          description: taskTools.createProject.description,
+          description: wrappedTools.createProject.description,
           parameters: z.object({
             name: z.string().describe('The name of the project'),
             description: z.string().optional().describe('Optional description of the project')
           }),
-          execute: async (args) => taskTools.createProject.execute(args)
+          execute: async (args) => wrappedTools.createProject.execute(args)
         }),
         createTask: tool({
-          description: taskTools.createTask.description,
+          description: wrappedTools.createTask.description,
           parameters: z.object({
             projectId: z.string().describe('The ID of the project to add the task to'),
             title: z.string().describe('The title of the task'),
@@ -108,28 +125,28 @@ Be helpful and proactive in suggesting project management best practices.`,
             priority: z.enum(['low', 'medium', 'high']).optional().describe('Priority level of the task'),
             dueDate: z.string().optional().describe('Optional due date in ISO format')
           }),
-          execute: async (args) => taskTools.createTask.execute(args)
+          execute: async (args) => wrappedTools.createTask.execute(args)
         }),
         updateTaskStatus: tool({
-          description: taskTools.updateTaskStatus.description,
+          description: wrappedTools.updateTaskStatus.description,
           parameters: z.object({
             projectId: z.string().describe('The ID of the project containing the task'),
             taskId: z.string().describe('The ID of the task to update'),
             status: z.enum(['backlog', 'in_progress', 'completed']).describe('The new status for the task')
           }),
-          execute: async (args) => taskTools.updateTaskStatus.execute(args)
+          execute: async (args) => wrappedTools.updateTaskStatus.execute(args)
         }),
         listProjects: tool({
-          description: taskTools.listProjects.description,
+          description: wrappedTools.listProjects.description,
           parameters: z.object({}),
-          execute: async () => taskTools.listProjects.execute()
+          execute: async () => wrappedTools.listProjects.execute()
         }),
         getProject: tool({
-          description: taskTools.getProject.description,
+          description: wrappedTools.getProject.description,
           parameters: z.object({
             projectId: z.string().describe('The ID of the project to retrieve')
           }),
-          execute: async (args) => taskTools.getProject.execute(args)
+          execute: async (args) => wrappedTools.getProject.execute(args)
         })
       },
       ...(Object.keys(providerOptions).length > 0 && { providerOptions })
@@ -137,12 +154,9 @@ Be helpful and proactive in suggesting project management best practices.`,
 
     const response = result.toDataStreamResponse();
     
-    // Set headers from the AI SDK response
-    response.headers.forEach((value, key) => {
-      res.setHeader(key, value);
-    });
+    // Skip setting headers from AI SDK response since StatusStreamer has already set streaming headers
     
-    // Stream the response body
+    // Stream the response body with status updates integration
     if (response.body) {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -153,14 +167,41 @@ Be helpful and proactive in suggesting project management best practices.`,
           if (done) break;
           
           const chunk = decoder.decode(value, { stream: true });
+          
+          // Parse chunk to detect tool calls and send status updates
+          try {
+            const lines = chunk.split('\n');
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const data = JSON.parse(line.slice(6));
+                
+                // Send status updates for tool calls
+                if (data.type === 'tool-call') {
+                  statusStreamer.sendToolStart(data.toolName, data.args);
+                } else if (data.type === 'tool-result') {
+                  const result = JSON.parse(data.result);
+                  if (result.success !== false) {
+                    statusStreamer.sendToolSuccess(data.toolName, result);
+                  } else {
+                    statusStreamer.sendToolError(data.toolName, result);
+                  }
+                }
+              }
+            }
+          } catch (parseError) {
+            // Ignore parsing errors for non-JSON chunks
+          }
+          
           res.write(chunk);
         }
+        
+        statusStreamer.sendCompletion('Chat operation completed');
       } finally {
         reader.releaseLock();
-        res.end();
+        statusStreamer.close();
       }
     } else {
-      res.end();
+      statusStreamer.close();
     }
   } catch (error) {
     logAIError(error, { userId: userId || 'unknown', operation: 'chat_stream', provider: userProvider });
