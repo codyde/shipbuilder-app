@@ -55,12 +55,6 @@ export function ToolStatusDisplay({
     }
   }, [statusMessages, autoScroll]);
 
-  // Expose functions to parent components
-  React.useImperativeHandle(React.forwardRef(() => null), () => ({
-    addStatusMessage,
-    clearStatus,
-    isVisible
-  }));
 
   const getStatusIcon = (message: StatusMessage) => {
     switch (message.type) {
@@ -186,7 +180,7 @@ export function ToolStatusDisplay({
 // Custom hook for parsing status messages from streaming responses
 export function useStatusParser() {
   const [currentStatuses, setCurrentStatuses] = useState<StatusMessage[]>([]);
-  const statusDisplayRef = useRef<{ addStatusMessage: (msg: StatusMessage) => void; clearStatus: () => void }>();
+  const statusDisplayRef = useRef<{ addStatusMessage: (msg: StatusMessage) => void; clearStatus: () => void }>(null);
 
   const parseChunk = (chunk: string) => {
     try {

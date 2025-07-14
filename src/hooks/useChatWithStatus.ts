@@ -112,13 +112,13 @@ export function useChatWithStatus(options: UseChatWithStatusOptions = {}) {
   // Use the original useChat hook with our custom fetch
   const chatResult = useChat({
     ...options,
-    fetch: customFetch,
-    onFinish: (message, options) => {
+    fetch: customFetch as typeof fetch,
+    onFinish: (message, { usage, finishReason }) => {
       // Clear tool execution state when chat finishes
       setIsToolExecuting(false);
       
       // Call the original onFinish if provided
-      options?.onFinish?.(message, options);
+      options?.onFinish?.(message, { usage, finishReason });
     }
   });
 

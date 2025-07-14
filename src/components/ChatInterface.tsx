@@ -153,7 +153,7 @@ export function ChatInterface({ className = '', onClose, open = true, onOpenChan
     onClose?.();
   };
 
-  const handleFormSubmit = (e: React.FormEvent) => {
+  const handleFormSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     
     if (!user) {
