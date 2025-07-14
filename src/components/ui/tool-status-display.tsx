@@ -22,7 +22,6 @@ interface ToolStatusDisplayProps {
 
 export function ToolStatusDisplay({ 
   className = '', 
-  maxItems = 50,
   showTimestamps = false,
   autoScroll = true 
 }: ToolStatusDisplayProps) {
