@@ -51,10 +51,10 @@ chatRoutes.post('/stream', async (req: any, res: any) => {
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
-    // Get the appropriate AI model based on user preferences
+    // Get the unified tool calling model
     let model, providerOptions;
     try {
-      const config = await AIProviderService.getModelConfig(userId);
+      const config = await AIProviderService.getToolCallingModel(userId);
       model = config.model;
       providerOptions = config.providerOptions;
       // Get user's provider for error context
@@ -91,7 +91,7 @@ chatRoutes.post('/stream', async (req: any, res: any) => {
       maxTokens: 1000,
       experimental_telemetry: {
         isEnabled: true,
-        functionId: "generate-application"
+        functionId: "chat-tool-calling"
       },
       maxSteps: 10, // Allow multiple tool calls in sequence
       messages,

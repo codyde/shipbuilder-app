@@ -412,7 +412,7 @@ export function MVPBuilder({ className = '', onClose, open = true, onOpenChange 
 
     return (
       <Drawer open={open} onOpenChange={handleOpenChange} direction="bottom" shouldScaleBackground={false}>
-        <DrawerContent className="h-[85vh] !max-h-[85vh] flex flex-col fixed">
+        <DrawerContent className="h-3/4 !max-h-[75vh] flex flex-col fixed">
           <DrawerHeader className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-3 flex-shrink-0">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -432,7 +432,7 @@ export function MVPBuilder({ className = '', onClose, open = true, onOpenChange 
           </DrawerHeader>
 
           {/* Content */}
-          <div className="flex-1 p-3 space-y-3 overflow-y-auto overscroll-contain min-h-0" style={{ maxHeight: 'calc(85vh - 140px)' }}>
+          <div className="flex-1 p-3 space-y-3 overflow-y-auto overscroll-contain min-h-0" style={{ maxHeight: 'calc(75vh - 140px)' }}>
             {!mvpPlan ? (
               <>
                 <div className="text-center space-y-3">
@@ -682,7 +682,7 @@ export function MVPBuilder({ className = '', onClose, open = true, onOpenChange 
     <div 
       ref={dragRef}
       style={dragStyle}
-      className={`w-[560px] h-[580px] ${className}`}
+      className={`w-[560px] h-3/4 ${className}`}
     >
       <div className="bg-background shadow-2xl border rounded-lg flex flex-col overflow-hidden">
         {/* Header */}

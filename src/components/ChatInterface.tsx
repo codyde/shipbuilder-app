@@ -208,7 +208,7 @@ export function ChatInterface({ className = '', onClose, open = true, onOpenChan
 
     return (
       <Drawer open={open} onOpenChange={handleOpenChange} direction="bottom" shouldScaleBackground={false}>
-        <DrawerContent className="h-[75vh] !max-h-[75vh] flex flex-col fixed">
+        <DrawerContent className="h-3/4 !max-h-[75vh] flex flex-col fixed">
           <DrawerHeader className="border-b p-4 flex-shrink-0">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -298,7 +298,7 @@ export function ChatInterface({ className = '', onClose, open = true, onOpenChan
     <div 
       ref={dragRef}
       style={dragStyle}
-      className={`w-96 h-[600px] ${className}`}
+      className={`w-96 h-3/4 ${className}`}
     >
       {/* Chat Window */}
       <div className="h-full bg-background shadow-2xl border rounded-lg flex flex-col overflow-hidden">
