@@ -55,8 +55,7 @@ export function ToolStatusDisplay({
     }
   }, [statusMessages, autoScroll]);
 
-  // Expose functions to parent components
-  React.useImperativeHandle(ref, () => ({
+  React.useImperativeHandle(React.forwardRef(() => null), () => ({
     addStatusMessage,
     clearStatus,
     isVisible
