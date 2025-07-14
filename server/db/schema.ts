@@ -5,7 +5,7 @@ import { relations } from 'drizzle-orm';
 export const taskStatusEnum = pgEnum('task_status', ['backlog', 'in_progress', 'completed']);
 export const projectStatusEnum = pgEnum('project_status', ['active', 'backlog', 'completed', 'archived']);
 export const priorityEnum = pgEnum('priority', ['low', 'medium', 'high']);
-export const aiProviderEnum = pgEnum('ai_provider', ['anthropic', 'openai']);
+export const aiProviderEnum = pgEnum('ai_provider', ['anthropic', 'openai', 'xai']);
 
 // Tables
 export const users = pgTable('users', {

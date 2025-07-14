@@ -651,7 +651,7 @@ Update the user's preferred AI provider.
 **Error Response:**
 ```json
 {
-  "error": "Invalid AI provider. Must be \"anthropic\" or \"openai\""
+  "error": "Invalid AI provider. Must be \"anthropic\", \"openai\", or \"xai\""
 }
 ```
 

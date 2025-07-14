@@ -2,6 +2,9 @@ import { databaseService } from '../db/database-service.js';
 import { Priority, TaskStatus } from '../types/types.js';
 import { generateText } from 'ai';
 import { AIProviderService } from '../services/ai-provider.js';
+import * as Sentry from '@sentry/node';
+
+const { logger } = Sentry;
 
 export const createTaskTools = (userId: string) => ({
   createProject: {
@@ -22,13 +25,38 @@ export const createTaskTools = (userId: string) => ({
     },
     execute: async (args: { name: string; description?: string }) => {
       try {
+        console.log(`\n🚀 \x1b[36m[PROJECT_CREATE]\x1b[0m Starting project creation: \x1b[33m${args.name}\x1b[0m`);
+        logger.info('Attempting to create MVP project', {
+          userId,
+          projectName: args.name,
+          hasDescription: !!args.description
+        });
+
         const project = await databaseService.createProject(args, userId);
+        
+        console.log(`✅ \x1b[32m[PROJECT_CREATE]\x1b[0m Project created successfully: \x1b[35m${project.id}\x1b[0m`);
+        logger.info('MVP project created successfully', {
+          userId,
+          projectId: project.id,
+          projectName: project.name,
+          projectDescription: project.description
+        });
+
+
         return {
           success: true,
           data: project,
           message: `Created project "${project.name}" with ID ${project.id}`
         };
       } catch (error) {
+        console.error(`\n❌ \x1b[31m[PROJECT_CREATE]\x1b[0m Error creating project:`, error);
+        logger.error('Failed to create MVP project', {
+          userId,
+          projectName: args.name,
+          description: args.description,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+
         return {
           success: false,
           error: 'Failed to create project',
@@ -69,20 +97,88 @@ export const createTaskTools = (userId: string) => ({
     },
     execute: async (args: { projectId: string; title: string; description?: string; priority?: Priority; dueDate?: string }) => {
       try {
+        console.log(`\n📝 \x1b[34m[TASK_CREATE]\x1b[0m Starting task: \x1b[33m${args.title}\x1b[0m → \x1b[35m${args.projectId}\x1b[0m`);
+        logger.info('Attempting to create MVP task', {
+          userId,
+          projectId: args.projectId,
+          taskTitle: args.title,
+          priority: args.priority,
+          hasDescription: !!args.description,
+          hasDueDate: !!args.dueDate
+        });
+
+        // Check for existing task with same title in project (prevent duplicates)
+        const existingProject = await databaseService.getProject(args.projectId, userId);
+        console.log(`   \x1b[36m→\x1b[0m Found project: \x1b[32m${existingProject ? 'Yes' : 'No'}\x1b[0m, existing tasks: \x1b[33m${existingProject?.tasks?.length || 0}\x1b[0m`);
+        
+        if (existingProject?.tasks) {
+          const duplicateTask = existingProject.tasks.find(t => 
+            t.title.toLowerCase().trim() === args.title.toLowerCase().trim()
+          );
+          
+          if (duplicateTask) {
+            console.log(`   ⚠️  \x1b[33m[TASK_CREATE]\x1b[0m Duplicate task found, returning existing: \x1b[35m${duplicateTask.id}\x1b[0m`);
+            logger.warn('Duplicate task found, returning existing', {
+              userId,
+              projectId: args.projectId,
+              taskTitle: args.title,
+              existingTaskId: duplicateTask.id
+            });
+            
+            return {
+              success: true, // Return success to avoid confusing the AI
+              data: duplicateTask,
+              message: `Task "${args.title}" already exists in project with ID ${duplicateTask.id}`
+            };
+          }
+        }
+
+        console.log(`   \x1b[36m→\x1b[0m Calling databaseService.createTask...`);
         const task = await databaseService.createTask(args, userId);
+        console.log(`   \x1b[36m→\x1b[0m Database response: ${task ? '\x1b[32mSuccess\x1b[0m' : '\x1b[31mNull/Failed\x1b[0m'}`);
+        
         if (!task) {
+          console.error(`   ❌ \x1b[31m[TASK_CREATE]\x1b[0m Task creation returned null - project not found: \x1b[35m${args.projectId}\x1b[0m`);
+          logger.error('Task creation returned null - project not found', {
+            userId,
+            projectId: args.projectId,
+            taskTitle: args.title,
+            priority: args.priority
+          });
+
           return {
             success: false,
             error: 'Project not found',
             message: `Could not find project with ID ${args.projectId}`
           };
         }
+
+        console.log(`   ✅ \x1b[32m[TASK_CREATE]\x1b[0m Task created successfully: \x1b[35m${task.id}\x1b[0m\n`);
+        logger.info('MVP task created successfully', {
+          userId,
+          projectId: args.projectId,
+          taskId: task.id,
+          taskTitle: task.title,
+          taskPriority: task.priority,
+          hasDueDate: !!task.dueDate
+        });
+
+
         return {
           success: true,
           data: task,
           message: `Created task "${task.title}" in project ${args.projectId}`
         };
       } catch (error) {
+        console.error(`\n❌ \x1b[31m[TASK_CREATE]\x1b[0m Error creating task:`, error);
+        logger.error('Failed to create MVP task', {
+          userId,
+          projectId: args.projectId,
+          taskTitle: args.title,
+          priority: args.priority,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+
         return {
           success: false,
           error: 'Failed to create task',
@@ -267,9 +363,11 @@ export const createTaskTools = (userId: string) => ({
     execute: async (args: { projectIdea: string }) => {
       try {
         // Get the appropriate AI model based on user preferences
-        let model;
+        let model, providerOptions;
         try {
-          model = await AIProviderService.getModel(userId);
+          const config = await AIProviderService.getModelConfig(userId);
+          model = config.model;
+          providerOptions = config.providerOptions;
         } catch (error) {
           return {
             success: false,
@@ -330,6 +428,7 @@ CRITICAL: Your response must be ONLY the JSON object, with no markdown formattin
           system: systemPrompt,
           prompt: `Create an MVP plan for: ${args.projectIdea}`,
           maxTokens: 2000,
+          ...(Object.keys(providerOptions).length > 0 && { providerOptions })
         });
 
         // Parse the AI response

@@ -6,7 +6,9 @@ import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Accordion } from '@/components/ui/accordion';
-import { X, Lightbulb, GripHorizontal, Loader2, Rocket, CheckCircle } from 'lucide-react';
+import { ToolStatusDisplay } from '@/components/ui/tool-status-display';
+import { useMVPStatusStream } from '@/hooks/useMVPStatusStream';
+import { X, Lightbulb, GripHorizontal, Loader2, Rocket, CheckCircle, Progress } from 'lucide-react';
 import { useDraggable } from '@/hooks/useDraggable';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { getApiUrl } from '@/lib/api-config';
@@ -52,16 +54,45 @@ export function MVPBuilder({ className = '', onClose, open = true, onOpenChange 
   const [mvpPlan, setMvpPlan] = useState<MVPPlan | null>(null);
   const [projectName, setProjectName] = useState(''); // Editable project name
   const [isSuggestingName, setIsSuggestingName] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [generationText, setGenerationText] = useState('');
   const [currentStatusIndex, setCurrentStatusIndex] = useState(0);
-  const [isComplete, setIsComplete] = useState(false);
   const streamingTextRef = useRef<HTMLDivElement>(null);
 
-  // Funny status messages for creation process
-  const statusMessages = [
+  // Use the new MVP status streaming hook
+  const {
+    statusMessages,
+    isCreating,
+    isComplete,
+    createdTasksCount,
+    totalTasksCount,
+    progress,
+    createMVPProject,
+    cancelCreation,
+    clearStatusMessages
+  } = useMVPStatusStream({
+    onComplete: () => {
+      refreshProjects();
+      setSuccessMessage('MVP project created successfully!');
+      
+      // Reset the form after a delay
+      setTimeout(() => {
+        setProjectIdea('');
+        setMvpPlan(null);
+        setProjectName('');
+        setSuccessMessage(null);
+        setGenerationText('');
+        onClose?.();
+      }, 3000);
+    },
+    onError: (errorMessage) => {
+      setError(errorMessage);
+    }
+  });
+
+  // Funny status messages for creation process (now used as fallback display text)
+  const funnyStatusMessages = [
     "Brewing some fresh code...",
     "Teaching AI to organize tasks...",
     "Assembling digital building blocks...",
@@ -103,7 +134,7 @@ export function MVPBuilder({ className = '', onClose, open = true, onOpenChange 
     let interval: NodeJS.Timeout;
     if (isCreating && !isComplete) {
       interval = setInterval(() => {
-        setCurrentStatusIndex(prev => (prev + 1) % statusMessages.length);
+        setCurrentStatusIndex(prev => (prev + 1) % funnyStatusMessages.length);
       }, 2500); // Change message every 2.5 seconds
     } else {
       setCurrentStatusIndex(0); // Reset when not creating
@@ -112,7 +143,7 @@ export function MVPBuilder({ className = '', onClose, open = true, onOpenChange 
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isCreating, isComplete, statusMessages.length]);
+  }, [isCreating, isComplete, funnyStatusMessages.length]);
 
   useEffect(() => {
     if (generationText) {
@@ -205,13 +236,29 @@ export function MVPBuilder({ className = '', onClose, open = true, onOpenChange 
 
       // Parse the complete JSON response
       try {
+        console.log('[MVP_BUILDER] Raw response:', fullText);
+        console.log('[MVP_BUILDER] Response length:', fullText.length);
+        
         let cleanedText = fullText.trim();
+        
+        // Remove markdown code blocks
         if (cleanedText.startsWith('```json')) {
           cleanedText = cleanedText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
         } else if (cleanedText.startsWith('```')) {
           cleanedText = cleanedText.replace(/^```\s*/, '').replace(/\s*```$/, '');
         }
+        
+        // Try to extract JSON from the response if it contains extra text
+        const jsonStart = cleanedText.indexOf('{');
+        const jsonEnd = cleanedText.lastIndexOf('}');
+        
+        if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+          cleanedText = cleanedText.substring(jsonStart, jsonEnd + 1);
+        }
+        
         cleanedText = cleanedText.trim();
+        
+        console.log('[MVP_BUILDER] Cleaned text to parse:', cleanedText);
         
         const mvpPlan = JSON.parse(cleanedText);
         
@@ -334,90 +381,15 @@ export function MVPBuilder({ className = '', onClose, open = true, onOpenChange 
       return;
     }
 
-    setIsCreating(true);
     setError(null);
     setSuccessMessage(null);
-    setIsComplete(false);
+    clearStatusMessages();
 
-    try {
-      const token = localStorage.getItem('authToken');
-      if (!token) {
-        throw new Error('Authentication token missing. Please log in again.');
-      }
-
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
-
-      const response = await fetch(getApiUrl('ai/create-mvp-project'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          mvpPlan: {
-            ...mvpPlan,
-            projectName: projectName.trim(), // Use the edited project name
-          },
-        }),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        const errorMessage = errorData?.error || response.statusText;
-        
-        if (response.status === 401) {
-          throw new Error('Authentication failed. Please log in again.');
-        } else if (response.status === 429) {
-          throw new Error('Too many requests. Please wait a moment before trying again.');
-        } else if (response.status >= 500) {
-          throw new Error('Server error. Please try again later.');
-        } else {
-          throw new Error(`Failed to create MVP project: ${errorMessage}`);
-        }
-      }
-
-      // Wait for streaming to complete
-      const reader = response.body?.getReader();
-      if (reader) {
-        const decoder = new TextDecoder();
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          // Just consume the stream without processing
-          decoder.decode(value, { stream: true });
-        }
-      }
-      
-      // Refresh projects to show the new project
-      refreshProjects();
-      
-      // Show completion status
-      setIsComplete(true);
-      
-      // Reset the form after a delay to let user see the completion
-      setTimeout(() => {
-        setProjectIdea('');
-        setMvpPlan(null);
-        setProjectName('');
-        setSuccessMessage(null);
-        setGenerationText('');
-        setIsComplete(false);
-        setIsCreating(false);
-        onClose?.();
-      }, 3000); // Reduced to 3 seconds
-      
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        setError('Request timed out. Please try again.');
-      } else {
-        setError(err instanceof Error ? err.message : 'Failed to create MVP project. Please try again.');
-      }
-      setIsCreating(false); // Only set this in error case
-    }
+    // Use the status streaming hook to create the MVP
+    await createMVPProject({
+      ...mvpPlan,
+      projectName: projectName.trim(), // Use the edited project name
+    });
   };
 
   const exampleIdeas = [
@@ -658,16 +630,36 @@ export function MVPBuilder({ className = '', onClose, open = true, onOpenChange 
                         <>
                           <div className="flex items-center gap-3 mb-4">
                             <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-                            <span className="text-sm font-medium">
-                              Creating project with {mvpPlan.tasks.length} tasks...
-                            </span>
+                            <div className="flex-1">
+                              <span className="text-sm font-medium block">
+                                Creating project with {mvpPlan.tasks.length} tasks...
+                              </span>
+                              {totalTasksCount > 0 && (
+                                <div className="flex items-center gap-2 mt-1">
+                                  <div className="flex-1 bg-gray-200 rounded-full h-1.5">
+                                    <div 
+                                      className="bg-blue-600 h-1.5 rounded-full transition-all duration-500" 
+                                      style={{ width: `${progress}%` }}
+                                    ></div>
+                                  </div>
+                                  <span className="text-xs text-muted-foreground">
+                                    {createdTasksCount}/{totalTasksCount}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
                           </div>
                           
-                          <div className="text-center">
-                            <p className="text-sm text-muted-foreground animate-pulse">
-                              {statusMessages[currentStatusIndex]}
-                            </p>
-                          </div>
+                          {/* Real-time tool status display */}
+                          {statusMessages.length > 0 ? (
+                            <ToolStatusDisplay className="bg-muted/30" maxItems={3} autoScroll />
+                          ) : (
+                            <div className="text-center">
+                              <p className="text-sm text-muted-foreground animate-pulse">
+                                {funnyStatusMessages[currentStatusIndex]}
+                              </p>
+                            </div>
+                          )}
                         </>
                       )}
                     </div>
@@ -963,16 +955,36 @@ export function MVPBuilder({ className = '', onClose, open = true, onOpenChange 
                         <>
                           <div className="flex items-center gap-3 mb-4">
                             <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-                            <span className="text-sm font-medium">
-                              Creating project with {mvpPlan.tasks.length} tasks...
-                            </span>
+                            <div className="flex-1">
+                              <span className="text-sm font-medium block">
+                                Creating project with {mvpPlan.tasks.length} tasks...
+                              </span>
+                              {totalTasksCount > 0 && (
+                                <div className="flex items-center gap-2 mt-1">
+                                  <div className="flex-1 bg-gray-200 rounded-full h-1.5">
+                                    <div 
+                                      className="bg-blue-600 h-1.5 rounded-full transition-all duration-500" 
+                                      style={{ width: `${progress}%` }}
+                                    ></div>
+                                  </div>
+                                  <span className="text-xs text-muted-foreground">
+                                    {createdTasksCount}/{totalTasksCount}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
                           </div>
                           
-                          <div className="text-center">
-                            <p className="text-sm text-muted-foreground animate-pulse">
-                              {statusMessages[currentStatusIndex]}
-                            </p>
-                          </div>
+                          {/* Real-time tool status display */}
+                          {statusMessages.length > 0 ? (
+                            <ToolStatusDisplay className="bg-muted/30" maxItems={3} autoScroll />
+                          ) : (
+                            <div className="text-center">
+                              <p className="text-sm text-muted-foreground animate-pulse">
+                                {funnyStatusMessages[currentStatusIndex]}
+                              </p>
+                            </div>
+                          )}
                         </>
                       )}
                     </div>

@@ -228,20 +228,6 @@ export class SentryOAuthService {
         if (response.ok) {
           const userData = await response.json();
           
-          // Detailed logging for API endpoint user data
-          logger.info('=== USER DATA FROM API ENDPOINT ===', {
-            timestamp: new Date().toISOString(),
-            endpoint: userUrl,
-            fullUserData: userData,
-            userDataKeys: Object.keys(userData)
-          });
-          
-          console.log('\n=== USER DATA FROM API ENDPOINT ===');
-          console.log('Timestamp:', new Date().toISOString());
-          console.log('Endpoint:', userUrl);
-          console.log('Full User Data:', JSON.stringify(userData, null, 2));
-          console.log('User Data Keys:', Object.keys(userData));
-          console.log('==================================\n');
           
           logger.info(`Successfully received user data from ${userUrl}`, {
             id: userData.id,
@@ -324,19 +310,6 @@ export class SentryOAuthService {
     if (tokenResponse.user || tokenResponse.user_info || tokenResponse.profile) {
       const userInfo = tokenResponse.user || tokenResponse.user_info || tokenResponse.profile;
       
-      // Detailed logging for token-embedded user data
-      logger.info('=== USER INFO FROM TOKEN RESPONSE ===', {
-        timestamp: new Date().toISOString(),
-        fullTokenResponse: tokenResponse,
-        userInfo: userInfo,
-        tokenKeys: Object.keys(tokenResponse)
-      });
-      
-      console.log('\n=== USER INFO FROM TOKEN RESPONSE ===');
-      console.log('Timestamp:', new Date().toISOString());
-      console.log('Full Token Response:', JSON.stringify(tokenResponse, null, 2));
-      console.log('User Info Object:', JSON.stringify(userInfo, null, 2));
-      console.log('====================================\n');
       
       logger.info('Found user info in token response', { userInfo });
       
