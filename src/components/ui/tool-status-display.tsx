@@ -55,11 +55,6 @@ export function ToolStatusDisplay({
     }
   }, [statusMessages, autoScroll]);
 
-  React.useImperativeHandle(React.forwardRef(() => null), () => ({
-    addStatusMessage,
-    clearStatus,
-    isVisible
-  }));
 
   const getStatusIcon = (message: StatusMessage) => {
     switch (message.type) {
