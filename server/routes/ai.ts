@@ -9,144 +9,7 @@ import { AIProviderService } from '../services/ai-provider.js';
 
 const { logger } = Sentry;
 
-// XAI Non-streaming MVP handler (XAI doesn't support streaming + tool calling)
-async function handleXAINonStreamingMVP(req: any, res: any, options: {
-  model: any,
-  providerOptions: any,
-  taskTools: any,
-  mvpPlan: any,
-  userId: string,
-  userProvider: string
-}) {
-  const { model, taskTools, mvpPlan, userId, userProvider } = options;
-  
-  try {
-    // Set streaming headers to maintain compatibility
-    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    res.setHeader('Transfer-Encoding', 'chunked');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-
-    // Helper function to send progress updates (compatible with unified status system)
-    const sendProgress = (message: string, type: string = 'status', operation?: string) => {
-      const statusMessage = {
-        type,
-        operation,
-        status: 'running',
-        message,
-        timestamp: new Date().toISOString(),
-        context: {
-          userId,
-          provider: userProvider,
-          operation: 'create_mvp_project'
-        }
-      };
-      res.write(`data: ${JSON.stringify(statusMessage)}\n\n`);
-    };
-
-    const sendToolStart = (toolName: string, args: any) => {
-      sendProgress(`🔧 Starting ${toolName}...`, 'tool-start', toolName);
-    };
-
-    const sendToolSuccess = (toolName: string, result: any) => {
-      const message = toolName === 'createProject' 
-        ? `✅ Project created: ${result.data?.name || result.data?.id}`
-        : `✅ Task created: ${result.data?.title || result.data?.id}`;
-      sendProgress(message, 'tool-success', toolName);
-    };
-
-    sendProgress(`🚀 Starting MVP creation for "${mvpPlan.projectName}" with ${mvpPlan.tasks.length} tasks`);
-    
-    // 1. Create Project
-    console.log(`\n🚀 [XAI_SEQUENTIAL] Creating project: ${mvpPlan.projectName}`);
-    sendToolStart('createProject', { name: mvpPlan.projectName, description: mvpPlan.description });
-    
-    const projectResult = await taskTools.createProject.execute({
-      name: mvpPlan.projectName,
-      description: mvpPlan.description
-    });
-    
-    if (!projectResult.success) {
-      sendProgress(`❌ Failed to create project: ${projectResult.error}`, 'tool-error', 'createProject');
-      res.end();
-      return;
-    }
-    
-    const projectId = projectResult.data.id;
-    sendToolSuccess('createProject', projectResult);
-    console.log(`   ✅ [XAI_SEQUENTIAL] Project created: ${projectId}`);
-    
-    // 2. Create Tasks Sequentially
-    let createdTasks = 0;
-    const totalTasks = mvpPlan.tasks.length;
-    
-    for (let i = 0; i < totalTasks; i++) {
-      const task = mvpPlan.tasks[i];
-      console.log(`\n📝 [XAI_SEQUENTIAL] Creating task ${i + 1}/${totalTasks}: ${task.title}`);
-      sendToolStart('createTask', { projectId, title: task.title, description: task.description, priority: task.priority });
-      
-      const taskResult = await taskTools.createTask.execute({
-        projectId: projectId,
-        title: task.title,
-        description: task.description,
-        priority: task.priority
-      });
-      
-      if (taskResult.success) {
-        createdTasks++;
-        sendToolSuccess('createTask', taskResult);
-        console.log(`   ✅ [XAI_SEQUENTIAL] Task created: ${taskResult.data.id}`);
-        
-        logger.info('XAI sequential task created', {
-          userId,
-          provider: userProvider,
-          taskId: taskResult.data.id,
-          taskTitle: task.title,
-          taskNumber: i + 1,
-          totalTasks
-        });
-      } else {
-        sendProgress(`❌ Failed to create task ${i + 1}: ${taskResult.error || 'Unknown error'}`, 'tool-error', 'createTask');
-        console.error(`   ❌ [XAI_SEQUENTIAL] Failed to create task ${i + 1}:`, taskResult.error);
-      }
-      
-      // Add small delay between tasks to avoid rate limiting
-      if (i < totalTasks - 1) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-    }
-    
-    // Send completion message
-    sendProgress(`🎉 MVP "${mvpPlan.projectName}" created successfully with ${createdTasks}/${totalTasks} tasks!`, 'stream-complete');
-    
-    console.log(`\n✨ [XAI_SEQUENTIAL] MVP creation completed: ${createdTasks}/${totalTasks} tasks created`);
-    logger.info('XAI sequential MVP creation completed', {
-      userId,
-      provider: userProvider,
-      projectName: mvpPlan.projectName,
-      tasksCreated: createdTasks,
-      totalTasks,
-      success: createdTasks === totalTasks
-    });
-    
-    res.end();
-    
-  } catch (error) {
-    console.error(`\n❌ [XAI_SEQUENTIAL] Error during sequential creation:`, error);
-    logger.error('XAI sequential MVP creation failed', {
-      userId,
-      provider: userProvider,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    });
-    
-    if (!res.headersSent) {
-      res.status(500).json({ error: 'Internal server error' });
-    } else {
-      res.write(`data: {"type":"error","error":"Internal server error"}\n\n`);
-      res.end();
-    }
-  }
-}
+// Removed XAI bypass function - all tool calls now go through AI models
 
 export const aiRoutes = express.Router();
 
@@ -330,10 +193,11 @@ aiRoutes.post('/generatemvp', async (req: any, res: any) => {
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
-    // Get the appropriate AI model
+    // Get the appropriate AI model for MVP generation
     let model;
     try {
-      model = await AIProviderService.getModel(userId);
+      const config = await AIProviderService.getMVPGenerationModel(userId);
+      model = config.model;
     } catch (error) {
       return res.status(500).json({ 
         error: error instanceof Error ? error.message : 'Failed to get AI model' 
@@ -397,21 +261,7 @@ CRITICAL: Your response must be ONLY the JSON object, with no markdown formattin
       model,
       experimental_telemetry: {
         isEnabled: true,
-        functionId: "generate-mvp-stream"
-      },
-      system: systemPrompt,
-      prompt: `Create an MVP plan for: ${projectIdea}`,
-      // Add provider options for reasoning summaries
-      ...(Object.keys(providerOptions).length > 0 && { providerOptions })
-    });
-
-    
-    // Use standard streamText approach for o3-mini
-    const result2 = await streamText({
-      model,
-      experimental_telemetry: {
-        isEnabled: true,
-        functionId: "generate-mvp-stream"
+        functionId: "mvp-plan-generation"
       },
       system: systemPrompt,
       prompt: `Create an MVP plan for: ${projectIdea}`,
@@ -420,7 +270,7 @@ CRITICAL: Your response must be ONLY the JSON object, with no markdown formattin
     });
 
     // Stream the text chunks to the client
-    for await (const chunk of result2.textStream) {
+    for await (const chunk of result.textStream) {
       res.write(chunk);
     }
     res.end();
@@ -451,16 +301,15 @@ aiRoutes.post('/create-mvp-project', async (req: any, res: any) => {
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
-    // Get the appropriate AI model and provider options for tool calling
+    // Get the unified tool calling model
     let model, providerOptions;
     try {
       // Get user's provider for error context
       const user = await databaseService.getUserById(userId);
       userProvider = user?.aiProvider || 'anthropic';
       
-      
-      // For tool calling, we need to use getModelConfig with context
-      const config = await AIProviderService.getModelConfig(userId, 'tool-calling');
+      // Use unified tool calling model
+      const config = await AIProviderService.getToolCallingModel(userId);
       model = config.model;
       providerOptions = config.providerOptions;
       
@@ -493,34 +342,22 @@ aiRoutes.post('/create-mvp-project', async (req: any, res: any) => {
       taskCount: mvpPlan.tasks.length
     });
 
-    // XAI doesn't support streaming with tool calling - use non-streaming mode
-    if (userProvider === 'xai') {
-      console.log(`   ⚠️  \x1b[33m[XAI_MODE]\x1b[0m Using non-streaming mode (XAI limitation with tool calling)`);
-      logger.info('Using non-streaming mode for XAI tool calling', {
-        userId,
-        provider: userProvider,
-        reason: 'XAI_streaming_tool_calling_not_supported'
-      });
-      
-      // Use non-streaming for XAI - this has its own status streaming implementation
-      return await handleXAINonStreamingMVP(req, res, {
-        model,
-        providerOptions,
-        taskTools,
-        mvpPlan,
-        userId,
-        userProvider
-      });
-    }
+    // All tool calls now go through AI models - no XAI bypass
 
-    // Create status streamer for real-time updates (only for streaming providers)
+    // Set headers before creating status streamer
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Transfer-Encoding', 'chunked');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    // Create status streamer for real-time updates
     const statusStreamer = StatusStreamer.createWrapper(res, {
       userId,
       provider: userProvider || 'unknown',
       operation: 'create_mvp_project',
       projectName: mvpPlan.projectName,
       taskCount: mvpPlan.tasks.length
-    });
+    }, false);
 
     // Wrap tools with status updates for streaming providers
     const wrappedTools = wrapToolsWithStatus({
@@ -533,7 +370,7 @@ aiRoutes.post('/create-mvp-project', async (req: any, res: any) => {
       model,
       experimental_telemetry: {
         isEnabled: true,
-        functionId: "create-mvp-project-enhanced"
+        functionId: "mvp-project-tool-calling"
       },
       maxSteps: 30, // Allow enough steps for large MVPs
       abortSignal: AbortSignal.timeout(120000), // 2-minute timeout
@@ -566,6 +403,11 @@ aiRoutes.post('/create-mvp-project', async (req: any, res: any) => {
             parallelCallCount: step.toolCalls.length,
             toolNames: step.toolCalls.map(tc => tc.toolName)
           });
+          
+          // Prevent race condition by throwing an error
+          const error = new Error(`Parallel tool calls detected (${step.toolCalls.length} calls). This can cause race conditions. Please retry the operation.`);
+          error.name = 'ParallelToolCallError';
+          throw error;
         }
         
         // Track task creation progress
@@ -677,10 +519,12 @@ The user will be very disappointed if you only create the project but not all th
     
     // Stream the response body with status updates integration
     if (response.body) {
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
+      let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
       
       try {
+        reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        
         while (true) {
           const { done, value } = await reader.read();
           if (done) {
@@ -710,7 +554,14 @@ The user will be very disappointed if you only create the project but not all th
               }
             }
           } catch (parseError) {
-            // Ignore parsing errors for non-JSON chunks
+            // Log specific parsing errors for debugging
+            console.warn(`JSON parsing error in chunk: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`);
+            logger.warn('JSON parsing error in streaming chunk', {
+              userId,
+              provider: userProvider,
+              error: parseError instanceof Error ? parseError.message : 'Unknown error',
+              chunkPreview: chunk.substring(0, 100)
+            });
           }
           
           res.write(chunk);
@@ -726,7 +577,14 @@ The user will be very disappointed if you only create the project but not all th
           taskCount: mvpPlan.tasks.length
         });
       } finally {
-        reader.releaseLock();
+        // Safe cleanup - only release lock if reader exists
+        if (reader) {
+          try {
+            reader.releaseLock();
+          } catch (releaseError) {
+            console.warn('Error releasing reader lock:', releaseError);
+          }
+        }
         statusStreamer.close();
       }
     } else {
