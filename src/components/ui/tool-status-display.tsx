@@ -30,18 +30,19 @@ export function ToolStatusDisplay({
   const [isVisible, setIsVisible] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const addStatusMessage = (message: StatusMessage) => {
-    setStatusMessages(prev => {
-      const newMessages = [...prev, message];
-      // Keep only the last maxItems messages
-      return newMessages.slice(-maxItems);
-    });
-    
-    // Show the component when first message arrives
-    if (!isVisible) {
-      setIsVisible(true);
-    }
-  };
+  // Function kept for potential future use
+  // const _addStatusMessage = (message: StatusMessage) => {
+  //   setStatusMessages(prev => {
+  //     const newMessages = [...prev, message];
+  //     // Keep only the last maxItems messages
+  //     return newMessages.slice(-maxItems);
+  //   });
+  //   
+  //   // Show the component when first message arrives
+  //   if (!isVisible) {
+  //     setIsVisible(true);
+  //   }
+  // };
 
   const clearStatus = () => {
     setStatusMessages([]);
@@ -206,12 +207,12 @@ export function useStatusParser() {
               setCurrentStatuses(prev => [...prev, statusMessage]);
               statusDisplayRef.current?.addStatusMessage(statusMessage);
             }
-          } catch (parseError) {
+          } catch {
             // Ignore JSON parsing errors for non-status messages
           }
         }
       }
-    } catch (error) {
+    } catch {
       // Ignore parsing errors
     }
   };

@@ -111,8 +111,7 @@ export function ChatInterface({ className = '', onClose, open = true, onOpenChan
     handleSubmit, 
     isLoading,
     statusMessages,
-    isToolExecuting,
-    clearStatusMessages
+    isToolExecuting
   } = useChatWithStatus({
     api: getApiUrl('chat/stream'),
     fetch: async (url, options) => {
