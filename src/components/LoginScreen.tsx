@@ -212,7 +212,7 @@ export function LoginScreen() {
                 className="w-20 h-20 rounded-lg"
               />
               <div>
-                <h1 className="text-5xl font-bold text-gray-300">Shipbuilder</h1>
+                <h1 className="text-5xl font-bold text-gray-300">ShipBuilder</h1>
               </div>
             </div>
             
