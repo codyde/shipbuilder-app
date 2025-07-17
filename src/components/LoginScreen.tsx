@@ -206,34 +206,64 @@ export function LoginScreen() {
     
     const velocity = Math.hypot(mouseVelocity.x, mouseVelocity.y);
     
+    // Helper function to clamp orb positions within viewport bounds
+    const clampPosition = (x: number, y: number, orbWidth: number, orbHeight: number) => {
+      const margin = 50; // Keep orbs at least 50px from edges
+      return {
+        x: Math.max(margin - orbWidth/2, Math.min(windowWidth - margin - orbWidth/2, x)),
+        y: Math.max(margin - orbHeight/2, Math.min(windowHeight - margin - orbHeight/2, y))
+      };
+    };
+    
+    // Calculate clamped positions for each orb
+    const primaryPos = clampPosition(smoothMousePosition.x - 300, smoothMousePosition.y - 300, 600, 600);
+    const secondaryPos = clampPosition(
+      smoothMousePosition.x * 0.7 + mousePosition.x * 0.3 - 200, 
+      smoothMousePosition.y * 0.8 + mousePosition.y * 0.2 - 200, 
+      400, 400
+    );
+    const trailingPos = clampPosition(smoothMousePosition.x * 0.6 - 400, smoothMousePosition.y * 0.7 - 400, 800, 800);
+    const velocityTailPos = clampPosition(
+      smoothMousePosition.x - mouseVelocity.x * 15 - Math.max(100, Math.abs(mouseVelocity.x) * 4),
+      smoothMousePosition.y - mouseVelocity.y * 15 - Math.max(100, Math.abs(mouseVelocity.y) * 4),
+      Math.max(200, Math.abs(mouseVelocity.x) * 8),
+      Math.max(200, Math.abs(mouseVelocity.y) * 8)
+    );
+    const secondaryTailPos = clampPosition(
+      smoothMousePosition.x - mouseVelocity.x * 25 - Math.max(75, Math.abs(mouseVelocity.x) * 3),
+      smoothMousePosition.y - mouseVelocity.y * 25 - Math.max(75, Math.abs(mouseVelocity.y) * 3),
+      Math.max(150, Math.abs(mouseVelocity.x) * 6),
+      Math.max(150, Math.abs(mouseVelocity.y) * 6)
+    );
+    
     return {
       primaryOrb: {
-        transform: `translate(${smoothMousePosition.x - 300}px, ${smoothMousePosition.y - 300}px)`,
+        transform: `translate(${primaryPos.x}px, ${primaryPos.y}px)`,
         width: '600px',
         height: '600px',
         background: `radial-gradient(circle, rgba(147, 51, 234, 0.15), rgba(79, 70, 229, 0.1), rgba(16, 185, 129, 0.05), transparent 70%)`,
       },
       secondaryOrb: {
-        transform: `translate(${smoothMousePosition.x * 0.7 + mousePosition.x * 0.3 - 200}px, ${smoothMousePosition.y * 0.8 + mousePosition.y * 0.2 - 200}px)`,
+        transform: `translate(${secondaryPos.x}px, ${secondaryPos.y}px)`,
         width: '400px',
         height: '400px',
         background: `radial-gradient(circle, rgba(236, 72, 153, 0.08), rgba(168, 85, 247, 0.05), transparent 60%)`,
       },
       trailingOrb: {
-        transform: `translate(${smoothMousePosition.x * 0.6 - 400}px, ${smoothMousePosition.y * 0.7 - 400}px)`,
+        transform: `translate(${trailingPos.x}px, ${trailingPos.y}px)`,
         width: '800px',
         height: '800px',
         background: `radial-gradient(circle, rgba(147, 51, 234, 0.05), rgba(79, 70, 229, 0.03), transparent 80%)`,
       },
       velocityTail: {
-        transform: `translate(${smoothMousePosition.x - mouseVelocity.x * 15 - Math.max(100, Math.abs(mouseVelocity.x) * 4)}px, ${smoothMousePosition.y - mouseVelocity.y * 15 - Math.max(100, Math.abs(mouseVelocity.y) * 4)}px)`,
+        transform: `translate(${velocityTailPos.x}px, ${velocityTailPos.y}px)`,
         width: `${Math.max(200, Math.abs(mouseVelocity.x) * 8)}px`,
         height: `${Math.max(200, Math.abs(mouseVelocity.y) * 8)}px`,
         background: `radial-gradient(ellipse, rgba(147, 51, 234, ${Math.min(0.08, velocity * 0.002)}), rgba(79, 70, 229, ${Math.min(0.05, velocity * 0.001)}), transparent 60%)`,
         borderRadius: '50%',
       },
       secondaryTail: {
-        transform: `translate(${smoothMousePosition.x - mouseVelocity.x * 25 - Math.max(75, Math.abs(mouseVelocity.x) * 3)}px, ${smoothMousePosition.y - mouseVelocity.y * 25 - Math.max(75, Math.abs(mouseVelocity.y) * 3)}px)`,
+        transform: `translate(${secondaryTailPos.x}px, ${secondaryTailPos.y}px)`,
         width: `${Math.max(150, Math.abs(mouseVelocity.x) * 6)}px`,
         height: `${Math.max(150, Math.abs(mouseVelocity.y) * 6)}px`,
         background: `radial-gradient(ellipse, rgba(236, 72, 153, ${Math.min(0.04, velocity * 0.001)}), rgba(168, 85, 247, ${Math.min(0.03, velocity * 0.0008)}), transparent 70%)`,
@@ -259,7 +289,7 @@ export function LoginScreen() {
   }, [mousePosition, windowWidth, windowHeight, isMobile, isClient]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden py-4 sm:py-6 md:py-8 lg:py-10 xl:py-12 px-4 sm:px-6 lg:px-8 bg-black">
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden py-2 sm:py-3 md:py-4 lg:py-4 xl:py-4 px-4 sm:px-6 lg:px-8 bg-black">
       {/* Optimized orb effects using transform for better performance */}
       <div 
         className={`absolute ${isMobile ? 'top-0 left-0' : 'top-0 left-0'} z-0 rounded-full`}
@@ -291,9 +321,9 @@ export function LoginScreen() {
       )}
       
       <div className="max-w-[95%] sm:max-w-[92%] md:max-w-[90%] lg:max-w-[88%] xl:max-w-[85%] w-full relative z-20">
-        <div className="grid lg:grid-cols-2 gap-8 sm:gap-10 md:gap-12 lg:gap-14 xl:gap-16 items-center min-h-[70vh]">
+        <div className="grid lg:grid-cols-2 gap-8 sm:gap-10 md:gap-12 lg:gap-14 xl:gap-16 items-center min-h-[50vh]">
           {/* Left side - Branding */}
-          <div className="text-center lg:text-left space-y-4 sm:space-y-6 md:space-y-7 lg:space-y-8 xl:space-y-10 order-2 lg:order-1">
+          <div className="text-center lg:text-left space-y-3 sm:space-y-4 md:space-y-5 lg:space-y-6 xl:space-y-6 order-2 lg:order-1">
             <div 
               className="flex items-center justify-center lg:justify-start space-x-3 sm:space-x-4 md:space-x-4 lg:space-x-5 transition-all duration-300 ease-out"
               style={getBrightnessFilter(windowWidth * 0.25, windowHeight * 0.4, 300, 0.3)}
@@ -331,13 +361,13 @@ export function LoginScreen() {
                 className="border-2 bg-black/95 backdrop-blur-sm border-gray-700 transition-all duration-300 ease-out"
                 style={getBoxShadowFilter()}
               >
-                <CardHeader className="text-center px-4 sm:px-6 py-4 sm:py-6">
+                <CardHeader className="text-center px-4 sm:px-6 py-3 sm:py-4">
                   <CardTitle className="text-lg sm:text-xl md:text-2xl lg:text-2xl xl:text-3xl text-white">Welcome Back</CardTitle>
                   <CardDescription className="text-sm sm:text-sm md:text-base lg:text-base xl:text-lg text-gray-300">
                     Sign in to your ShipBuilder account
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6 sm:space-y-8 px-4 sm:px-6 pb-4 sm:pb-6">
+                <CardContent className="space-y-3 sm:space-y-4 px-4 sm:px-6 pb-3 sm:pb-4">
                   {/* Error Messages */}
                   {(error || urlError) && (
                     <div className="p-3 sm:p-4 bg-red-900/50 border border-red-600 rounded-md">
@@ -348,7 +378,7 @@ export function LoginScreen() {
                   )}
 
                   {/* OAuth Provider Toggle */}
-                  <div className="space-y-4 sm:space-y-6">
+                  <div className="space-y-3 sm:space-y-4">
                     {/* Toggle Switch */}
                     <div className="flex items-center justify-center space-x-3 sm:space-x-4 md:space-x-5 lg:space-x-6">
                       <div className={`flex items-center space-x-2 sm:space-x-2 md:space-x-3 transition-opacity ${authProvider === 'google' ? 'opacity-100' : 'opacity-50'}`}>
@@ -378,7 +408,7 @@ export function LoginScreen() {
                     <Button
                       onClick={authProvider === 'google' ? handleGoogleLogin : handleSentryLogin}
                       size="lg"
-                      className="w-full h-11 sm:h-12 md:h-13 lg:h-14 xl:h-16 text-sm sm:text-base md:text-base lg:text-lg font-medium bg-white text-black hover:bg-gray-200 border-none touch-manipulation"
+                      className="w-full h-10 sm:h-11 md:h-12 lg:h-12 xl:h-12 text-sm sm:text-base md:text-base lg:text-lg font-medium bg-white text-black hover:bg-gray-200 border-none touch-manipulation"
                       disabled={loading || isRedirecting || isDeveloperLoading}
                     >
                       {isRedirecting ? (
