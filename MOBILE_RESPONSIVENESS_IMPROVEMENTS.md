@@ -79,10 +79,32 @@ const useIsMobile = () => {
 - **Reduced re-renders**: Strategic use of `useCallback` and `useMemo`
 
 ### Breakpoint Strategy
-- **Mobile**: `< 768px` (default styles)
-- **Small**: `sm:` (≥ 640px)
-- **Large**: `lg:` (≥ 1024px)
-- **Extra Large**: `xl:` (≥ 1280px)
+- **Mobile**: `< 640px` (default styles)
+- **Small**: `sm:` (≥ 640px) - Large phones
+- **Medium**: `md:` (≥ 768px) - Tablets and small laptops
+- **Large**: `lg:` (≥ 1024px) - Laptops and desktops
+- **Extra Large**: `xl:` (≥ 1280px) - Large desktops
+- **2X Large**: `2xl:` (≥ 1536px) - Ultra-wide screens
+
+### Responsive Sizing Strategy
+
+#### Typography Scaling
+- **Main heading**: `text-2xl` → `text-3xl` → `text-4xl` → `text-5xl` → `text-6xl` → `text-7xl`
+- **Subheading**: `text-base` → `text-lg` → `text-xl` → `text-2xl` → `text-3xl` → `text-4xl`
+- **Logo text**: `text-xl` → `text-2xl` → `text-3xl` → `text-4xl` → `text-5xl`
+- **Card title**: `text-lg` → `text-xl` → `text-2xl` → `text-2xl` → `text-3xl`
+
+#### Element Sizing
+- **Logo icon**: `w-10 h-10` → `w-12 h-12` → `w-14 h-14` → `w-16 h-16` → `w-20 h-20`
+- **Main button**: `h-11` → `h-12` → `h-13` → `h-14` → `h-16`
+- **Input fields**: `h-9` → `h-10` → `h-11` → `h-12`
+- **Icons**: `w-4 h-4` → `w-5 h-5` → `w-5 h-5` → `w-6 h-6`
+
+#### Container & Spacing
+- **Max width**: `95%` → `92%` → `90%` → `88%` → `85%`
+- **Grid gaps**: `gap-6` → `gap-8` → `gap-10` → `gap-12` → `gap-16`
+- **Content spacing**: `space-y-4` → `space-y-6` → `space-y-7` → `space-y-8` → `space-y-10`
+- **Card width**: `full` → `sm` → `md` → `lg` → `xl`
 
 ### Performance Considerations
 - Mouse tracking disabled on mobile devices
