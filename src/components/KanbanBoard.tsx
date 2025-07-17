@@ -9,7 +9,6 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
-  rectIntersection,
   closestCenter,
   useDroppable,
 } from '@dnd-kit/core'
@@ -17,7 +16,6 @@ import {
   SortableContext,
   useSortable,
   verticalListSortingStrategy,
-  arrayMove,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
