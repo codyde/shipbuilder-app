@@ -76,7 +76,7 @@ A modern, full-stack project management application with AI-powered task creatio
 1. **Clone the repository**
    ```bash
    git clone <repository-url>
-   cd samplechat
+   cd shipbuilder-app
    ```
 
 2. **Install dependencies**
@@ -226,7 +226,7 @@ NODE_ENV=development
 ## 📁 Project Structure
 
 ```
-samplechat/
+shipbuilder-app/
 ├── src/                    # Frontend React application
 │   ├── components/         # React components
 │   ├── context/           # React context providers

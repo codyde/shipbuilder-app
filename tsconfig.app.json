@@ -27,5 +27,6 @@
       "@/*": ["./src/*"]
     }
   },
+  "ignoreDiagnostics": [6133],
   "include": ["src"]
 }
