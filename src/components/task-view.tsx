@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { KanbanBoard } from './KanbanBoard'
 import { TaskDetailPanel } from './TaskDetailPanel'
 import { TaskHoverCard } from './TaskHoverCard'
@@ -131,6 +131,31 @@ export function TaskView({ projectId, onBack }: TaskViewProps) {
     }
   }, [poppedOutTask, projectId, selectedTaskId])
 
+  // Define handleTaskClose before useEffect that references it
+  const handleTaskClose = useCallback(() => {
+    setIsClosingPanel(true)
+    setClosingTask(selectedTask)
+    setSelectedTaskId(null)
+    clearPoppedOutTask()
+    // Reset closing state after animation completes
+    setTimeout(() => {
+      setIsClosingPanel(false)
+      setClosingTask(null)
+    }, 300)
+  }, [selectedTask, clearPoppedOutTask])
+
+  // Handle escape key to close the sidebar
+  useEffect(() => {
+    const handleEscapeKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && selectedTaskId && !isPoppedOut) {
+        handleTaskClose()
+      }
+    }
+
+    document.addEventListener('keydown', handleEscapeKey)
+    return () => document.removeEventListener('keydown', handleEscapeKey)
+  }, [selectedTaskId, isPoppedOut, handleTaskClose])
+
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault()
     if (newTask.title.trim()) {
@@ -196,19 +221,6 @@ export function TaskView({ projectId, onBack }: TaskViewProps) {
     if (selectedTaskId) {
       setPoppedOutTask(projectId, selectedTaskId)
     }
-  }
-
-
-  const handleTaskClose = () => {
-    setIsClosingPanel(true)
-    setClosingTask(selectedTask)
-    setSelectedTaskId(null)
-    clearPoppedOutTask()
-    // Reset closing state after animation completes
-    setTimeout(() => {
-      setIsClosingPanel(false)
-      setClosingTask(null)
-    }, 300)
   }
 
   if (!project) {
