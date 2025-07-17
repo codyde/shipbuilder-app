@@ -218,7 +218,7 @@ export function LoginScreen() {
             
             <div className="space-y-6">
               <h1 
-                className="text-6xl lg:text-7xl font-bold text-gray-300 leading-tight transition-all duration-300 ease-out"
+                className="text-7xl lg:text-8xl font-bold text-gray-300 leading-tight transition-all duration-300 ease-out"
                 style={{
                   filter: `brightness(${1 + Math.max(0, 1 - Math.hypot(mousePosition.x - (windowWidth * 0.25), mousePosition.y - (windowHeight * 0.5)) / 400) * 0.4})`
                 }}
