@@ -18,7 +18,6 @@ export function LoginScreen() {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [smoothMousePosition, setSmoothMousePosition] = useState({ x: 0, y: 0 });
   const [mouseVelocity, setMouseVelocity] = useState({ x: 0, y: 0 });
-  const [previousMousePosition, setPreviousMousePosition] = useState({ x: 0, y: 0 });
   
   // Check if developer mode should be available
   const isDevModeEnabled = React.useMemo(() => {
@@ -33,22 +32,25 @@ export function LoginScreen() {
 
   // Track mouse movement and velocity
   React.useEffect(() => {
+    let lastPosition = { x: 0, y: 0 };
+    
     const handleMouseMove = (e: MouseEvent) => {
       const newPosition = { x: e.clientX, y: e.clientY };
       
-      // Calculate velocity
+      // Calculate velocity using closure variable
       setMouseVelocity({
-        x: newPosition.x - previousMousePosition.x,
-        y: newPosition.y - previousMousePosition.y
+        x: newPosition.x - lastPosition.x,
+        y: newPosition.y - lastPosition.y
       });
       
-      setPreviousMousePosition(mousePosition);
+      // Update closure variable for next calculation
+      lastPosition = newPosition;
       setMousePosition(newPosition);
     };
 
     window.addEventListener('mousemove', handleMouseMove);
     return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, [mousePosition, previousMousePosition]);
+  }, []); // Empty dependency array - effect runs once on mount
 
   // Smooth mouse position with trailing effect
   React.useEffect(() => {
