@@ -212,13 +212,13 @@ export function LoginScreen() {
                 className="w-20 h-20 rounded-lg"
               />
               <div>
-                <h1 className="text-4xl font-bold text-gray-500">Shipbuilder</h1>
+                <h1 className="text-4xl font-bold text-gray-400">Shipbuilder</h1>
               </div>
             </div>
             
             <div className="space-y-6">
               <h1 
-                className="text-6xl lg:text-7xl font-bold text-gray-400 leading-tight transition-all duration-300 ease-out"
+                className="text-6xl lg:text-7xl font-bold text-gray-300 leading-tight transition-all duration-300 ease-out"
                 style={{
                   filter: `brightness(${1 + Math.max(0, 1 - Math.hypot(mousePosition.x - (windowWidth * 0.25), mousePosition.y - (windowHeight * 0.5)) / 400) * 0.4})`
                 }}
@@ -226,9 +226,9 @@ export function LoginScreen() {
                 Plan. Build. Ship. Repeat.
               </h1>
               <h2 
-                className="text-4xl lg:text-5xl text-gray-500 leading-tight transition-all duration-300 ease-out"
+                className="text-4xl lg:text-5xl text-gray-400 leading-tight transition-all duration-300 ease-out"
                 style={{
-                  filter: `brightness(${1 + Math.max(0, 1 - Math.hypot(mousePosition.x - (windowWidth * 0.25), mousePosition.y - (windowHeight * 0.6)) / 350) * 0.3})`
+                  filter: `brightness(${1 + Math.max(0, 1 - Math.hypot(mousePosition.x - (windowWidth * 0.25), mousePosition.y - (windowHeight * 0.65)) / 400) * 0.4})`
                 }}
               >
                 Finally get that half-built side project shipped.
