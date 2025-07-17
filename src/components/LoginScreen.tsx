@@ -291,7 +291,7 @@ export function LoginScreen() {
       )}
       
       <div className="max-w-[95%] sm:max-w-[92%] md:max-w-[90%] lg:max-w-[88%] xl:max-w-[85%] w-full relative z-20">
-        <div className="grid lg:grid-cols-2 gap-6 sm:gap-8 md:gap-10 lg:gap-12 xl:gap-16 items-center min-h-[70vh]">
+        <div className="grid lg:grid-cols-2 gap-8 sm:gap-10 md:gap-12 lg:gap-14 xl:gap-16 items-center min-h-[70vh]">
           {/* Left side - Branding */}
           <div className="text-center lg:text-left space-y-4 sm:space-y-6 md:space-y-7 lg:space-y-8 xl:space-y-10 order-2 lg:order-1">
             <div 
@@ -310,13 +310,13 @@ export function LoginScreen() {
             
             <div className="space-y-3 sm:space-y-4 md:space-y-5 lg:space-y-6">
               <h1 
-                className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl 2xl:text-7xl font-bold text-gray-300 leading-tight transition-all duration-300 ease-out"
+                className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl 2xl:text-6xl font-bold text-gray-300 leading-tight transition-all duration-300 ease-out"
                 style={getBrightnessFilter(windowWidth * 0.25, windowHeight * 0.5, 400, 0.4)}
               >
                 Plan. Build. Ship. Repeat.
               </h1>
               <h2 
-                className="text-base sm:text-lg md:text-xl lg:text-2xl xl:text-3xl 2xl:text-4xl text-gray-400 leading-tight transition-all duration-300 ease-out"
+                className="text-base sm:text-lg md:text-xl lg:text-2xl xl:text-3xl 2xl:text-3xl text-gray-400 leading-tight transition-all duration-300 ease-out"
                 style={getBrightnessFilter(windowWidth * 0.25, windowHeight * 0.65, 400, 0.4)}
               >
                 Finally get that half-built side project shipped.
@@ -328,27 +328,27 @@ export function LoginScreen() {
           <div className="flex justify-center lg:justify-end order-1 lg:order-2">
             <div className="max-w-full sm:max-w-sm md:max-w-md lg:max-w-lg xl:max-w-xl w-full">
               <Card 
-                className="border-2 bg-black/95 backdrop-blur-sm border-gray-700 transition-all duration-300 ease-out mx-2 sm:mx-0"
+                className="border-2 bg-black/95 backdrop-blur-sm border-gray-700 transition-all duration-300 ease-out"
                 style={getBoxShadowFilter()}
               >
-                <CardHeader className="text-center px-4 sm:px-5 md:px-6 py-4 sm:py-5 md:py-6">
+                <CardHeader className="text-center px-4 sm:px-6 py-4 sm:py-6">
                   <CardTitle className="text-lg sm:text-xl md:text-2xl lg:text-2xl xl:text-3xl text-white">Welcome Back</CardTitle>
                   <CardDescription className="text-sm sm:text-sm md:text-base lg:text-base xl:text-lg text-gray-300">
                     Sign in to your ShipBuilder account
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-5 sm:space-y-6 md:space-y-7 lg:space-y-8 px-4 sm:px-5 md:px-6 pb-4 sm:pb-5 md:pb-6">
+                <CardContent className="space-y-6 sm:space-y-8 px-4 sm:px-6 pb-4 sm:pb-6">
                   {/* Error Messages */}
                   {(error || urlError) && (
-                    <div className="p-3 sm:p-3 md:p-4 bg-red-900/50 border border-red-600 rounded-md">
-                      <p className="text-red-300 text-sm sm:text-sm md:text-base">
+                    <div className="p-3 sm:p-4 bg-red-900/50 border border-red-600 rounded-md">
+                      <p className="text-red-300 text-sm sm:text-base">
                         {error || `Login failed: ${urlError}`}
                       </p>
                     </div>
                   )}
 
                   {/* OAuth Provider Toggle */}
-                  <div className="space-y-4 sm:space-y-5 md:space-y-6">
+                  <div className="space-y-4 sm:space-y-6">
                     {/* Toggle Switch */}
                     <div className="flex items-center justify-center space-x-3 sm:space-x-4 md:space-x-5 lg:space-x-6">
                       <div className={`flex items-center space-x-2 sm:space-x-2 md:space-x-3 transition-opacity ${authProvider === 'google' ? 'opacity-100' : 'opacity-50'}`}>
@@ -436,14 +436,14 @@ export function LoginScreen() {
 
                       {/* Developer Mode Form */}
                       {isDeveloperMode && (
-                        <div className="space-y-3 sm:space-y-4 md:space-y-5 p-3 sm:p-4 md:p-5 border border-gray-600 rounded-lg bg-gray-900/50">
+                        <div className="space-y-4 sm:space-y-5 p-4 sm:p-5 border border-gray-600 rounded-lg bg-gray-900/50">
                           <div className="flex items-center space-x-3 text-amber-400">
-                            <Code2 className="w-4 h-4 sm:w-4 sm:h-4 md:w-5 md:h-5" />
-                            <span className="text-sm sm:text-sm md:text-base font-medium">Development Access</span>
+                            <Code2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                            <span className="text-sm sm:text-base font-medium">Development Access</span>
                           </div>
                           
-                          <div className="space-y-2 sm:space-y-2 md:space-y-3">
-                            <Label htmlFor="developer-email" className="text-sm sm:text-sm md:text-base text-white">
+                          <div className="space-y-2 sm:space-y-3">
+                            <Label htmlFor="developer-email" className="text-sm sm:text-base text-white">
                               Email Address
                             </Label>
                             <Input
@@ -453,7 +453,7 @@ export function LoginScreen() {
                               value={developerEmail}
                               onChange={(e) => setDeveloperEmail(e.target.value)}
                               disabled={loading || isRedirecting || isDeveloperLoading}
-                              className="h-9 sm:h-10 md:h-11 lg:h-12 text-sm sm:text-sm md:text-base bg-gray-800 border-gray-600 text-white placeholder-gray-400"
+                              className="h-10 sm:h-12 text-sm sm:text-base bg-gray-800 border-gray-600 text-white placeholder-gray-400"
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter' && developerEmail.trim()) {
                                   handleDeveloperLogin();
@@ -466,23 +466,23 @@ export function LoginScreen() {
                             onClick={handleDeveloperLogin}
                             size="lg"
                             variant="outline"
-                            className="w-full h-9 sm:h-10 md:h-11 lg:h-12 text-sm sm:text-sm md:text-base bg-white text-black hover:bg-gray-200 border-gray-600 touch-manipulation"
+                            className="w-full h-10 sm:h-12 text-sm sm:text-base bg-white text-black hover:bg-gray-200 border-gray-600 touch-manipulation"
                             disabled={loading || isRedirecting || isDeveloperLoading || !developerEmail.trim()}
                           >
                             {isDeveloperLoading ? (
                               <>
-                                <Loader2 className="w-4 h-4 sm:w-4 sm:h-4 md:w-5 md:h-5 mr-2 sm:mr-2 md:mr-3 animate-spin text-black" />
+                                <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 mr-2 sm:mr-3 animate-spin text-black" />
                                 Logging in...
                               </>
                             ) : (
                               <>
-                                <Code2 className="w-4 h-4 sm:w-4 sm:h-4 md:w-5 md:h-5 mr-2 sm:mr-2 md:mr-3 text-black" />
+                                <Code2 className="w-4 h-4 sm:w-5 sm:h-5 mr-2 sm:mr-3 text-black" />
                                 Login as Developer
                               </>
                             )}
                           </Button>
                           
-                          <p className="text-xs sm:text-xs md:text-sm text-gray-400 break-all">
+                          <p className="text-xs sm:text-sm text-gray-400 break-all">
                             This will log you in as <strong className="text-white">{developerEmail.trim() ? `${developerEmail.trim().split('@')[0]}+demo@${developerEmail.trim().split('@')[1] || 'example.com'}` : 'email+demo@domain.com'}</strong>
                           </p>
                         </div>
@@ -492,7 +492,7 @@ export function LoginScreen() {
 
                   {/* Security Notice */}
                   <div className="text-center">
-                    <p className="text-xs sm:text-xs md:text-sm text-gray-400">
+                    <p className="text-xs sm:text-sm text-gray-400">
                       Secured by OAuth 2.0 authentication
                     </p>
                   </div>
