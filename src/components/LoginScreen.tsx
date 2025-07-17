@@ -19,6 +19,9 @@ export function LoginScreen() {
   const [smoothMousePosition, setSmoothMousePosition] = useState({ x: 0, y: 0 });
   const [mouseVelocity, setMouseVelocity] = useState({ x: 0, y: 0 });
   
+  // Use useRef for reliable mutable state across renders
+  const lastPositionRef = React.useRef({ x: 0, y: 0 });
+  
   // Safe window access for SSR compatibility
   const windowWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
   const windowHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
@@ -37,19 +40,17 @@ export function LoginScreen() {
 
   // Track mouse movement and velocity
   React.useEffect(() => {
-    let lastPosition = { x: 0, y: 0 };
-    
     const handleMouseMove = (e: MouseEvent) => {
       const newPosition = { x: e.clientX, y: e.clientY };
       
-      // Calculate velocity using closure variable
+      // Calculate velocity using useRef for reliable mutable state
       setMouseVelocity({
-        x: newPosition.x - lastPosition.x,
-        y: newPosition.y - lastPosition.y
+        x: newPosition.x - lastPositionRef.current.x,
+        y: newPosition.y - lastPositionRef.current.y
       });
       
-      // Update closure variable for next calculation
-      lastPosition = newPosition;
+      // Update ref for next calculation
+      lastPositionRef.current = newPosition;
       setMousePosition(newPosition);
     };
 
