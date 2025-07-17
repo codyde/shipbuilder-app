@@ -15,6 +15,7 @@
     "rootDir": ".",
     "noEmitOnError": false
   },
+  "ignoreDiagnostics": [6133],
   "include": [
     "**/*.ts"
   ],
