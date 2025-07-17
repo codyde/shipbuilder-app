@@ -196,7 +196,7 @@ export function LoginScreen() {
         style={orbStyles.secondaryTail}
       />
       
-      <div className="max-w-[80%] w-full relative z-20">
+      <div className="max-w-[90%] w-full relative z-20">
         <div className="grid lg:grid-cols-2 gap-16 items-center min-h-[70vh]">
           {/* Left side - Branding */}
           <div className="text-left space-y-10">
