@@ -5,9 +5,11 @@ import {
   DragEndEvent,
   DragOverlay,
   DragStartEvent,
+  DragOverEvent,
   PointerSensor,
   useSensor,
   useSensors,
+  rectIntersection,
   closestCenter,
   useDroppable,
 } from '@dnd-kit/core'
@@ -15,6 +17,7 @@ import {
   SortableContext,
   useSortable,
   verticalListSortingStrategy,
+  arrayMove,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -48,6 +51,12 @@ interface KanbanColumnProps {
   onTaskClick?: (taskId: string) => void
   selectedTaskId?: string | null
   onQuickAdd?: (status: TaskStatus, title: string) => void
+  dragOverInfo: {
+    overId: string | null
+    overType: 'task' | 'column' | null
+    insertIndex?: number
+  }
+  optimisticTasks: Task[]
 }
 
 interface KanbanTaskProps {
@@ -116,7 +125,13 @@ function KanbanTask({ task, onTaskClick, isSelected }: KanbanTaskProps) {
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: task.id })
+  } = useSortable({ 
+    id: task.id,
+    data: {
+      type: 'task',
+      task: task,
+    }
+  })
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -140,13 +155,13 @@ function KanbanTask({ task, onTaskClick, isSelected }: KanbanTaskProps) {
     >
       <Card 
         className={cn(
-          'mb-3 border-l-4 transition-all duration-300 cursor-pointer group',
-          'hover:shadow-lg hover:shadow-primary/10 hover:-translate-y-0.5',
-          'hover:border-l-primary/70 hover:bg-card/80 backdrop-blur-sm',
+          'border-l-4 transition-all duration-200 cursor-pointer group',
+          'hover:shadow-md hover:shadow-primary/10 hover:-translate-y-0.5',
+          'hover:border-l-primary/70 hover:bg-card/80',
           getPriorityColor(task.priority),
           getStatusColor(task.status),
-          isSelected && 'ring-2 ring-primary ring-offset-2 shadow-lg scale-[1.02]',
-          isDragging && 'rotate-2 shadow-2xl shadow-primary/20'
+          isSelected && 'ring-2 ring-primary ring-offset-1 shadow-md scale-[1.02]',
+          isDragging && 'rotate-2 shadow-xl shadow-primary/20'
         )}
         onClick={(e) => {
           e.stopPropagation()
@@ -154,31 +169,31 @@ function KanbanTask({ task, onTaskClick, isSelected }: KanbanTaskProps) {
         }}
       >
         <CardContent className="p-4">
-          <div className="flex items-start justify-between mb-2">
-            <div className="flex items-center gap-2">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-start gap-2 min-w-0 flex-1">
               {getStatusIcon(task.status)}
               <h4 className={cn(
-                'font-medium text-sm',
+                'font-medium text-sm leading-tight truncate',
                 task.status === TaskStatus.COMPLETED && 'line-through text-muted-foreground'
               )}>
                 {task.title}
               </h4>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 flex-shrink-0">
               {getPriorityIcon(task.priority)}
             </div>
           </div>
           
           {task.description && (
-            <p className="text-xs text-muted-foreground mb-3 line-clamp-2">
-              {task.description}
+            <p className="text-xs text-muted-foreground mt-2 line-clamp-2 leading-relaxed">
+              {task.description.length > 80 ? `${task.description.substring(0, 80)}...` : task.description}
             </p>
           )}
           
-          <div className="flex items-center justify-between text-xs">
+          <div className="flex items-center justify-between text-xs mt-2">
             <div className="flex items-center gap-2">
               {task.dueDate && (
-                <Badge variant="outline" className="text-xs">
+                <Badge variant="outline" className="text-xs h-5">
                   <Calendar className="h-3 w-3 mr-1" />
                   {new Date(task.dueDate).toLocaleDateString()}
                 </Badge>
@@ -186,8 +201,8 @@ function KanbanTask({ task, onTaskClick, isSelected }: KanbanTaskProps) {
             </div>
             
             {totalSubtasks > 0 && (
-              <Badge variant="secondary" className="text-xs">
-                {completedSubtasks}/{totalSubtasks} subtasks
+              <Badge variant="secondary" className="text-xs h-5">
+                {completedSubtasks}/{totalSubtasks}
               </Badge>
             )}
           </div>
@@ -197,14 +212,19 @@ function KanbanTask({ task, onTaskClick, isSelected }: KanbanTaskProps) {
   )
 }
 
-function KanbanColumn({ title, status, tasks, count, onTaskClick, selectedTaskId, onQuickAdd }: KanbanColumnProps) {
+function KanbanColumn({ title, status, tasks, count, onTaskClick, selectedTaskId, onQuickAdd, dragOverInfo, optimisticTasks }: KanbanColumnProps) {
   const taskIds = tasks.map(task => task.id)
   const [showQuickAdd, setShowQuickAdd] = useState(false)
   const [quickAddTitle, setQuickAddTitle] = useState('')
   
   const { setNodeRef, isOver } = useDroppable({
     id: status,
+    data: {
+      type: 'column',
+      status: status,
+    },
   })
+
 
   const handleQuickAdd = (e: React.FormEvent) => {
     e.preventDefault()
@@ -223,9 +243,9 @@ function KanbanColumn({ title, status, tasks, count, onTaskClick, selectedTaskId
   }
 
   return (
-    <div className="flex flex-col h-full min-w-80">
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center justify-between text-sm font-medium">
+    <div className="flex flex-col h-full w-full">
+      <CardHeader className="pb-4">
+        <CardTitle className="flex items-center justify-between text-base font-medium">
           <span>{title}</span>
           <Badge variant="secondary" className="text-xs">
             {count}
@@ -234,39 +254,10 @@ function KanbanColumn({ title, status, tasks, count, onTaskClick, selectedTaskId
       </CardHeader>
       
       <CardContent className="flex-1 pt-0 flex flex-col">
-        <div
-          ref={setNodeRef}
-          className={cn(
-            "min-h-32 rounded-lg transition-all duration-300 flex-1",
-            isOver && "bg-primary/10 border-2 border-dashed border-primary/30 shadow-inner"
-          )}
-        >
-          <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
-            <div className="space-y-0">
-              {tasks.map((task) => (
-                <KanbanTask 
-                  key={task.id} 
-                  task={task} 
-                  onTaskClick={onTaskClick}
-                  isSelected={selectedTaskId === task.id}
-                />
-              ))}
-            </div>
-          </SortableContext>
-          
-          {tasks.length === 0 && !showQuickAdd && (
-            <div className="flex flex-col items-center justify-center h-32 border-2 border-dashed border-muted rounded-lg hover:border-muted-foreground/50 transition-colors">
-              <Circle className="h-8 w-8 text-muted-foreground/30 mb-2" />
-              <p className="text-sm text-muted-foreground mb-1">No tasks</p>
-              <p className="text-xs text-muted-foreground/70">Drag tasks here or click + to add</p>
-            </div>
-          )}
-        </div>
-        
-        {/* Quick Add Section */}
-        <div className="mt-3 pt-2 border-t border-muted/50">
+        {/* Quick Add Section - Moved to top */}
+        <div className="pb-3 border-b border-muted/50">
           {showQuickAdd ? (
-            <form onSubmit={handleQuickAdd} className="space-y-2">
+            <form onSubmit={handleQuickAdd} className="space-y-3">
               <Input
                 value={quickAddTitle}
                 onChange={(e) => setQuickAddTitle(e.target.value)}
@@ -275,15 +266,15 @@ function KanbanColumn({ title, status, tasks, count, onTaskClick, selectedTaskId
                 className="text-sm"
                 autoFocus
               />
-              <div className="flex gap-1">
-                <Button type="submit" size="sm" className="h-7 px-2 text-xs" disabled={!quickAddTitle.trim()}>
+              <div className="flex gap-2">
+                <Button type="submit" size="sm" className="h-8 px-3 text-xs" disabled={!quickAddTitle.trim()}>
                   Add
                 </Button>
                 <Button 
                   type="button" 
                   variant="ghost" 
                   size="sm" 
-                  className="h-7 px-2 text-xs"
+                  className="h-8 px-3 text-xs"
                   onClick={() => {
                     setShowQuickAdd(false)
                     setQuickAddTitle('')
@@ -297,12 +288,72 @@ function KanbanColumn({ title, status, tasks, count, onTaskClick, selectedTaskId
             <Button
               variant="ghost"
               size="sm"
-              className="w-full h-8 text-xs text-muted-foreground hover:text-foreground border border-dashed border-transparent hover:border-muted-foreground/50 transition-all"
+              className="w-full h-9 text-sm text-muted-foreground hover:text-foreground border border-dashed border-transparent hover:border-muted-foreground/50 transition-all"
               onClick={() => setShowQuickAdd(true)}
             >
-              <Plus className="h-3 w-3 mr-1" />
+              <Plus className="h-4 w-4 mr-2" />
               Add task
             </Button>
+          )}
+        </div>
+        
+        {/* Task List Section */}
+        <div 
+          ref={setNodeRef}
+          className={cn(
+            "flex-1 pt-3 rounded-lg transition-all duration-300 overflow-y-auto",
+            isOver && "bg-primary/10 border-2 border-dashed border-primary/30 shadow-inner"
+          )}
+        >
+          <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
+            <div className="space-y-3 p-3 min-h-0">
+              {tasks.map((task, index) => {
+                // Find the target task to determine which column we're in
+                const targetTask = optimisticTasks.find(t => t.id === dragOverInfo.overId)
+                const isCurrentColumn = targetTask?.status === status
+                
+                const showPlaceholderAbove = 
+                  dragOverInfo.overType === 'task' && 
+                  dragOverInfo.insertIndex === index &&
+                  isCurrentColumn
+                
+                const showPlaceholderBelow = 
+                  dragOverInfo.overType === 'task' && 
+                  dragOverInfo.insertIndex === index + 1 &&
+                  isCurrentColumn
+                
+                return (
+                  <div key={task.id}>
+                    {showPlaceholderAbove && (
+                      <div className="h-2 bg-primary/20 border-2 border-dashed border-primary rounded-md mb-3 transition-all duration-200" />
+                    )}
+                    <KanbanTask 
+                      task={task} 
+                      onTaskClick={onTaskClick}
+                      isSelected={selectedTaskId === task.id}
+                    />
+                    {showPlaceholderBelow && (
+                      <div className="h-2 bg-primary/20 border-2 border-dashed border-primary rounded-md mt-3 transition-all duration-200" />
+                    )}
+                  </div>
+                )
+              })}
+              
+              {/* Show placeholder at the end if dropping on empty column */}
+              {dragOverInfo.overType === 'column' && 
+               dragOverInfo.overId === status && 
+               tasks.length > 0 && (
+                <div className="h-2 bg-primary/20 border-2 border-dashed border-primary rounded-md mt-3 transition-all duration-200" />
+              )}
+            </div>
+          </SortableContext>
+          
+          {tasks.length === 0 && !showQuickAdd && (
+            <div className="flex flex-col items-center justify-center min-h-64 border-2 border-dashed border-muted rounded-lg hover:border-muted-foreground/50 transition-colors m-3">
+              <Circle className="h-12 w-12 text-muted-foreground/30 mb-3" />
+              <p className="text-sm text-muted-foreground mb-1">No tasks</p>
+              <p className="text-xs text-muted-foreground/70">Drag tasks here or click + to add</p>
+            </div>
           )}
         </div>
       </CardContent>
@@ -313,6 +364,11 @@ function KanbanColumn({ title, status, tasks, count, onTaskClick, selectedTaskId
 export function KanbanBoard({ tasks, onTaskStatusChange, onTaskClick, selectedTaskId, onQuickAdd }: KanbanBoardProps) {
   const [activeTask, setActiveTask] = useState<Task | null>(null)
   const [optimisticTasks, setOptimisticTasks] = useState<Task[]>(tasks)
+  const [dragOverInfo, setDragOverInfo] = useState<{
+    overId: string | null
+    overType: 'task' | 'column' | null
+    insertIndex?: number
+  }>({ overId: null, overType: null })
   
   // Update optimistic tasks when props change
   React.useEffect(() => {
@@ -337,26 +393,122 @@ export function KanbanBoard({ tasks, onTaskStatusChange, onTaskClick, selectedTa
     setActiveTask(task || null)
   }
 
+  const handleDragOver = (event: DragOverEvent) => {
+    const { active, over } = event
+    
+    if (!over || !active) {
+      setDragOverInfo({ overId: null, overType: null })
+      return
+    }
+
+    const draggedTask = optimisticTasks.find(t => t.id === active.id)
+    if (!draggedTask) return
+
+    if (over.data.current?.type === 'column') {
+      // Dragging over a column
+      setDragOverInfo({
+        overId: over.id as string,
+        overType: 'column'
+      })
+    } else {
+      // Dragging over a task
+      const targetTask = optimisticTasks.find(t => t.id === over.id)
+      if (targetTask) {
+        const targetColumnTasks = optimisticTasks.filter(t => t.status === targetTask.status)
+        const targetIndex = targetColumnTasks.findIndex(t => t.id === over.id)
+        
+        let insertIndex: number
+        if (draggedTask.status === targetTask.status) {
+          // Same column - calculate relative position
+          const currentIndex = targetColumnTasks.findIndex(t => t.id === active.id)
+          insertIndex = currentIndex < targetIndex ? targetIndex : targetIndex + 1
+        } else {
+          // Different column - insert after target
+          insertIndex = targetIndex + 1
+        }
+        
+        setDragOverInfo({
+          overId: over.id as string,
+          overType: 'task',
+          insertIndex
+        })
+      }
+    }
+  }
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
     setActiveTask(null)
+    setDragOverInfo({ overId: null, overType: null })
 
     if (!over) return
 
     const taskId = active.id as string
-    const newStatus = over.id as TaskStatus
+    const draggedTask = optimisticTasks.find(t => t.id === taskId)
+    if (!draggedTask) return
 
-    // Check if the task is being dropped in a valid column
-    if (Object.values(TaskStatus).includes(newStatus)) {
-      const task = optimisticTasks.find(t => t.id === taskId)
-      if (task && task.status !== newStatus) {
-        // Optimistic update - immediately update the UI
-        const updatedTasks = optimisticTasks.map(t => 
-          t.id === taskId ? { ...t, status: newStatus } : t
-        )
-        setOptimisticTasks(updatedTasks)
+    let newStatus: TaskStatus
+    let insertIndex: number | undefined
+
+    // Check if we're dropping on a column (droppable) or a task (sortable)
+    if (over.data.current?.type === 'column') {
+      // Dropped on a column - use the column's status, append to end
+      newStatus = over.data.current.status
+    } else {
+      // Dropped on a task - find which column that task belongs to and insert at that position
+      const targetTask = optimisticTasks.find(t => t.id === over.id)
+      if (targetTask) {
+        newStatus = targetTask.status
         
-        // Then make the API call
+        // Use the same calculation as handleDragOver
+        const targetColumnTasks = optimisticTasks.filter(t => t.status === targetTask.status)
+        const targetIndex = targetColumnTasks.findIndex(t => t.id === over.id)
+        
+        if (draggedTask.status === targetTask.status) {
+          // Same column - calculate relative position
+          const currentIndex = targetColumnTasks.findIndex(t => t.id === taskId)
+          insertIndex = currentIndex < targetIndex ? targetIndex : targetIndex + 1
+        } else {
+          // Different column - insert after target
+          insertIndex = targetIndex + 1
+        }
+      } else {
+        return
+      }
+    }
+
+    // Update the task list with proper sorting
+    if (Object.values(TaskStatus).includes(newStatus)) {
+      let updatedTasks = [...optimisticTasks]
+      
+      // Remove the dragged task from its current position
+      updatedTasks = updatedTasks.filter(t => t.id !== taskId)
+      
+      // Update the task's status
+      const updatedTask = { ...draggedTask, status: newStatus }
+      
+      // Insert the task at the correct position
+      if (insertIndex !== undefined) {
+        // Insert at specific position - use the same filtered array approach
+        const targetColumnTasks = updatedTasks.filter(t => t.status === newStatus)
+        const otherTasks = updatedTasks.filter(t => t.status !== newStatus)
+        
+        const newColumnTasks = [
+          ...targetColumnTasks.slice(0, insertIndex),
+          updatedTask,
+          ...targetColumnTasks.slice(insertIndex)
+        ]
+        
+        updatedTasks = [...otherTasks, ...newColumnTasks]
+      } else {
+        // Append to the end of the column
+        updatedTasks.push(updatedTask)
+      }
+      
+      setOptimisticTasks(updatedTasks)
+      
+      // Only call API if status changed
+      if (draggedTask.status !== newStatus) {
         onTaskStatusChange(taskId, newStatus)
       }
     }
@@ -367,10 +519,11 @@ export function KanbanBoard({ tasks, onTaskStatusChange, onTaskClick, selectedTa
       sensors={sensors}
       collisionDetection={closestCenter}
       onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex gap-6 h-full overflow-x-auto pb-4">
-        <Card className="bg-muted/20 border-muted">
+      <div className="flex gap-6 pb-4 px-2 w-full min-w-0 overflow-x-auto min-h-0 flex-1">
+        <Card className="bg-muted/20 border-muted flex flex-col flex-1 min-w-72">
           <KanbanColumn
             title="Backlog"
             status={TaskStatus.BACKLOG}
@@ -379,10 +532,12 @@ export function KanbanBoard({ tasks, onTaskStatusChange, onTaskClick, selectedTa
             onTaskClick={onTaskClick}
             selectedTaskId={selectedTaskId}
             onQuickAdd={onQuickAdd}
+            dragOverInfo={dragOverInfo}
+            optimisticTasks={optimisticTasks}
           />
         </Card>
         
-        <Card className="bg-muted/20 border-muted">
+        <Card className="bg-muted/20 border-muted flex flex-col flex-1 min-w-72">
           <KanbanColumn
             title="In Progress"
             status={TaskStatus.IN_PROGRESS}
@@ -391,10 +546,12 @@ export function KanbanBoard({ tasks, onTaskStatusChange, onTaskClick, selectedTa
             onTaskClick={onTaskClick}
             selectedTaskId={selectedTaskId}
             onQuickAdd={onQuickAdd}
+            dragOverInfo={dragOverInfo}
+            optimisticTasks={optimisticTasks}
           />
         </Card>
         
-        <Card className="bg-muted/20 border-muted">
+        <Card className="bg-muted/20 border-muted flex flex-col flex-1 min-w-72">
           <KanbanColumn
             title="Completed"
             status={TaskStatus.COMPLETED}
@@ -403,6 +560,8 @@ export function KanbanBoard({ tasks, onTaskStatusChange, onTaskClick, selectedTa
             onTaskClick={onTaskClick}
             selectedTaskId={selectedTaskId}
             onQuickAdd={onQuickAdd}
+            dragOverInfo={dragOverInfo}
+            optimisticTasks={optimisticTasks}
           />
         </Card>
       </div>
