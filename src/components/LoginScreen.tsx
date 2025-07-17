@@ -19,8 +19,13 @@ export function LoginScreen() {
   const [smoothMousePosition, setSmoothMousePosition] = useState({ x: 0, y: 0 });
   const [mouseVelocity, setMouseVelocity] = useState({ x: 0, y: 0 });
   
+  // Safe window access for SSR compatibility
+  const windowWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
+  const windowHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
+  
   // Check if developer mode should be available
   const isDevModeEnabled = React.useMemo(() => {
+    if (typeof window === 'undefined') return false;
     const urlParams = new URLSearchParams(window.location.search);
     return urlParams.get('devmode') === 'true';
   }, []);
@@ -71,6 +76,7 @@ export function LoginScreen() {
 
   // Check for OAuth callback errors and devmode parameter in URL
   React.useEffect(() => {
+    if (typeof window === 'undefined') return;
     const urlParams = new URLSearchParams(window.location.search);
     const errorParam = urlParams.get('error');
     if (errorParam) {
@@ -172,7 +178,7 @@ export function LoginScreen() {
             <div 
               className="flex items-center space-x-5 transition-all duration-300 ease-out"
               style={{
-                filter: `brightness(${1 + Math.max(0, 1 - Math.hypot(mousePosition.x - (window.innerWidth * 0.25), mousePosition.y - (window.innerHeight * 0.4)) / 300) * 0.3})`
+                filter: `brightness(${1 + Math.max(0, 1 - Math.hypot(mousePosition.x - (windowWidth * 0.25), mousePosition.y - (windowHeight * 0.4)) / 300) * 0.3})`
               }}
             >
               <img 
@@ -189,7 +195,7 @@ export function LoginScreen() {
               <h1 
                 className="text-6xl lg:text-7xl font-bold text-gray-200 leading-tight transition-all duration-300 ease-out"
                 style={{
-                  filter: `brightness(${1 + Math.max(0, 1 - Math.hypot(mousePosition.x - (window.innerWidth * 0.25), mousePosition.y - (window.innerHeight * 0.5)) / 400) * 0.4})`
+                  filter: `brightness(${1 + Math.max(0, 1 - Math.hypot(mousePosition.x - (windowWidth * 0.25), mousePosition.y - (windowHeight * 0.5)) / 400) * 0.4})`
                 }}
               >
                 Plan. Build. Ship. Repeat.
@@ -197,7 +203,7 @@ export function LoginScreen() {
               <h2 
                 className="text-4xl lg:text-5xl text-gray-300 leading-tight transition-all duration-300 ease-out"
                 style={{
-                  filter: `brightness(${1 + Math.max(0, 1 - Math.hypot(mousePosition.x - (window.innerWidth * 0.25), mousePosition.y - (window.innerHeight * 0.6)) / 350) * 0.3})`
+                  filter: `brightness(${1 + Math.max(0, 1 - Math.hypot(mousePosition.x - (windowWidth * 0.25), mousePosition.y - (windowHeight * 0.6)) / 350) * 0.3})`
                 }}
               >
                 Finally get that half-built side project shipped.
@@ -211,8 +217,8 @@ export function LoginScreen() {
               <Card 
                 className="border-2 bg-black/95 backdrop-blur-sm border-gray-700 transition-all duration-300 ease-out"
                 style={{
-                  filter: `brightness(${1 + Math.max(0, 1 - Math.hypot(mousePosition.x - (window.innerWidth * 0.75), mousePosition.y - (window.innerHeight * 0.5)) / 400) * 0.2})`,
-                  boxShadow: `0 0 ${Math.max(0, 100 - Math.hypot(mousePosition.x - (window.innerWidth * 0.75), mousePosition.y - (window.innerHeight * 0.5)) / 4)}px rgba(147, 51, 234, 0.3)`
+                  filter: `brightness(${1 + Math.max(0, 1 - Math.hypot(mousePosition.x - (windowWidth * 0.75), mousePosition.y - (windowHeight * 0.5)) / 400) * 0.2})`,
+                  boxShadow: `0 0 ${Math.max(0, 100 - Math.hypot(mousePosition.x - (windowWidth * 0.75), mousePosition.y - (windowHeight * 0.5)) / 4)}px rgba(147, 51, 234, 0.3)`
                 }}
               >
                 <CardHeader className="text-center">
