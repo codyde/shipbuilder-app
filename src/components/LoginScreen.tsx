@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,6 +22,32 @@ const throttle = (func: Function, limit: number) => {
   };
 };
 
+// Custom hook for responsive mobile detection with SSR safety
+const useIsMobile = () => {
+  const [isMobile, setIsMobile] = useState(false);
+  const [isClient, setIsClient] = useState(false);
+  
+  useEffect(() => {
+    // Mark as client-side after hydration
+    setIsClient(true);
+    
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    // Initial check
+    checkMobile();
+    
+    // Add resize listener
+    window.addEventListener('resize', checkMobile);
+    
+    // Cleanup
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+  
+  return { isMobile: isClient ? isMobile : false, isClient };
+};
+
 export function LoginScreen() {
   const { loading, error, loginAsDeveloper } = useAuth();
   const [isRedirecting, setIsRedirecting] = useState(false);
@@ -33,30 +59,31 @@ export function LoginScreen() {
   // Use useRef for reliable mutable state across renders
   const lastPositionRef = React.useRef({ x: 0, y: 0 });
   
-  // Safe window access for SSR compatibility
-  const windowWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
-  const windowHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
+  // SSR-safe responsive detection
+  const { isMobile, isClient } = useIsMobile();
   
-  // Check if we're on mobile device
-  const isMobile = typeof window !== 'undefined' ? window.innerWidth < 768 : false;
+  // Safe window access for SSR compatibility
+  const windowWidth = isClient ? window.innerWidth : 1920;
+  const windowHeight = isClient ? window.innerHeight : 1080;
   
   // Check if developer mode should be available
   const isDevModeEnabled = React.useMemo(() => {
-    if (typeof window === 'undefined') return false;
+    if (!isClient) return false;
     const urlParams = new URLSearchParams(window.location.search);
     return urlParams.get('devmode') === 'true';
-  }, []);
+  }, [isClient]);
 
   const [isDeveloperMode, setIsDeveloperMode] = useState(isDevModeEnabled);
   const [developerEmail, setDeveloperEmail] = useState('');
   const [isDeveloperLoading, setIsDeveloperLoading] = useState(false);
   const [authProvider, setAuthProvider] = useState<'google' | 'sentry'>('google');
 
-  // Throttled mouse move handler for 60fps performance - disabled on mobile for performance
-  const throttledMouseMove = useMemo(() => 
-    throttle((e: MouseEvent) => {
-      if (isMobile) return; // Disable mouse effects on mobile
-      
+  // Optimized throttled mouse move handler - only created for desktop
+  const throttledMouseMove = useMemo(() => {
+    // Don't create throttled function on mobile for better performance
+    if (isMobile) return null;
+    
+    return throttle((e: MouseEvent) => {
       const newPosition = { x: e.clientX, y: e.clientY };
       
       // Calculate velocity using useRef for reliable mutable state
@@ -68,19 +95,20 @@ export function LoginScreen() {
       // Update ref for next calculation
       lastPositionRef.current = newPosition;
       setMousePosition(newPosition);
-    }, 16), [isMobile]); // 60fps limit
+    }, 16); // 60fps limit
+  }, [isMobile]);
 
-  // Track mouse movement and velocity - disabled on mobile
+  // Track mouse movement and velocity - only on desktop
   React.useEffect(() => {
-    if (isMobile) return;
+    if (isMobile || !throttledMouseMove || !isClient) return;
     
     window.addEventListener('mousemove', throttledMouseMove);
     return () => window.removeEventListener('mousemove', throttledMouseMove);
-  }, [throttledMouseMove, isMobile]);
+  }, [throttledMouseMove, isMobile, isClient]);
 
-  // Smooth mouse position with trailing effect - disabled on mobile
+  // Smooth mouse position with trailing effect - only on desktop
   React.useEffect(() => {
-    if (isMobile) return;
+    if (isMobile || !isClient) return;
     
     const smoothingFactor = 0.15; // Lower = more trailing, higher = more responsive
     let animationFrame: number;
@@ -95,33 +123,38 @@ export function LoginScreen() {
 
     animationFrame = requestAnimationFrame(updateSmoothPosition);
     return () => cancelAnimationFrame(animationFrame);
-  }, [mousePosition, isMobile]);
+  }, [mousePosition, isMobile, isClient]);
 
   // Check for OAuth callback errors and devmode parameter in URL
   React.useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (!isClient) return;
     const urlParams = new URLSearchParams(window.location.search);
     const errorParam = urlParams.get('error');
     if (errorParam) {
       setUrlError(errorParam);
     }
-  }, []);
+  }, [isClient]);
 
-  const handleSentryLogin = () => {
+  // Update developer mode when devmode availability changes
+  React.useEffect(() => {
+    setIsDeveloperMode(isDevModeEnabled);
+  }, [isDevModeEnabled]);
+
+  const handleSentryLogin = useCallback(() => {
     setIsRedirecting(true);
     const loginUrl = getApiUrl('auth/sentry');
     console.log('Redirecting to login URL:', loginUrl);
     window.location.href = loginUrl;
-  };
+  }, []);
 
-  const handleGoogleLogin = () => {
+  const handleGoogleLogin = useCallback(() => {
     setIsRedirecting(true);
     const loginUrl = getApiUrl('auth/google');
     console.log('Redirecting to Google login URL:', loginUrl);
     window.location.href = loginUrl;
-  };
+  }, []);
 
-  const handleDeveloperLogin = async () => {
+  const handleDeveloperLogin = useCallback(async () => {
     if (!developerEmail.trim()) {
       return;
     }
@@ -134,7 +167,7 @@ export function LoginScreen() {
     } finally {
       setIsDeveloperLoading(false);
     }
-  };
+  }, [developerEmail, loginAsDeveloper]);
 
   // Memoized orb styles for performance - simplified for mobile
   const orbStyles = useMemo(() => {
@@ -209,6 +242,22 @@ export function LoginScreen() {
     };
   }, [smoothMousePosition, mouseVelocity, mousePosition, isMobile]);
 
+  // Memoized brightness filter calculation for performance
+  const getBrightnessFilter = useCallback((targetX: number, targetY: number, maxDistance: number, intensity: number) => {
+    if (isMobile || !isClient) return {};
+    return {
+      filter: `brightness(${1 + Math.max(0, 1 - Math.hypot(mousePosition.x - targetX, mousePosition.y - targetY) / maxDistance) * intensity})`
+    };
+  }, [mousePosition, isMobile, isClient]);
+
+  const getBoxShadowFilter = useCallback(() => {
+    if (isMobile || !isClient) return {};
+    return {
+      filter: `brightness(${1 + Math.max(0, 1 - Math.hypot(mousePosition.x - (windowWidth * 0.75), mousePosition.y - (windowHeight * 0.5)) / 400) * 0.2})`,
+      boxShadow: `0 0 ${Math.max(0, 100 - Math.hypot(mousePosition.x - (windowWidth * 0.75), mousePosition.y - (windowHeight * 0.5)) / 4)}px rgba(147, 51, 234, 0.3)`
+    };
+  }, [mousePosition, windowWidth, windowHeight, isMobile, isClient]);
+
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden py-4 sm:py-8 lg:py-12 px-4 sm:px-6 lg:px-8 bg-black">
       {/* Optimized orb effects using transform for better performance */}
@@ -247,9 +296,7 @@ export function LoginScreen() {
           <div className="text-center lg:text-left space-y-6 sm:space-y-8 lg:space-y-10 order-2 lg:order-1">
             <div 
               className="flex items-center justify-center lg:justify-start space-x-3 sm:space-x-4 lg:space-x-5 transition-all duration-300 ease-out"
-              style={!isMobile ? {
-                filter: `brightness(${1 + Math.max(0, 1 - Math.hypot(mousePosition.x - (windowWidth * 0.25), mousePosition.y - (windowHeight * 0.4)) / 300) * 0.3})`
-              } : {}}
+              style={getBrightnessFilter(windowWidth * 0.25, windowHeight * 0.4, 300, 0.3)}
             >
               <img 
                 src="/shipbuilder-icon.png" 
@@ -264,17 +311,13 @@ export function LoginScreen() {
             <div className="space-y-4 sm:space-y-5 lg:space-y-6">
               <h1 
                 className="text-3xl sm:text-4xl md:text-5xl lg:text-7xl xl:text-8xl font-bold text-gray-300 leading-tight transition-all duration-300 ease-out"
-                style={!isMobile ? {
-                  filter: `brightness(${1 + Math.max(0, 1 - Math.hypot(mousePosition.x - (windowWidth * 0.25), mousePosition.y - (windowHeight * 0.5)) / 400) * 0.4})`
-                } : {}}
+                style={getBrightnessFilter(windowWidth * 0.25, windowHeight * 0.5, 400, 0.4)}
               >
                 Plan. Build. Ship. Repeat.
               </h1>
               <h2 
                 className="text-lg sm:text-xl md:text-2xl lg:text-4xl xl:text-5xl text-gray-400 leading-tight transition-all duration-300 ease-out"
-                style={!isMobile ? {
-                  filter: `brightness(${1 + Math.max(0, 1 - Math.hypot(mousePosition.x - (windowWidth * 0.25), mousePosition.y - (windowHeight * 0.65)) / 400) * 0.4})`
-                } : {}}
+                style={getBrightnessFilter(windowWidth * 0.25, windowHeight * 0.65, 400, 0.4)}
               >
                 Finally get that half-built side project shipped.
               </h2>
@@ -286,10 +329,7 @@ export function LoginScreen() {
             <div className="max-w-full sm:max-w-md lg:max-w-xl w-full">
               <Card 
                 className="border-2 bg-black/95 backdrop-blur-sm border-gray-700 transition-all duration-300 ease-out mx-2 sm:mx-0"
-                style={!isMobile ? {
-                  filter: `brightness(${1 + Math.max(0, 1 - Math.hypot(mousePosition.x - (windowWidth * 0.75), mousePosition.y - (windowHeight * 0.5)) / 400) * 0.2})`,
-                  boxShadow: `0 0 ${Math.max(0, 100 - Math.hypot(mousePosition.x - (windowWidth * 0.75), mousePosition.y - (windowHeight * 0.5)) / 4)}px rgba(147, 51, 234, 0.3)`
-                } : {}}
+                style={getBoxShadowFilter()}
               >
                 <CardHeader className="text-center px-4 sm:px-6 py-4 sm:py-6">
                   <CardTitle className="text-xl sm:text-2xl lg:text-3xl text-white">Welcome Back</CardTitle>
