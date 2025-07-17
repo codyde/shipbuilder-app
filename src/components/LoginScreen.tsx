@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,6 +10,18 @@ import { Loader2, Code2 } from 'lucide-react';
 import { getApiUrl } from '@/lib/api-config';
 import sentryLogoDark from '@/assets/sentryglyphdark.png';
 import sentryLogoWhite from '@/assets/sentryglyphwhite.png';
+
+// Throttle utility function
+const throttle = (func: Function, limit: number) => {
+  let inThrottle: boolean;
+  return function(this: any, ...args: any[]) {
+    if (!inThrottle) {
+      func.apply(this, args);
+      inThrottle = true;
+      setTimeout(() => inThrottle = false, limit);
+    }
+  };
+};
 
 export function LoginScreen() {
   const { loading, error, loginAsDeveloper } = useAuth();
@@ -38,9 +50,9 @@ export function LoginScreen() {
   const [isDeveloperLoading, setIsDeveloperLoading] = useState(false);
   const [authProvider, setAuthProvider] = useState<'google' | 'sentry'>('google');
 
-  // Track mouse movement and velocity
-  React.useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
+  // Throttled mouse move handler for 60fps performance
+  const throttledMouseMove = useMemo(() => 
+    throttle((e: MouseEvent) => {
       const newPosition = { x: e.clientX, y: e.clientY };
       
       // Calculate velocity using useRef for reliable mutable state
@@ -52,11 +64,13 @@ export function LoginScreen() {
       // Update ref for next calculation
       lastPositionRef.current = newPosition;
       setMousePosition(newPosition);
-    };
+    }, 16), []); // 60fps limit
 
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, []); // Empty dependency array - effect runs once on mount
+  // Track mouse movement and velocity
+  React.useEffect(() => {
+    window.addEventListener('mousemove', throttledMouseMove);
+    return () => window.removeEventListener('mousemove', throttledMouseMove);
+  }, [throttledMouseMove]); // Empty dependency array - effect runs once on mount
 
   // Smooth mouse position with trailing effect
   React.useEffect(() => {
@@ -114,62 +128,72 @@ export function LoginScreen() {
     }
   };
 
+  // Memoized orb styles for performance
+  const orbStyles = useMemo(() => {
+    const velocity = Math.hypot(mouseVelocity.x, mouseVelocity.y);
+    
+    return {
+      primaryOrb: {
+        transform: `translate(${smoothMousePosition.x - 300}px, ${smoothMousePosition.y - 300}px)`,
+        width: '600px',
+        height: '600px',
+        background: `radial-gradient(circle, rgba(147, 51, 234, 0.15), rgba(79, 70, 229, 0.1), rgba(16, 185, 129, 0.05), transparent 70%)`,
+      },
+      secondaryOrb: {
+        transform: `translate(${smoothMousePosition.x * 0.7 + mousePosition.x * 0.3 - 200}px, ${smoothMousePosition.y * 0.8 + mousePosition.y * 0.2 - 200}px)`,
+        width: '400px',
+        height: '400px',
+        background: `radial-gradient(circle, rgba(236, 72, 153, 0.08), rgba(168, 85, 247, 0.05), transparent 60%)`,
+      },
+      trailingOrb: {
+        transform: `translate(${smoothMousePosition.x * 0.6 - 400}px, ${smoothMousePosition.y * 0.7 - 400}px)`,
+        width: '800px',
+        height: '800px',
+        background: `radial-gradient(circle, rgba(147, 51, 234, 0.05), rgba(79, 70, 229, 0.03), transparent 80%)`,
+      },
+      velocityTail: {
+        transform: `translate(${smoothMousePosition.x - mouseVelocity.x * 15 - Math.max(100, Math.abs(mouseVelocity.x) * 4)}px, ${smoothMousePosition.y - mouseVelocity.y * 15 - Math.max(100, Math.abs(mouseVelocity.y) * 4)}px)`,
+        width: `${Math.max(200, Math.abs(mouseVelocity.x) * 8)}px`,
+        height: `${Math.max(200, Math.abs(mouseVelocity.y) * 8)}px`,
+        background: `radial-gradient(ellipse, rgba(147, 51, 234, ${Math.min(0.08, velocity * 0.002)}), rgba(79, 70, 229, ${Math.min(0.05, velocity * 0.001)}), transparent 60%)`,
+        borderRadius: '50%',
+      },
+      secondaryTail: {
+        transform: `translate(${smoothMousePosition.x - mouseVelocity.x * 25 - Math.max(75, Math.abs(mouseVelocity.x) * 3)}px, ${smoothMousePosition.y - mouseVelocity.y * 25 - Math.max(75, Math.abs(mouseVelocity.y) * 3)}px)`,
+        width: `${Math.max(150, Math.abs(mouseVelocity.x) * 6)}px`,
+        height: `${Math.max(150, Math.abs(mouseVelocity.y) * 6)}px`,
+        background: `radial-gradient(ellipse, rgba(236, 72, 153, ${Math.min(0.04, velocity * 0.001)}), rgba(168, 85, 247, ${Math.min(0.03, velocity * 0.0008)}), transparent 70%)`,
+        borderRadius: '50%',
+      },
+    };
+  }, [smoothMousePosition, mouseVelocity, mousePosition]);
+
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden py-12 px-4 sm:px-6 lg:px-8 bg-black">
-      {/* Animated gradient orb effect with smooth trailing */}
+      {/* Optimized orb effects using transform for better performance */}
       <div 
-        className="absolute inset-0 z-0"
-        style={{
-          background: `radial-gradient(600px circle at ${smoothMousePosition.x}px ${smoothMousePosition.y}px, 
-            rgba(147, 51, 234, 0.15), 
-            rgba(79, 70, 229, 0.1), 
-            rgba(16, 185, 129, 0.05), 
-            transparent 70%)`
-        }}
+        className="absolute top-0 left-0 z-0 rounded-full"
+        style={orbStyles.primaryOrb}
       />
       
-      {/* Secondary orb with different trailing speed */}
       <div 
-        className="absolute inset-0 z-0"
-        style={{
-          background: `radial-gradient(400px circle at ${smoothMousePosition.x * 0.7 + mousePosition.x * 0.3}px ${smoothMousePosition.y * 0.8 + mousePosition.y * 0.2}px, 
-            rgba(236, 72, 153, 0.08), 
-            rgba(168, 85, 247, 0.05), 
-            transparent 60%)`
-        }}
+        className="absolute top-0 left-0 z-0 rounded-full"
+        style={orbStyles.secondaryOrb}
       />
       
-      {/* Trailing orb effect */}
       <div 
-        className="absolute inset-0 z-0"
-        style={{
-          background: `radial-gradient(800px circle at ${smoothMousePosition.x * 0.6}px ${smoothMousePosition.y * 0.7}px, 
-            rgba(147, 51, 234, 0.05), 
-            rgba(79, 70, 229, 0.03), 
-            transparent 80%)`
-        }}
+        className="absolute top-0 left-0 z-0 rounded-full"
+        style={orbStyles.trailingOrb}
       />
       
-      {/* Velocity-based tail effect */}
       <div 
-        className="absolute inset-0 z-0"
-        style={{
-          background: `radial-gradient(ellipse ${Math.max(200, Math.abs(mouseVelocity.x) * 8)}px ${Math.max(200, Math.abs(mouseVelocity.y) * 8)}px at ${smoothMousePosition.x - mouseVelocity.x * 15}px ${smoothMousePosition.y - mouseVelocity.y * 15}px, 
-            rgba(147, 51, 234, ${Math.min(0.08, Math.hypot(mouseVelocity.x, mouseVelocity.y) * 0.002)}), 
-            rgba(79, 70, 229, ${Math.min(0.05, Math.hypot(mouseVelocity.x, mouseVelocity.y) * 0.001)}), 
-            transparent 60%)`
-        }}
+        className="absolute top-0 left-0 z-0"
+        style={orbStyles.velocityTail}
       />
       
-      {/* Secondary tail for more depth */}
       <div 
-        className="absolute inset-0 z-0"
-        style={{
-          background: `radial-gradient(ellipse ${Math.max(150, Math.abs(mouseVelocity.x) * 6)}px ${Math.max(150, Math.abs(mouseVelocity.y) * 6)}px at ${smoothMousePosition.x - mouseVelocity.x * 25}px ${smoothMousePosition.y - mouseVelocity.y * 25}px, 
-            rgba(236, 72, 153, ${Math.min(0.04, Math.hypot(mouseVelocity.x, mouseVelocity.y) * 0.001)}), 
-            rgba(168, 85, 247, ${Math.min(0.03, Math.hypot(mouseVelocity.x, mouseVelocity.y) * 0.0008)}), 
-            transparent 70%)`
-        }}
+        className="absolute top-0 left-0 z-0"
+        style={orbStyles.secondaryTail}
       />
       
       <div className="max-w-[80%] w-full relative z-20">
