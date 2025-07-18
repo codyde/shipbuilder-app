@@ -8,12 +8,6 @@ import * as Sentry from '@sentry/node';
 
 const router = express.Router();
 
-// OAuth 2.1 Authorization endpoint for MCP
-router.get('/authorize', (req, res) => {
-  // Forward to MCP authorization endpoint
-  const queryString = new URLSearchParams(req.query as any).toString();
-  res.redirect(`/mcp/authorize?${queryString}`);
-});
 
 
 // Get current user endpoint (now uses JWT authentication)

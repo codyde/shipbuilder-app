@@ -13,51 +13,13 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      // Device flow endpoints (main service on port 3001)
-      '/mcp/token': {
-        target: 'http://localhost:3001',
-        changeOrigin: true,
-        configure: (proxy, _options) => {
-          proxy.on('proxyReq', (_proxyReq, req, _res) => {
-            console.log('MCP token proxy request:', req.method, req.url);
-          });
-        },
-      },
-      '/mcp/test': {
-        target: 'http://localhost:3001',
-        changeOrigin: true,
-        configure: (proxy, _options) => {
-          proxy.on('proxyReq', (_proxyReq, req, _res) => {
-            console.log('MCP test proxy request:', req.method, req.url);
-          });
-        },
-      },
-      '/mcp/device': {
-        target: 'http://localhost:3001',
-        changeOrigin: true,
-        configure: (proxy, _options) => {
-          proxy.on('proxyReq', (_proxyReq, req, _res) => {
-            console.log('MCP device proxy request:', req.method, req.url);
-          });
-        },
-      },
-      // API endpoints
+      // API endpoints - proxy to main server
       '^/api/.*': {
         target: 'http://localhost:3001',
         changeOrigin: true,
         configure: (proxy, _options) => {
           proxy.on('proxyReq', (_proxyReq, req, _res) => {
             console.log('API proxy request:', req.method, req.url);
-          });
-        },
-      },
-      // OAuth discovery for device flow (main service on port 3001)
-      '/.well-known': {
-        target: 'http://localhost:3001',
-        changeOrigin: true,
-        configure: (proxy, _options) => {
-          proxy.on('proxyReq', (_proxyReq, req, _res) => {
-            console.log('OAuth discovery proxy request:', req.method, req.url);
           });
         },
       },
