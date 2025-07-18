@@ -110,7 +110,7 @@ export function TaskView({ projectId, onBack }: TaskViewProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [isClosingPanel, setIsClosingPanel] = useState(false)
-  const [closingTask, setClosingTask] = useState<any>(null)
+  const [closingTask, setClosingTask] = useState<Task | null>(null)
   const [newTask, setNewTask] = useState({
     title: '',
     description: '',

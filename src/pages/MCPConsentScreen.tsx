@@ -13,6 +13,7 @@ interface OAuthParams {
   code_challenge_method?: string;
   scope?: string;
   state?: string;
+  authorization_code: string;
 }
 
 export function MCPConsentScreen() {
@@ -24,10 +25,30 @@ export function MCPConsentScreen() {
   const token = localStorage.getItem('authToken');
 
   useEffect(() => {
-    // Try to get OAuth params from URL first, then localStorage
+    // Try to get OAuth params from URL parameters first, then localStorage
     const urlParams = new URLSearchParams(window.location.search);
-    let encodedParams = urlParams.get('oauth_params');
     
+    // Check for individual parameters (from MCP authorization flow)
+    const authCode = urlParams.get('authorization_code');
+    const clientId = urlParams.get('client_id');
+    const scope = urlParams.get('scope');
+    const mcpService = urlParams.get('mcp_service');
+    
+    if (authCode && clientId) {
+      // Build OAuth params from individual URL parameters
+      const params: OAuthParams = {
+        response_type: 'code',
+        client_id: clientId,
+        redirect_uri: mcpService || '',
+        authorization_code: authCode,
+        scope: scope || 'projects:read tasks:read'
+      };
+      setOauthParams(params);
+      return;
+    }
+    
+    // Fallback: Try to get JSON-encoded oauth_params from URL or localStorage
+    let encodedParams = urlParams.get('oauth_params');
     if (!encodedParams) {
       encodedParams = localStorage.getItem('mcpOAuthParams');
     }
@@ -56,36 +77,29 @@ export function MCPConsentScreen() {
     
     setLoading(true);
     try {
-      // Exchange JWT for MCP access token
-      const response = await fetch(`${API_BASE_URL}/mcp/token`, {
+      // Submit consent approval to MCP service
+      const mcpServiceUrl = new URLSearchParams(window.location.search).get('mcp_service') || 'http://localhost:3002';
+      const response = await fetch(`${mcpServiceUrl}/api/auth/consent`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          grant_type: 'authorization_code',
-          code: token, // Use current JWT as the "code"
-          client_id: oauthParams.client_id,
-          redirect_uri: oauthParams.redirect_uri,
-          code_verifier: oauthParams.code_challenge, // For PKCE
+          authorization_code: oauthParams.authorization_code,
+          action: 'approve',
+          main_app_token: token,
         }),
       });
       
       const result = await response.json();
       
-      if (response.ok) {
+      if (response.ok && result.success) {
         // Clear MCP flow state
         localStorage.removeItem('mcpLoginFlow');
         localStorage.removeItem('mcpOAuthParams');
         
-        // Redirect back to MCP client with access token
-        const callbackUrl = new URL(oauthParams.redirect_uri);
-        callbackUrl.searchParams.set('code', result.access_token);
-        if (oauthParams.state) {
-          callbackUrl.searchParams.set('state', oauthParams.state);
-        }
-        
-        window.location.href = callbackUrl.toString();
+        // Redirect back to MCP client with authorization code
+        window.location.href = result.redirect_uri;
       } else {
         throw new Error(result.error_description || 'Failed to authorize');
       }
@@ -97,22 +111,47 @@ export function MCPConsentScreen() {
     }
   };
 
-  const handleDeny = () => {
-    if (!oauthParams) return;
+  const handleDeny = async () => {
+    if (!oauthParams || !token) return;
     
-    // Clear MCP flow state
-    localStorage.removeItem('mcpLoginFlow');
-    localStorage.removeItem('mcpOAuthParams');
-    
-    // Redirect back with error
-    const callbackUrl = new URL(oauthParams.redirect_uri);
-    callbackUrl.searchParams.set('error', 'access_denied');
-    callbackUrl.searchParams.set('error_description', 'User denied authorization');
-    if (oauthParams.state) {
-      callbackUrl.searchParams.set('state', oauthParams.state);
+    setLoading(true);
+    try {
+      // Submit consent denial to MCP service
+      const mcpServiceUrl = new URLSearchParams(window.location.search).get('mcp_service') || 'http://localhost:3002';
+      const response = await fetch(`${mcpServiceUrl}/api/auth/consent`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          authorization_code: oauthParams.authorization_code,
+          action: 'deny',
+          main_app_token: token,
+        }),
+      });
+      
+      const result = await response.json();
+      
+      // Clear MCP flow state
+      localStorage.removeItem('mcpLoginFlow');
+      localStorage.removeItem('mcpOAuthParams');
+      
+      // Redirect back to MCP client with error
+      window.location.href = result.redirect_uri;
+    } catch (error) {
+      console.error('Denial error:', error);
+      // Still redirect back with error
+      const callbackUrl = new URL(oauthParams.redirect_uri);
+      callbackUrl.searchParams.set('error', 'access_denied');
+      callbackUrl.searchParams.set('error_description', 'User denied authorization');
+      if (oauthParams.state) {
+        callbackUrl.searchParams.set('state', oauthParams.state);
+      }
+      
+      window.location.href = callbackUrl.toString();
+    } finally {
+      setLoading(false);
     }
-    
-    window.location.href = callbackUrl.toString();
   };
 
   if (!oauthParams || !user) {

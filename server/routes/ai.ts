@@ -1,8 +1,7 @@
 import express from 'express';
-import { streamText, generateText, tool } from 'ai';
+import { streamText, tool } from 'ai';
 import { z } from 'zod';
 import { databaseService } from '../db/database-service.js';
-import { Priority } from '../types/types.js';
 import { StatusStreamer, wrapToolsWithStatus } from '../utils/status-streaming.js';
 import * as Sentry from '@sentry/node';
 import { AIProviderService } from '../services/ai-provider.js';
@@ -89,7 +88,7 @@ function logAIError(error: any, context: { userId: string; operation: string; pr
 
 aiRoutes.post('/generate-details', async (req: any, res: any) => {
   // Declare variables at function scope so they're accessible in catch blocks
-  let userId: string | undefined, userProvider: string | undefined;
+  let userId: string | undefined;
   
   try {
     const { prompt, context } = req.body;

@@ -78,12 +78,12 @@ export function useChatWithStatus(options: UseChatWithStatusOptions = {}) {
                         
                         addStatusMessage(statusMessage);
                       }
-                    } catch (parseError) {
+                    } catch {
                       // Ignore JSON parsing errors for non-status messages
                     }
                   }
                 }
-              } catch (error) {
+              } catch {
                 // Ignore parsing errors
               }
 

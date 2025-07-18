@@ -188,7 +188,7 @@ Be helpful and proactive in suggesting project management best practices.`,
                 }
               }
             }
-          } catch (parseError) {
+          } catch {
             // Ignore parsing errors for non-JSON chunks
           }
           

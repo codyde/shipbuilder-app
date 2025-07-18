@@ -13,64 +13,13 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '^/mcp$': {
-        target: 'http://localhost:3001',
-        changeOrigin: true,
-        ws: true, // Enable WebSocket proxying for SSE
-        configure: (proxy, _options) => {
-          proxy.on('error', (err, _req, _res) => {
-            console.log('MCP proxy error:', err);
-          });
-          proxy.on('proxyReq', (_proxyReq, req, _res) => {
-            console.log('MCP proxy request:', req.method, req.url);
-          });
-          proxy.on('proxyRes', (proxyRes, req, _res) => {
-            console.log('MCP proxy response:', proxyRes.statusCode, req.url);
-          });
-        },
-      },
-      '/mcp/token': {
-        target: 'http://localhost:3001',
-        changeOrigin: true,
-        configure: (proxy, _options) => {
-          proxy.on('proxyReq', (_proxyReq, req, _res) => {
-            console.log('MCP token proxy request:', req.method, req.url);
-          });
-        },
-      },
-      '/mcp/test': {
-        target: 'http://localhost:3001',
-        changeOrigin: true,
-        configure: (proxy, _options) => {
-          proxy.on('proxyReq', (_proxyReq, req, _res) => {
-            console.log('MCP test proxy request:', req.method, req.url);
-          });
-        },
-      },
-      '/mcp/device': {
-        target: 'http://localhost:3001',
-        changeOrigin: true,
-        configure: (proxy, _options) => {
-          proxy.on('proxyReq', (_proxyReq, req, _res) => {
-            console.log('MCP device proxy request:', req.method, req.url);
-          });
-        },
-      },
-      '/api': {
+      // API endpoints - proxy to main server
+      '^/api/.*': {
         target: 'http://localhost:3001',
         changeOrigin: true,
         configure: (proxy, _options) => {
           proxy.on('proxyReq', (_proxyReq, req, _res) => {
             console.log('API proxy request:', req.method, req.url);
-          });
-        },
-      },
-      '/.well-known': {
-        target: 'http://localhost:3001',
-        changeOrigin: true,
-        configure: (proxy, _options) => {
-          proxy.on('proxyReq', (_proxyReq, req, _res) => {
-            console.log('OAuth discovery proxy request:', req.method, req.url);
           });
         },
       },

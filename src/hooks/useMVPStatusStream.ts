@@ -105,15 +105,13 @@ export function useMVPStatusStream(options: UseMVPStatusStreamOptions = {}) {
       }
 
       const decoder = new TextDecoder();
-      let fullResponse = '';
-
+       
       try {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
 
           const chunk = decoder.decode(value, { stream: true });
-          fullResponse += chunk;
 
           // Parse chunk for status messages
           try {
@@ -136,12 +134,12 @@ export function useMVPStatusStream(options: UseMVPStatusStreamOptions = {}) {
                     
                     addStatusMessage(statusMessage);
                   }
-                } catch (parseError) {
+                } catch {
                   // Ignore JSON parsing errors for non-status messages
                 }
               }
             }
-          } catch (error) {
+          } catch {
             // Ignore parsing errors
           }
         }

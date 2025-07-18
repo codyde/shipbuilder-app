@@ -17,7 +17,6 @@ import { ConnectionStatus } from '@/components/ConnectionStatus'
 import { SidebarInset } from '@/components/ui/sidebar'
 import { GlobalTaskPopout } from '@/components/GlobalTaskPopout'
 import { MCPConsentScreen } from '@/pages/MCPConsentScreen'
-import { DeviceVerificationPage } from '@/pages/DeviceVerificationPage'
 
 type View = 'all-issues' | 'active' | 'backlog' | 'archived' | 'project' | 'tasks' | 'all-tasks' | 'settings'
 
@@ -30,10 +29,9 @@ function AppContent() {
   const [initialTab, setInitialTab] = useState<'mvp' | 'chat'>('mvp')
   const [newProjectDialogOpen, setNewProjectDialogOpen] = useState(false)
 
-  // Check if this is an MCP login flow or device verification
+  // Check if this is an MCP login flow
   const isMCPLogin = window.location.pathname === '/mcp-login' || 
                      new URLSearchParams(window.location.search).has('oauth_params')
-  const isDeviceVerification = window.location.pathname === '/device'
   
   // Store MCP login state in localStorage to persist through auth
   useEffect(() => {
@@ -113,10 +111,6 @@ function AppContent() {
     return <LoadingAnimation />;
   }
 
-  // Show device verification page if this is device flow
-  if (isDeviceVerification) {
-    return <DeviceVerificationPage />;
-  }
 
   // Show MCP consent screen if this is an MCP OAuth flow
   if (shouldShowMCPConsent) {

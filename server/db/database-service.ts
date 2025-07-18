@@ -2,7 +2,7 @@ import { db } from './connection.js';
 import { projects, tasks, comments, users, apiKeys } from './schema.js';
 import { eq, sql, and } from 'drizzle-orm';
 import { logger } from '../lib/logger.js';
-import { generateUniqueProjectSlug, generateUniqueTaskSlug, getProjectIdFromTaskSlug } from '../utils/slug-utils.js';
+import { generateUniqueProjectSlug, getProjectIdFromTaskSlug } from '../utils/slug-utils.js';
 import type { Project, Task, Comment, User, CreateProjectInput, CreateTaskInput, CreateCommentInput, TaskStatus, ProjectStatus, Priority } from '../types/types.js';
 
 class DatabaseService {
