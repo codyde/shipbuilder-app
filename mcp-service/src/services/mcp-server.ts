@@ -1,12 +1,12 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp';
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from 'zod';
 import { mcpAPIService } from './database-service.js';
 import { AuthService } from './auth-service.js';
 import { logger } from '../utils/logger.js';
 import * as Sentry from '@sentry/node';
-import { 
-  MCP_SERVER_INFO, 
-  MCP_DETAILED_CAPABILITIES 
+import {
+  MCP_SERVER_INFO,
+  MCP_DETAILED_CAPABILITIES
 } from '../config/mcp-config.js';
 
 interface MCPAuthContext {
@@ -25,7 +25,7 @@ export class ShipbuilderMCPServer {
     this.server = new McpServer(MCP_SERVER_INFO, {
       capabilities: MCP_DETAILED_CAPABILITIES,
     });
-    
+
     this.authService = new AuthService();
     this.setupTools();
     this.setupErrorHandling();
@@ -58,10 +58,10 @@ export class ShipbuilderMCPServer {
             error: error instanceof Error ? error.message : String(error),
             userId: this.authContext.userId,
           });
-          
+
           if (process.env.SENTRY_DSN) {
             Sentry.captureException(error instanceof Error ? error : new Error(String(error)), {
-              tags: { 
+              tags: {
                 component: 'mcp_server',
                 tool_name: 'query_projects',
               },
@@ -71,7 +71,7 @@ export class ShipbuilderMCPServer {
               },
             });
           }
-          
+
           throw error;
         }
       }
@@ -99,10 +99,10 @@ export class ShipbuilderMCPServer {
             error: error instanceof Error ? error.message : String(error),
             userId: this.authContext.userId,
           });
-          
+
           if (process.env.SENTRY_DSN) {
             Sentry.captureException(error instanceof Error ? error : new Error(String(error)), {
-              tags: { 
+              tags: {
                 component: 'mcp_server',
                 tool_name: 'query_tasks',
               },
@@ -112,7 +112,7 @@ export class ShipbuilderMCPServer {
               },
             });
           }
-          
+
           throw error;
         }
       }
@@ -124,7 +124,7 @@ export class ShipbuilderMCPServer {
       status: args.status,
       include_tasks: args.include_tasks ?? true,
     };
-    
+
     logger.info('MCP query_projects called', {
       userId: this.authContext!.userId,
       filters: validatedArgs,
@@ -132,7 +132,7 @@ export class ShipbuilderMCPServer {
 
     // Get projects from API
     const projects = await mcpAPIService.getProjects(this.authContext!.userId, this.authContext!.userToken);
-    
+
     // Filter by status if specified
     let filteredProjects = projects;
     if (validatedArgs.status) {
@@ -185,7 +185,7 @@ export class ShipbuilderMCPServer {
       status: args.status,
       priority: args.priority,
     };
-    
+
     // Validate project slug format
     if (!this.validateProjectSlug(validatedArgs.project_id)) {
       throw new Error(`Invalid project ID format: ${validatedArgs.project_id}. Must be alphanumeric with hyphens.`);
@@ -199,22 +199,22 @@ export class ShipbuilderMCPServer {
 
     // Get project (which includes tasks) from API
     const project = await mcpAPIService.getProject(validatedArgs.project_id, this.authContext!.userToken);
-    
+
     if (!project) {
       throw new Error(`Project not found: ${validatedArgs.project_id}`);
     }
-    
+
     // Filter tasks based on provided filters
     let tasks = project.tasks || [];
-    
+
     if (validatedArgs.status) {
       tasks = tasks.filter(task => task.status === validatedArgs.status);
     }
-    
+
     if (validatedArgs.priority) {
       tasks = tasks.filter(task => task.priority === validatedArgs.priority);
     }
-    
+
 
     // Transform for MCP response
     const responseData = {
@@ -266,12 +266,12 @@ export class ShipbuilderMCPServer {
       authContext.email,
       authContext.name
     );
-    
+
     this.authContext = {
       ...authContext,
       userToken
     };
-    
+
     logger.info('MCP authentication context set', {
       userId: authContext.userId,
       email: authContext.email,
@@ -308,7 +308,7 @@ export class ShipbuilderMCPServer {
   }
 
   /**
-   * Public method to handle query_tasks tool calls  
+   * Public method to handle query_tasks tool calls
    */
   async handleQueryTasksPublic(args: any) {
     return await this.handleQueryTasks(args);
