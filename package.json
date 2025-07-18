@@ -9,11 +9,17 @@
     "dev:server": "tsx --watch server/index.ts",
     "dev:mcp": "cd mcp-service && npm run dev",
     "dev:safe": "node scripts/dev-safe.js",
+    "dev:full": "concurrently \"npm run dev:server\" \"npm run dev:client\" \"npm run dev:mcp\" --kill-others-on-fail --restart-tries 3",
     "build": "npm run build:client && npm run build:server && npm run build:mcp",
     "build:client": "vite build",
     "build:server": "tsc -b",
     "build:mcp": "cd mcp-service && npm run build",
+    "build:all": "npm run build && npm run build:mcp",
+    "start:mcp": "cd mcp-service && npm start",
+    "install:mcp": "cd mcp-service && npm install",
     "lint": "eslint . && cd mcp-service && npm run lint",
+    "lint:mcp": "cd mcp-service && npm run lint",
+    "lint:all": "npm run lint && npm run lint:mcp",
     "preview": "vite preview"
   },
   "dependencies": {
