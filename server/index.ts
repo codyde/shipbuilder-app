@@ -187,7 +187,7 @@ app.get('/api/health', (req, res) => {
 // Add error logging middleware (should be last)
 app.use(errorLoggingMiddleware);
 
-const server = app.listen(PORT, () => {
+app.listen(PORT, () => {
   logger.info(`Server started successfully`, {
     port: PORT,
     environment: process.env.NODE_ENV || 'development',

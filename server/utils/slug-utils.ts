@@ -36,7 +36,7 @@ export async function generateUniqueProjectSlug(
   checkExisting: (userId: string, slug: string) => Promise<boolean>
 ): Promise<string> {
   const maxProjectLength = 20;
-  let baseSlug = generateSlug(name, { maxLength: maxProjectLength });
+  const baseSlug = generateSlug(name, { maxLength: maxProjectLength });
   
   if (!baseSlug) {
     throw new Error('Project name must contain at least one alphanumeric character');

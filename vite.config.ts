@@ -18,17 +18,17 @@ export default defineConfig({
         target: 'http://localhost:3001',
         changeOrigin: true,
         ws: true, // Enable WebSocket proxying for SSE
-        configure: (proxy, _options) => {
-          proxy.on('error', (err, _req, _res) => {
+        configure: (proxy) => {
+          proxy.on('error', (err) => {
             console.log('MCP proxy error:', err);
           });
-          proxy.on('proxyReq', (proxyReq, req, _res) => {
+          proxy.on('proxyReq', (proxyReq, req) => {
             console.log('MCP proxy request:', req.method, req.url);
             // Add proxy headers for backend detection
             proxyReq.setHeader('X-Forwarded-Host', 'localhost:5173');
             proxyReq.setHeader('X-Forwarded-Proto', 'http');
           });
-          proxy.on('proxyRes', (proxyRes, req, _res) => {
+          proxy.on('proxyRes', (proxyRes, req) => {
             console.log('MCP proxy response:', proxyRes.statusCode, req.url);
           });
         },
@@ -37,14 +37,14 @@ export default defineConfig({
       '^/mcp/.*': {
         target: 'http://localhost:3001',
         changeOrigin: true,
-        configure: (proxy, _options) => {
-          proxy.on('proxyReq', (proxyReq, req, _res) => {
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq, req) => {
             console.log('MCP sub-endpoint proxy request:', req.method, req.url);
             // Add proxy headers for backend detection
             proxyReq.setHeader('X-Forwarded-Host', 'localhost:5173');
             proxyReq.setHeader('X-Forwarded-Proto', 'http');
           });
-          proxy.on('proxyRes', (proxyRes, req, _res) => {
+          proxy.on('proxyRes', (proxyRes, req) => {
             console.log('MCP sub-endpoint proxy response:', proxyRes.statusCode, req.url);
           });
         },
@@ -53,8 +53,8 @@ export default defineConfig({
       '^/api/.*': {
         target: 'http://localhost:3001',
         changeOrigin: true,
-        configure: (proxy, _options) => {
-          proxy.on('proxyReq', (_proxyReq, req, _res) => {
+        configure: (proxy) => {
+          proxy.on('proxyReq', (_proxyReq, req) => {
             console.log('API proxy request:', req.method, req.url);
           });
         },
@@ -63,8 +63,8 @@ export default defineConfig({
       '^/\\.well-known/.*': {
         target: 'http://localhost:3001',
         changeOrigin: true,
-        configure: (proxy, _options) => {
-          proxy.on('proxyReq', (proxyReq, req, _res) => {
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq, req) => {
             console.log('OAuth discovery proxy request:', req.method, req.url);
             // Add proxy headers for backend detection
             proxyReq.setHeader('X-Forwarded-Host', 'localhost:5173');
@@ -76,8 +76,8 @@ export default defineConfig({
       '^/register': {
         target: 'http://localhost:3001',
         changeOrigin: true,
-        configure: (proxy, _options) => {
-          proxy.on('proxyReq', (proxyReq, req, _res) => {
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq, req) => {
             console.log('Client registration proxy request:', req.method, req.url);
             // Add proxy headers for backend detection
             proxyReq.setHeader('X-Forwarded-Host', 'localhost:5173');

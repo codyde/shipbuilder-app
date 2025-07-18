@@ -9,19 +9,13 @@ import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { MCP_TOOLS, MCP_TOOLS_BASIC, isValidToolName } from '../config/mcp-tools.js';
 import { 
   MCP_PROTOCOL_VERSION,
-  MCP_SERVER_NAME,
-  MCP_SERVER_VERSION,
-  MCP_SERVER_DISPLAY_NAME,
-  MCP_SERVER_DESCRIPTION,
   MCP_OAUTH_SCOPES,
   MCP_TOKEN_EXPIRY,
   MCP_TOKEN_EXPIRY_SECONDS,
   MCP_SESSION_CLEANUP_INTERVAL,
   MCP_SESSION_MAX_AGE,
-  MCP_CAPABILITIES,
   MCP_DETAILED_CAPABILITIES,
   MCP_SERVER_INFO,
-  MCP_TRANSPORT_TYPE,
   getBaseUrl,
   generateOAuthDiscoveryMetadata,
   generateOAuthProtectedResourceMetadata,
@@ -268,7 +262,7 @@ mcpRoutes.post('/token', async (req: any, res: any) => {
             },
           });
         }
-      } catch (jwtError) {
+      } catch {
         return res.status(401).json({ error: 'Invalid token' });
       }
     }

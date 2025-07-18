@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { databaseService } from '../db/database-service.js';
 import * as Sentry from '@sentry/node';
-import { verifyApiKey, isValidApiKeyFormat, hashApiKey, isApiKeyExpired } from '../utils/api-key-utils.js';
+import { isValidApiKeyFormat, hashApiKey, isApiKeyExpired } from '../utils/api-key-utils.js';
 
 // JWT Payload interface
 export interface JWTPayload {
@@ -47,6 +47,7 @@ enum SecurityEvent {
   API_KEY_DELETED = 'auth.apikey.deleted'
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 interface AuditLogEntry {
   timestamp: Date;
   event: SecurityEvent;
@@ -57,7 +58,7 @@ interface AuditLogEntry {
   severity: 'low' | 'medium' | 'high' | 'critical';
 }
 
-function logSecurityEvent(event: SecurityEvent, req: Request, metadata: Record<string, unknown> = {}, severity: 'low' | 'medium' | 'high' | 'critical' = 'medium') {
+function logSecurityEvent(event: SecurityEvent, req: Request, _metadata: Record<string, unknown> = {}, severity: 'low' | 'medium' | 'high' | 'critical' = 'medium') {
   
   // Capture high/critical events in Sentry
   if (severity === 'high' || severity === 'critical') {
