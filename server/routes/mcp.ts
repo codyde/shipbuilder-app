@@ -6,6 +6,27 @@ import { logger } from '../lib/logger.js';
 import jwt from 'jsonwebtoken';
 import * as Sentry from '@sentry/node';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { MCP_TOOLS, MCP_TOOLS_BASIC, isValidToolName } from '../config/mcp-tools.js';
+import { 
+  MCP_PROTOCOL_VERSION,
+  MCP_SERVER_NAME,
+  MCP_SERVER_VERSION,
+  MCP_SERVER_DISPLAY_NAME,
+  MCP_SERVER_DESCRIPTION,
+  MCP_OAUTH_SCOPES,
+  MCP_TOKEN_EXPIRY,
+  MCP_TOKEN_EXPIRY_SECONDS,
+  MCP_SESSION_CLEANUP_INTERVAL,
+  MCP_SESSION_MAX_AGE,
+  MCP_CAPABILITIES,
+  MCP_DETAILED_CAPABILITIES,
+  MCP_SERVER_INFO,
+  MCP_TRANSPORT_TYPE,
+  getBaseUrl,
+  generateOAuthDiscoveryMetadata,
+  generateOAuthProtectedResourceMetadata,
+  generateMCPServerInfo
+} from '../config/mcp-config.js';
 
 export const mcpRoutes = express.Router();
 
@@ -17,40 +38,16 @@ export const mcpRoutes = express.Router();
  * GET /.well-known/oauth-authorization-server - OAuth Authorization Server Metadata (RFC 8414)
  */
 mcpRoutes.get('/.well-known/oauth-authorization-server', (req: any, res: any) => {
-  const baseUrl = `${req.protocol}://${req.get('host')}`;
-  
-  res.json({
-    issuer: baseUrl,
-    authorization_endpoint: `${baseUrl}/api/auth/authorize`,
-    token_endpoint: `${baseUrl}/mcp/token`,
-    jwks_uri: `${baseUrl}/.well-known/jwks.json`,
-    response_types_supported: ['code'],
-    grant_types_supported: ['authorization_code'],
-    code_challenge_methods_supported: ['S256', 'plain'],
-    scopes_supported: ['projects:read', 'tasks:read'],
-    token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post', 'none'],
-    introspection_endpoint: `${baseUrl}/mcp/introspect`,
-    revocation_endpoint: `${baseUrl}/mcp/revoke`,
-  });
+  const baseUrl = getBaseUrl(req);
+  res.json(generateOAuthDiscoveryMetadata(baseUrl));
 });
 
 /**
  * GET /.well-known/oauth-protected-resource - Protected Resource Metadata
  */
 mcpRoutes.get('/.well-known/oauth-protected-resource', (req: any, res: any) => {
-  const baseUrl = `${req.protocol}://${req.get('host')}`;
-  
-  res.json({
-    resource: `${baseUrl}/mcp`,
-    authorization_servers: [baseUrl],
-    jwks_uri: `${baseUrl}/.well-known/jwks.json`,
-    bearer_methods_supported: ['header'],
-    resource_documentation: `${baseUrl}/mcp`,
-    scopes_supported: ['projects:read', 'tasks:read'],
-    // Add explicit URLs for debugging
-    mcp_endpoint: `${baseUrl}/mcp`,
-    base_url: baseUrl,
-  });
+  const baseUrl = getBaseUrl(req);
+  res.json(generateOAuthProtectedResourceMetadata(baseUrl));
 });
 
 
@@ -69,15 +66,15 @@ const mcpSessions = new Map<string, {
 setInterval(() => {
   const now = Date.now();
   for (const [sessionId, session] of mcpSessions.entries()) {
-    // Remove sessions older than 2 hours
-    if (now - session.createdAt.getTime() > 2 * 60 * 60 * 1000) {
+    // Remove sessions older than configured max age
+    if (now - session.createdAt.getTime() > MCP_SESSION_MAX_AGE) {
       session.mcpServer.clearAuthContext();
       session.transport.close();
       mcpSessions.delete(sessionId);
       logger.info('Cleaned up expired MCP session', { sessionId, userId: session.userId });
     }
   }
-}, 30 * 60 * 1000);
+}, MCP_SESSION_CLEANUP_INTERVAL);
 
 /**
  * GET /mcp - Provides server info OR establishes SSE connection
@@ -92,44 +89,24 @@ mcpRoutes.get('/', async (req: any, res: any) => {
     return mcpSSEHandler(req, res);
   }
   
-  // Otherwise, return server info
+  const baseUrl = getBaseUrl(req);
+  
+  logger.info('MCP server info request', {
+    isProxiedRequest: !!(req.headers['x-forwarded-host'] || req.headers['x-forwarded-proto'] || req.headers['x-forwarded-for']),
+    baseUrl,
+    headers: {
+      'x-forwarded-host': req.headers['x-forwarded-host'],
+      'x-forwarded-proto': req.headers['x-forwarded-proto'],
+      'x-forwarded-for': req.headers['x-forwarded-for'],
+      'host': req.headers['host'],
+    },
+  });
+  
+  // Return server info with tools list
+  const serverInfo = generateMCPServerInfo(baseUrl);
   res.json({
-    name: 'Shipbuilder MCP Server',
-    version: '1.0.0',
-    description: 'Model Context Protocol server for Shipbuilder project management',
-    protocol_version: '2025-03-26',
-    capabilities: {
-      tools: true,
-      resources: false,
-      prompts: false,
-      logging: false,
-    },
-    server_info: {
-      name: 'shipbuilder-mcp',
-      version: '1.0.0',
-    },
-    authentication: {
-      type: 'oauth',
-      oauth_version: '2.1',
-      authorization_endpoint: `${req.protocol}://${req.get('host')}/api/auth/authorize`,
-      token_endpoint: `${req.protocol}://${req.get('host')}/mcp/token`,
-      discovery_endpoint: `${req.protocol}://${req.get('host')}/.well-known/oauth-authorization-server`,
-      grants_supported: ['authorization_code'],
-      pkce_required: true,
-      scopes_supported: ['projects:read', 'tasks:read'],
-    },
-    tools: [
-      {
-        name: 'query_projects',
-        description: 'Get all projects for the authenticated user',
-      },
-      {
-        name: 'query_tasks', 
-        description: 'Get tasks for a specific project',
-      },
-    ],
-    mcp_version: '2025-03-26',
-    transport: 'streamable-http',
+    ...serverInfo,
+    tools: MCP_TOOLS_BASIC,
   });
 });
 
@@ -139,14 +116,10 @@ mcpRoutes.get('/', async (req: any, res: any) => {
  */
 mcpRoutes.post('/token', async (req: any, res: any) => {
   try {
-    // Debug logging for request details
     logger.info('MCP token request received', {
-      headers: req.headers,
-      body: req.body,
+      grant_type: req.body?.grant_type,
+      client_id: req.body?.client_id,
       contentType: req.headers['content-type'],
-      bodyType: typeof req.body,
-      hasBody: !!req.body,
-      rawBody: req.rawBody,
     });
 
     // Handle different content types
@@ -219,11 +192,11 @@ mcpRoutes.post('/token', async (req: any, res: any) => {
             email: user.email,
             name: user.name,
             type: 'mcp',
-            scope: 'projects:read tasks:read',
+            scope: MCP_OAUTH_SCOPES.join(' '),
             aud: client_id, // Resource indicator
           },
           process.env.JWT_SECRET!,
-          { expiresIn: '30d' }
+          { expiresIn: MCP_TOKEN_EXPIRY }
         );
 
         logger.info('MCP token generated via OAuth 2.1 flow', {
@@ -235,8 +208,8 @@ mcpRoutes.post('/token', async (req: any, res: any) => {
         return res.json({
           access_token: mcpToken,
           token_type: 'Bearer',
-          expires_in: 30 * 24 * 60 * 60,
-          scope: 'projects:read tasks:read',
+          expires_in: MCP_TOKEN_EXPIRY_SECONDS,
+          scope: MCP_OAUTH_SCOPES.join(' '),
         });
         
       } catch (error) {
@@ -269,7 +242,7 @@ mcpRoutes.post('/token', async (req: any, res: any) => {
               type: 'mcp',
             },
             process.env.JWT_SECRET!,
-            { expiresIn: '30d' }
+            { expiresIn: MCP_TOKEN_EXPIRY }
           );
 
           logger.info('MCP token generated via direct JWT exchange', {
@@ -280,8 +253,8 @@ mcpRoutes.post('/token', async (req: any, res: any) => {
           return res.json({
             access_token: mcpToken,
             token_type: 'Bearer',
-            expires_in: 30 * 24 * 60 * 60,
-            scope: 'projects:read tasks:read',
+            expires_in: MCP_TOKEN_EXPIRY_SECONDS,
+            scope: MCP_OAUTH_SCOPES.join(' '),
             mcp_endpoint: `${req.protocol}://${req.get('host')}/mcp`,
             instructions: {
               usage: 'Use this token in the Authorization header: Bearer <token>',
@@ -290,7 +263,7 @@ mcpRoutes.post('/token', async (req: any, res: any) => {
                 'Authorization': 'Bearer <token>',
                 'Content-Type': 'application/json',
                 'Accept': 'application/json, text/event-stream',
-                'MCP-Protocol-Version': '2025-03-26'
+                'MCP-Protocol-Version': MCP_PROTOCOL_VERSION
               },
             },
           });
@@ -396,7 +369,8 @@ mcpRoutes.get('/authorize', async (req: any, res: any) => {
     };
 
     // Redirect to consent screen
-    const consentUrl = new URL('/mcp-login', process.env.FRONTEND_BASE_URL || 'http://localhost:5173');
+    const frontendUrl = process.env.FRONTEND_BASE_URL || 'http://localhost:5173';
+    const consentUrl = new URL('/mcp-login', frontendUrl);
     consentUrl.searchParams.set('oauth_params', encodeURIComponent(JSON.stringify(oauthParams)));
     
     res.redirect(consentUrl.toString());
@@ -424,7 +398,13 @@ mcpRoutes.get('/authorize', async (req: any, res: any) => {
 mcpRoutes.post('/consent', authenticateUser, async (req: any, res: any) => {
   try {
     const { authorization_code, action } = req.body; // action: 'approve' | 'deny'
-    const userId = req.user.userId;
+    const userId = req.user.id;
+
+    logger.info('OAuth consent request received', {
+      authorization_code: authorization_code?.substring(0, 8) + '...',
+      action,
+      userId,
+    });
 
     if (!authorization_code) {
       return res.status(400).json({
@@ -493,7 +473,7 @@ mcpRoutes.post('/consent', authenticateUser, async (req: any, res: any) => {
     logger.error('OAuth consent failed', {
       error: error instanceof Error ? error.message : String(error),
       body: req.body,
-      user_id: req.user?.userId,
+      user_id: req.user?.id,
     });
 
     Sentry.captureException(error, {
@@ -645,9 +625,6 @@ const validateMCPHeaders = (req: any, res: any, next: any) => {
 
   logger.info('MCP message request received', {
     method: req.method,
-    headers: req.headers,
-    body: req.body,
-    query: req.query,
     hasAccept: !!accept,
     hasMCPVersion: !!mcpVersion,
   });
@@ -711,10 +688,6 @@ mcpRoutes.post('/', mcpSessionAuthMiddleware, validateMCPHeaders, async (req: an
       userId: req.user.userId,
       method: req.body?.method,
       hasBody: !!req.body,
-      hasSessionIdHeader: !!req.headers['mcp-session-id'],
-      hasSessionIdQuery: !!req.query.sessionId,
-      activeSessions: Array.from(mcpSessions.keys()),
-      allHeaders: req.headers,
     });
 
     // Try to find an active session for this user if no explicit session ID provided
@@ -759,19 +732,9 @@ mcpRoutes.post('/', mcpSessionAuthMiddleware, validateMCPHeaders, async (req: an
             jsonrpc: '2.0',
             id: body.id,
             result: {
-              protocolVersion: '2025-03-26',
-              capabilities: {
-                tools: {
-                  listChanged: false
-                },
-                resources: {},
-                prompts: {},
-                logging: {}
-              },
-              serverInfo: {
-                name: 'shipbuilder-mcp',
-                version: '1.0.0'
-              }
+              protocolVersion: MCP_PROTOCOL_VERSION,
+              capabilities: MCP_DETAILED_CAPABILITIES,
+              serverInfo: MCP_SERVER_INFO
             }
           };
         } else if (body.method === 'notifications/initialized') {
@@ -794,51 +757,7 @@ mcpRoutes.post('/', mcpSessionAuthMiddleware, validateMCPHeaders, async (req: an
             jsonrpc: '2.0',
             id: body.id,
             result: {
-              tools: [
-                {
-                  name: 'query_projects',
-                  description: 'Get all projects for the authenticated user',
-                  inputSchema: {
-                    type: 'object',
-                    properties: {
-                      status: {
-                        type: 'string',
-                        enum: ['active', 'backlog', 'completed', 'archived'],
-                        description: 'Filter projects by status'
-                      },
-                      include_tasks: {
-                        type: 'boolean',
-                        default: true,
-                        description: 'Whether to include tasks in the response'
-                      }
-                    }
-                  }
-                },
-                {
-                  name: 'query_tasks',
-                  description: 'Get tasks for a specific project',
-                  inputSchema: {
-                    type: 'object',
-                    properties: {
-                      project_id: {
-                        type: 'string',
-                        description: 'Project slug (e.g., "photoshare")'
-                      },
-                      status: {
-                        type: 'string',
-                        enum: ['backlog', 'in_progress', 'completed'],
-                        description: 'Filter tasks by status'
-                      },
-                      priority: {
-                        type: 'string',
-                        enum: ['low', 'medium', 'high'],
-                        description: 'Filter tasks by priority'
-                      }
-                    },
-                    required: ['project_id']
-                  }
-                }
-              ]
+              tools: MCP_TOOLS
             }
           };
         } else if (body.method === 'prompts/list') {
@@ -862,43 +781,7 @@ mcpRoutes.post('/', mcpSessionAuthMiddleware, validateMCPHeaders, async (req: an
           const toolName = body.params?.name;
           const toolArgs = body.params?.arguments || {};
 
-          if (toolName === 'query_projects') {
-            try {
-              const result = await mcpServer.handleQueryProjectsPublic(toolArgs);
-              response = {
-                jsonrpc: '2.0',
-                id: body.id,
-                result
-              };
-            } catch (error) {
-              response = {
-                jsonrpc: '2.0',
-                id: body.id,
-                error: {
-                  code: -32603,
-                  message: error instanceof Error ? error.message : 'Internal error'
-                }
-              };
-            }
-          } else if (toolName === 'query_tasks') {
-            try {
-              const result = await mcpServer.handleQueryTasksPublic(toolArgs);
-              response = {
-                jsonrpc: '2.0',
-                id: body.id,
-                result
-              };
-            } catch (error) {
-              response = {
-                jsonrpc: '2.0',
-                id: body.id,
-                error: {
-                  code: -32603,
-                  message: error instanceof Error ? error.message : 'Internal error'
-                }
-              };
-            }
-          } else {
+          if (!isValidToolName(toolName)) {
             response = {
               jsonrpc: '2.0',
               id: body.id,
@@ -907,6 +790,30 @@ mcpRoutes.post('/', mcpSessionAuthMiddleware, validateMCPHeaders, async (req: an
                 message: `Unknown tool: ${toolName}`
               }
             };
+          } else {
+            try {
+              let result;
+              if (toolName === 'query_projects') {
+                result = await mcpServer.handleQueryProjectsPublic(toolArgs);
+              } else if (toolName === 'query_tasks') {
+                result = await mcpServer.handleQueryTasksPublic(toolArgs);
+              }
+              
+              response = {
+                jsonrpc: '2.0',
+                id: body.id,
+                result
+              };
+            } catch (error) {
+              response = {
+                jsonrpc: '2.0',
+                id: body.id,
+                error: {
+                  code: -32603,
+                  message: error instanceof Error ? error.message : 'Internal error'
+                }
+              };
+            }
           }
         } else {
           // Unknown method
@@ -981,67 +888,3 @@ mcpRoutes.post('/', mcpSessionAuthMiddleware, validateMCPHeaders, async (req: an
   }
 });
 
-/**
- * GET /mcp/test - Test MCP functionality with a sample request
- */
-mcpRoutes.get('/test', mcpAuthMiddleware, async (req: any, res: any) => {
-  try {
-    const mcpServer = new ShipbuilderMCPServer();
-    mcpServer.setAuthContext({
-      userId: req.user.userId,
-      email: req.user.email,
-      name: req.user.name,
-    });
-
-    // Test tools/list
-    const toolsResult = await mcpServer.getServer().handleRequest({
-      jsonrpc: '2.0',
-      id: 'test-1',
-      method: 'tools/list',
-      params: {},
-    });
-
-    // Test query_projects
-    const projectsResult = await mcpServer.getServer().handleRequest({
-      jsonrpc: '2.0',
-      id: 'test-2', 
-      method: 'tools/call',
-      params: {
-        name: 'query_projects',
-        arguments: { include_tasks: false },
-      },
-    });
-
-    mcpServer.clearAuthContext();
-
-    res.json({
-      success: true,
-      message: 'MCP server test successful',
-      user: {
-        id: req.user.userId,
-        email: req.user.email,
-        name: req.user.name,
-      },
-      test_results: {
-        tools_list: toolsResult,
-        sample_projects: projectsResult,
-      },
-      mcp_info: {
-        version: '2025-03-26',
-        transport: 'streamable-http',
-        endpoint: `${req.protocol}://${req.get('host')}/mcp`,
-      },
-    });
-
-  } catch (error) {
-    logger.error('MCP test failed', {
-      userId: req.user?.userId,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    
-    res.status(500).json({ 
-      error: 'MCP test failed',
-      details: error instanceof Error ? error.message : String(error),
-    });
-  }
-});

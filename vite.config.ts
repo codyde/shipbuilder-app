@@ -13,6 +13,7 @@ export default defineConfig({
   },
   server: {
     proxy: {
+      // MCP main endpoint with SSE support
       '^/mcp$': {
         target: 'http://localhost:3001',
         changeOrigin: true,
@@ -21,42 +22,35 @@ export default defineConfig({
           proxy.on('error', (err, _req, _res) => {
             console.log('MCP proxy error:', err);
           });
-          proxy.on('proxyReq', (_proxyReq, req, _res) => {
+          proxy.on('proxyReq', (proxyReq, req, _res) => {
             console.log('MCP proxy request:', req.method, req.url);
+            // Add proxy headers for backend detection
+            proxyReq.setHeader('X-Forwarded-Host', 'localhost:5173');
+            proxyReq.setHeader('X-Forwarded-Proto', 'http');
           });
           proxy.on('proxyRes', (proxyRes, req, _res) => {
             console.log('MCP proxy response:', proxyRes.statusCode, req.url);
           });
         },
       },
-      '/mcp/token': {
+      // MCP sub-endpoints
+      '^/mcp/.*': {
         target: 'http://localhost:3001',
         changeOrigin: true,
         configure: (proxy, _options) => {
-          proxy.on('proxyReq', (_proxyReq, req, _res) => {
-            console.log('MCP token proxy request:', req.method, req.url);
+          proxy.on('proxyReq', (proxyReq, req, _res) => {
+            console.log('MCP sub-endpoint proxy request:', req.method, req.url);
+            // Add proxy headers for backend detection
+            proxyReq.setHeader('X-Forwarded-Host', 'localhost:5173');
+            proxyReq.setHeader('X-Forwarded-Proto', 'http');
+          });
+          proxy.on('proxyRes', (proxyRes, req, _res) => {
+            console.log('MCP sub-endpoint proxy response:', proxyRes.statusCode, req.url);
           });
         },
       },
-      '/mcp/test': {
-        target: 'http://localhost:3001',
-        changeOrigin: true,
-        configure: (proxy, _options) => {
-          proxy.on('proxyReq', (_proxyReq, req, _res) => {
-            console.log('MCP test proxy request:', req.method, req.url);
-          });
-        },
-      },
-      '/mcp/consent': {
-        target: 'http://localhost:3001',
-        changeOrigin: true,
-        configure: (proxy, _options) => {
-          proxy.on('proxyReq', (_proxyReq, req, _res) => {
-            console.log('MCP consent proxy request:', req.method, req.url);
-          });
-        },
-      },
-      '/api': {
+      // API endpoints
+      '^/api/.*': {
         target: 'http://localhost:3001',
         changeOrigin: true,
         configure: (proxy, _options) => {
@@ -65,12 +59,29 @@ export default defineConfig({
           });
         },
       },
-      '/.well-known': {
+      // OAuth discovery endpoints
+      '^/\\.well-known/.*': {
         target: 'http://localhost:3001',
         changeOrigin: true,
         configure: (proxy, _options) => {
-          proxy.on('proxyReq', (_proxyReq, req, _res) => {
+          proxy.on('proxyReq', (proxyReq, req, _res) => {
             console.log('OAuth discovery proxy request:', req.method, req.url);
+            // Add proxy headers for backend detection
+            proxyReq.setHeader('X-Forwarded-Host', 'localhost:5173');
+            proxyReq.setHeader('X-Forwarded-Proto', 'http');
+          });
+        },
+      },
+      // Client registration endpoint
+      '^/register': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        configure: (proxy, _options) => {
+          proxy.on('proxyReq', (proxyReq, req, _res) => {
+            console.log('Client registration proxy request:', req.method, req.url);
+            // Add proxy headers for backend detection
+            proxyReq.setHeader('X-Forwarded-Host', 'localhost:5173');
+            proxyReq.setHeader('X-Forwarded-Proto', 'http');
           });
         },
       },

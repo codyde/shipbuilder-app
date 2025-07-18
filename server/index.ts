@@ -66,7 +66,10 @@ app.use('/api/api-keys', authenticateUser, apiKeyRoutes); // Note: API key route
 
 // OAuth Discovery routes (must be at root level)
 app.get('/.well-known/oauth-authorization-server', (req, res) => {
-  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  const isProxiedRequest = req.headers['x-forwarded-host'] || req.headers['x-forwarded-proto'] || req.headers['x-forwarded-for'];
+  const baseUrl = isProxiedRequest 
+    ? `http://${process.env.FRONTEND_BASE_URL?.replace(/^https?:\/\//, '') || 'localhost:5173'}`
+    : `${req.protocol}://${req.get('host')}`;
   
   res.json({
     issuer: baseUrl,
@@ -88,7 +91,10 @@ app.get('/.well-known/oauth-authorization-server', (req, res) => {
 });
 
 app.get('/.well-known/oauth-protected-resource', (req, res) => {
-  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  const isProxiedRequest = req.headers['x-forwarded-host'] || req.headers['x-forwarded-proto'] || req.headers['x-forwarded-for'];
+  const baseUrl = isProxiedRequest 
+    ? `http://${process.env.FRONTEND_BASE_URL?.replace(/^https?:\/\//, '') || 'localhost:5173'}`
+    : `${req.protocol}://${req.get('host')}`;
   
   res.json({
     resource: `${baseUrl}/mcp`,
@@ -105,7 +111,10 @@ app.get('/.well-known/oauth-protected-resource', (req, res) => {
 });
 
 app.post('/register', (req, res) => {
-  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  const isProxiedRequest = req.headers['x-forwarded-host'] || req.headers['x-forwarded-proto'] || req.headers['x-forwarded-for'];
+  const baseUrl = isProxiedRequest 
+    ? `http://${process.env.FRONTEND_BASE_URL?.replace(/^https?:\/\//, '') || 'localhost:5173'}`
+    : `${req.protocol}://${req.get('host')}`;
   
   // Generate a simple client ID for this registration
   const clientId = `mcp_client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
