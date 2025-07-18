@@ -1,4 +1,4 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp';
 import { z } from 'zod';
 import { databaseService } from '../db/database-service.js';
 import { logger } from '../lib/logger.js';
@@ -35,7 +35,7 @@ export class ShipbuilderMCPServer {
   }
 
   private setupErrorHandling() {
-    this.server.onerror = (error) => {
+    this.server.onerror = (error: any) => {
       logger.error('MCP Server error', {
         error: error.message,
         stack: error.stack,
@@ -56,7 +56,7 @@ export class ShipbuilderMCPServer {
         status: z.enum(['active', 'backlog', 'completed', 'archived']).optional().describe('Filter projects by status'),
         include_tasks: z.boolean().default(true).describe('Whether to include tasks in the response'),
       },
-      async ({ status, include_tasks }) => {
+      async ({ status, include_tasks }: { status?: string; include_tasks?: boolean }) => {
         if (!this.authContext) {
           throw new Error('Authentication required. Please provide valid API key or user context.');
         }
@@ -95,7 +95,7 @@ export class ShipbuilderMCPServer {
         status: z.enum(['backlog', 'in_progress', 'completed']).optional().describe('Filter tasks by status'),
         priority: z.enum(['low', 'medium', 'high']).optional().describe('Filter tasks by priority'),
       },
-      async ({ project_id, status, priority }) => {
+      async ({ project_id, status, priority }: { project_id: string; status?: string; priority?: string }) => {
         if (!this.authContext) {
           throw new Error('Authentication required. Please provide valid API key or user context.');
         }

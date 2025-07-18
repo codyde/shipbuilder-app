@@ -5,7 +5,7 @@ import { DeviceFlowService } from '../services/device-flow-service.js';
 import { logger } from '../lib/logger.js';
 import jwt from 'jsonwebtoken';
 import * as Sentry from '@sentry/node';
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse';
 
 export const mcpRoutes = express.Router();
 
@@ -514,7 +514,7 @@ async function mcpSSEHandler(req: any, res: any) {
       mcpServer.clearAuthContext();
     };
 
-    transport.onerror = (error) => {
+    transport.onerror = (error: any) => {
       logger.error('MCP transport error', {
         sessionId: transport.sessionId,
         userId: decoded.userId,
