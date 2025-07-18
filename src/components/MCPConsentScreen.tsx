@@ -72,7 +72,12 @@ export function MCPConsentScreen() {
           window.location.href = data.redirect_uri;
         }, 1000);
       } else {
-        setError(data.error_description || 'Failed to process consent');
+        console.error('Consent error:', {
+          status: response.status,
+          statusText: response.statusText,
+          data
+        });
+        setError(`${data.error_description || 'Failed to process consent'} (HTTP ${response.status})`);
         setProcessing(false);
       }
     } catch (err) {
@@ -196,6 +201,18 @@ export function MCPConsentScreen() {
                 <span className="text-sm text-gray-600">Service:</span>
                 <Badge variant="outline" className="font-mono text-xs">
                   {mcpService}
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Auth Code:</span>
+                <Badge variant="outline" className="font-mono text-xs">
+                  {authorizationCode?.substring(0, 8)}...
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">User Token:</span>
+                <Badge variant="outline" className="font-mono text-xs">
+                  {token ? 'Present' : 'Missing'}
                 </Badge>
               </div>
             </div>

@@ -90,10 +90,22 @@ router.post('/token', async (req: any, res: any) => {
     logger.info('MCP token request received', {
       grant_type: req.body?.grant_type,
       client_id: req.body?.client_id,
+      redirect_uri: req.body?.redirect_uri,
+      code: req.body?.code?.substring(0, 8) + '...',
+      code_verifier: req.body?.code_verifier ? 'present' : 'missing',
       contentType: req.headers['content-type'],
     });
 
     const { grant_type, code, redirect_uri, client_id, code_verifier } = req.body;
+    
+    // Validate grant_type parameter
+    if (!grant_type) {
+      logger.error('Missing grant_type parameter', { body: req.body });
+      return res.status(400).json({
+        error: 'invalid_request',
+        error_description: 'Missing required parameter: grant_type'
+      });
+    }
     
     // Handle OAuth 2.1 Authorization Code flow
     if (grant_type === 'authorization_code' && code) {
@@ -115,6 +127,12 @@ router.post('/token', async (req: any, res: any) => {
         });
 
         if (!validation.valid) {
+          logger.error('Authorization code validation failed', {
+            error: validation.error,
+            client_id,
+            redirect_uri,
+            authorization_code: code?.substring(0, 8) + '...',
+          });
           return res.status(400).json({
             error: 'invalid_grant',
             error_description: validation.error || 'Invalid authorization code'

@@ -20,7 +20,15 @@ export class AuthService {
     if (!this.jwtSecret) {
       throw new Error('JWT_SECRET environment variable is required');
     }
-    this.apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:3001';
+    
+    // In production, use the main app URL; in development, use localhost
+    this.apiBaseUrl = process.env.API_BASE_URL || 
+      (process.env.NODE_ENV === 'production' ? 'https://shipbuilder.app' : 'http://localhost:3001');
+    
+    logger.info('AuthService initialized', {
+      apiBaseUrl: this.apiBaseUrl,
+      environment: process.env.NODE_ENV || 'development'
+    });
   }
 
   /**
@@ -138,8 +146,16 @@ export class AuthService {
     try {
       // Use service-to-service endpoint with service token
       const serviceToken = process.env.SERVICE_TOKEN || 'default-service-token';
+      const url = `${this.apiBaseUrl}/api/auth/service/user/${userId}`;
       
-      const response = await fetch(`${this.apiBaseUrl}/api/auth/service/user/${userId}`, {
+      logger.info('Making service-to-service user lookup', {
+        url,
+        userId,
+        hasServiceToken: !!serviceToken,
+        serviceTokenPrefix: serviceToken?.substring(0, 8) + '...'
+      });
+      
+      const response = await fetch(url, {
         headers: {
           'X-Service-Token': serviceToken,
           'Content-Type': 'application/json'
