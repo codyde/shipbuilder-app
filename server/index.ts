@@ -167,6 +167,9 @@ app.get('/api/auth/authorize', (req, res) => {
 // MCP routes (Model Context Protocol)
 app.use('/mcp', mcpRoutes);
 
+// Mount .well-known endpoints at root level for proper discovery
+app.use('/.well-known', mcpRoutes);
+
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

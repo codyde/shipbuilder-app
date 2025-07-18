@@ -47,6 +47,9 @@ mcpRoutes.get('/.well-known/oauth-protected-resource', (req: any, res: any) => {
     bearer_methods_supported: ['header'],
     resource_documentation: `${baseUrl}/mcp`,
     scopes_supported: ['projects:read', 'tasks:read'],
+    // Add explicit URLs for debugging
+    mcp_endpoint: `${baseUrl}/mcp`,
+    base_url: baseUrl,
   });
 });
 
@@ -108,9 +111,9 @@ mcpRoutes.get('/', async (req: any, res: any) => {
     authentication: {
       type: 'oauth',
       oauth_version: '2.1',
-      authorization_endpoint: '/api/auth/authorize',
-      token_endpoint: '/mcp/token',
-      discovery_endpoint: '/.well-known/oauth-authorization-server',
+      authorization_endpoint: `${req.protocol}://${req.get('host')}/api/auth/authorize`,
+      token_endpoint: `${req.protocol}://${req.get('host')}/mcp/token`,
+      discovery_endpoint: `${req.protocol}://${req.get('host')}/.well-known/oauth-authorization-server`,
       grants_supported: ['authorization_code'],
       pkce_required: true,
       scopes_supported: ['projects:read', 'tasks:read'],
@@ -193,7 +196,16 @@ mcpRoutes.post('/token', async (req: any, res: any) => {
         const { databaseService } = await import('../db/database-service.js');
         const user = await databaseService.getUserById(validation.userId!);
         
+        logger.info('User lookup for token generation', {
+          userId: validation.userId,
+          userFound: !!user,
+          userEmail: user?.email,
+        });
+        
         if (!user) {
+          logger.error('User not found for token generation', {
+            userId: validation.userId,
+          });
           return res.status(400).json({
             error: 'invalid_grant',
             error_description: 'User not found'

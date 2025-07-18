@@ -106,6 +106,11 @@ export class OAuthService {
     }
     
     if (entry.status !== 'used') {
+      logger.error('Authorization code not in used state', {
+        authorization_code: params.authorization_code.substring(0, 8) + '...',
+        status: entry.status,
+        client_id: entry.client_id,
+      });
       return { valid: false, error: 'Authorization code not approved' };
     }
     
@@ -137,18 +142,22 @@ export class OAuthService {
       }
     }
     
+    // Get the userId before consuming the code
+    const userId = entry.userId;
+    const clientId = entry.client_id;
+    
     // Consume the authorization code (one-time use)
     this.authorizationCodes.delete(params.authorization_code);
     
     logger.info('Authorization code consumed', {
       authorization_code: params.authorization_code.substring(0, 8) + '...',
-      client_id: entry.client_id,
-      user_id: entry.userId,
+      client_id: clientId,
+      user_id: userId,
     });
     
     return {
       valid: true,
-      userId: entry.userId,
+      userId: userId,
     };
   }
 
