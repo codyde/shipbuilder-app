@@ -16,6 +16,8 @@ import { LoadingAnimation } from '@/components/ui/loading-animation'
 import { ConnectionStatus } from '@/components/ConnectionStatus'
 import { SidebarInset } from '@/components/ui/sidebar'
 import { GlobalTaskPopout } from '@/components/GlobalTaskPopout'
+import { MCPConsentScreen } from '@/pages/MCPConsentScreen'
+import { DeviceVerificationPage } from '@/pages/DeviceVerificationPage'
 
 type View = 'all-issues' | 'active' | 'backlog' | 'archived' | 'project' | 'tasks' | 'all-tasks' | 'settings'
 
@@ -27,6 +29,27 @@ function AppContent() {
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false)
   const [initialTab, setInitialTab] = useState<'mvp' | 'chat'>('mvp')
   const [newProjectDialogOpen, setNewProjectDialogOpen] = useState(false)
+
+  // Check if this is an MCP login flow or device verification
+  const isMCPLogin = window.location.pathname === '/mcp-login' || 
+                     new URLSearchParams(window.location.search).has('oauth_params')
+  const isDeviceVerification = window.location.pathname === '/device'
+  
+  // Store MCP login state in localStorage to persist through auth
+  useEffect(() => {
+    if (isMCPLogin) {
+      localStorage.setItem('mcpLoginFlow', 'true')
+      // Store OAuth params if present
+      const oauthParams = new URLSearchParams(window.location.search).get('oauth_params')
+      if (oauthParams) {
+        localStorage.setItem('mcpOAuthParams', oauthParams)
+      }
+    }
+  }, [isMCPLogin])
+  
+  // Check if we're returning from auth during MCP flow
+  const wasMCPLogin = localStorage.getItem('mcpLoginFlow') === 'true'
+  const shouldShowMCPConsent = isMCPLogin || wasMCPLogin
 
   const handleViewChange = (view: View) => {
     setCurrentView(view)
@@ -88,6 +111,20 @@ function AppContent() {
   // Show loading animation while checking authentication
   if (loading) {
     return <LoadingAnimation />;
+  }
+
+  // Show device verification page if this is device flow
+  if (isDeviceVerification) {
+    return <DeviceVerificationPage />;
+  }
+
+  // Show MCP consent screen if this is an MCP OAuth flow
+  if (shouldShowMCPConsent) {
+    // For MCP login, user must be authenticated first
+    if (!user) {
+      return <LoginScreen />;
+    }
+    return <MCPConsentScreen />;
   }
 
   // Show login screen if not authenticated

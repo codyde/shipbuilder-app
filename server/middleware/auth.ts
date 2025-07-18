@@ -81,7 +81,7 @@ export function generateJWT(user: { id: string; email: string; provider: string 
     throw new Error('JWT_SECRET not configured');
   }
 
-  const expiresIn = process.env.JWT_EXPIRES_IN || '1h';
+  const expiresIn = process.env.JWT_EXPIRES_IN || '7d';
   
   return jwt.sign(payload, secret, {
     expiresIn: expiresIn as any,
