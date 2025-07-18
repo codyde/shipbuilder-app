@@ -31,6 +31,11 @@ if (process.env.SENTRY_DSN) {
 const app = express();
 const PORT = process.env.PORT || 3002;
 
+// Error handling
+if (process.env.SENTRY_DSN) {
+  app.use(Sentry.expressErrorHandler());
+}
+
 // Security middleware
 app.use(helmet({
   contentSecurityPolicy: false, // Disable CSP for API service
@@ -266,11 +271,6 @@ app.use('*', (req, res) => {
     }
   });
 });
-
-// Error handling
-if (process.env.SENTRY_DSN) {
-  app.use(Sentry.setupExpressErrorHandler(app));
-}
 
 // Global error handler
 app.use((error: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
