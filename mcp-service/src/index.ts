@@ -269,7 +269,7 @@ app.use('*', (req, res) => {
 
 // Error handling
 if (process.env.SENTRY_DSN) {
-  app.use(Sentry.Handlers.errorHandler());
+  app.use(Sentry.setupExpressErrorHandler(app));
 }
 
 // Global error handler
