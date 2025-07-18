@@ -47,12 +47,12 @@ export default defineConfig({
           });
         },
       },
-      '/mcp/device': {
+      '/mcp/consent': {
         target: 'http://localhost:3001',
         changeOrigin: true,
         configure: (proxy, _options) => {
           proxy.on('proxyReq', (_proxyReq, req, _res) => {
-            console.log('MCP device proxy request:', req.method, req.url);
+            console.log('MCP consent proxy request:', req.method, req.url);
           });
         },
       },

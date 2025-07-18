@@ -1,13 +1,54 @@
 import express from 'express';
 import { ShipbuilderMCPServer } from '../services/mcp-server.js';
 import { authenticateUser } from '../middleware/auth.js';
-import { DeviceFlowService } from '../services/device-flow-service.js';
+import { OAuthService } from '../services/oauth-service.js';
 import { logger } from '../lib/logger.js';
 import jwt from 'jsonwebtoken';
 import * as Sentry from '@sentry/node';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 
 export const mcpRoutes = express.Router();
+
+/**
+ * OAuth 2.1 Discovery Endpoints
+ */
+
+/**
+ * GET /.well-known/oauth-authorization-server - OAuth Authorization Server Metadata (RFC 8414)
+ */
+mcpRoutes.get('/.well-known/oauth-authorization-server', (req: any, res: any) => {
+  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  
+  res.json({
+    issuer: baseUrl,
+    authorization_endpoint: `${baseUrl}/api/auth/authorize`,
+    token_endpoint: `${baseUrl}/mcp/token`,
+    jwks_uri: `${baseUrl}/.well-known/jwks.json`,
+    response_types_supported: ['code'],
+    grant_types_supported: ['authorization_code'],
+    code_challenge_methods_supported: ['S256', 'plain'],
+    scopes_supported: ['projects:read', 'tasks:read'],
+    token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post', 'none'],
+    introspection_endpoint: `${baseUrl}/mcp/introspect`,
+    revocation_endpoint: `${baseUrl}/mcp/revoke`,
+  });
+});
+
+/**
+ * GET /.well-known/oauth-protected-resource - Protected Resource Metadata
+ */
+mcpRoutes.get('/.well-known/oauth-protected-resource', (req: any, res: any) => {
+  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  
+  res.json({
+    resource: `${baseUrl}/mcp`,
+    authorization_servers: [baseUrl],
+    jwks_uri: `${baseUrl}/.well-known/jwks.json`,
+    bearer_methods_supported: ['header'],
+    resource_documentation: `${baseUrl}/mcp`,
+    scopes_supported: ['projects:read', 'tasks:read'],
+  });
+});
 
 
 
@@ -66,12 +107,13 @@ mcpRoutes.get('/', async (req: any, res: any) => {
     },
     authentication: {
       type: 'oauth',
-      providers: ['google', 'sentry', 'github'],
-      endpoints: {
-        auth: '/api/auth',
-        token: '/mcp/token',
-        mcp: '/mcp',
-      },
+      oauth_version: '2.1',
+      authorization_endpoint: '/api/auth/authorize',
+      token_endpoint: '/mcp/token',
+      discovery_endpoint: '/.well-known/oauth-authorization-server',
+      grants_supported: ['authorization_code'],
+      pkce_required: true,
+      scopes_supported: ['projects:read', 'tasks:read'],
     },
     tools: [
       {
@@ -85,11 +127,6 @@ mcpRoutes.get('/', async (req: any, res: any) => {
     ],
     mcp_version: '2025-03-26',
     transport: 'streamable-http',
-    device_flow: {
-      device_authorization_endpoint: '/mcp/device/authorize',
-      token_endpoint: '/mcp/token',
-      verification_uri: (process.env.FRONTEND_BASE_URL || 'http://localhost:5173') + '/device',
-    },
   });
 });
 
@@ -124,129 +161,81 @@ mcpRoutes.post('/token', async (req: any, res: any) => {
       }
     }
 
-    const { grant_type, code, redirect_uri, client_id, code_verifier, device_code } = parsedBody;
+    const { grant_type, code, redirect_uri, client_id, code_verifier } = parsedBody;
     
-    // Handle OAuth authorization code flow
+    // Handle OAuth 2.1 Authorization Code flow
     if (grant_type === 'authorization_code' && code) {
       try {
-        // The 'code' in this case should be a JWT token from frontend OAuth flow
-        const decoded = jwt.verify(code, process.env.JWT_SECRET!);
-        
-        if (typeof decoded === 'object' && decoded.userId) {
-          // Create MCP token
-          const mcpToken = jwt.sign(
-            {
-              userId: decoded.userId,
-              email: decoded.email,
-              name: decoded.name,
-              type: 'mcp',
-            },
-            process.env.JWT_SECRET!,
-            { expiresIn: '30d' }
-          );
-
-          logger.info('MCP token generated via OAuth flow', {
-            userId: decoded.userId,
-            email: decoded.email,
-            clientId: client_id,
-          });
-
-          return res.json({
-            access_token: mcpToken,
-            token_type: 'Bearer',
-            expires_in: 30 * 24 * 60 * 60,
-            scope: 'projects:read tasks:read',
+        // Validate required parameters
+        if (!client_id || !redirect_uri) {
+          return res.status(400).json({
+            error: 'invalid_request',
+            error_description: 'Missing required parameters: client_id, redirect_uri'
           });
         }
-      } catch (jwtError) {
-        logger.error('Invalid OAuth code provided', {
-          error: jwtError instanceof Error ? jwtError.message : String(jwtError),
-          clientId: client_id,
+
+        // Validate and consume the authorization code
+        const validation = await OAuthService.validateAndConsumeAuthorizationCode({
+          authorization_code: code,
+          client_id,
+          redirect_uri,
+          code_verifier,
         });
-        return res.status(400).json({ 
-          error: 'invalid_grant',
-          error_description: 'Invalid authorization code'
-        });
-      }
-    }
 
-    // Handle Device Flow token exchange
-    if (grant_type === 'urn:ietf:params:oauth:grant-type:device_code' && device_code) {
-      try {
-        const status = DeviceFlowService.checkDeviceCodeStatus(device_code);
-        
-        if (status.status === 'expired') {
+        if (!validation.valid) {
           return res.status(400).json({
-            error: 'expired_token',
-            error_description: 'Device code has expired'
+            error: 'invalid_grant',
+            error_description: validation.error || 'Invalid authorization code'
           });
         }
+
+        // Get user details for token
+        const { databaseService } = await import('../db/database-service.js');
+        const user = await databaseService.getUserById(validation.userId!);
         
-        if (status.status === 'denied') {
+        if (!user) {
           return res.status(400).json({
-            error: 'access_denied',
-            error_description: 'User denied the authorization request'
+            error: 'invalid_grant',
+            error_description: 'User not found'
           });
         }
-        
-        if (status.status === 'pending') {
-          return res.status(400).json({
-            error: 'authorization_pending',
-            error_description: 'User has not yet completed authorization'
-          });
-        }
-        
-        if (status.status === 'approved' && status.userId) {
-          // Get user details for token
-          const { databaseService } = await import('../db/database-service.js');
-          const user = await databaseService.getUserById(status.userId);
-          
-          if (!user) {
-            return res.status(400).json({
-              error: 'invalid_grant',
-              error_description: 'User not found'
-            });
-          }
-          
-          // Create MCP token
-          const mcpToken = jwt.sign(
-            {
-              userId: user.id,
-              email: user.email,
-              name: user.name,
-              type: 'mcp',
-            },
-            process.env.JWT_SECRET!,
-            { expiresIn: '30d' }
-          );
-          
-          // Consume the device code (one-time use)
-          DeviceFlowService.consumeDeviceCode(device_code);
-          
-          logger.info('MCP token generated via device flow', {
+
+        // Create MCP access token
+        const mcpToken = jwt.sign(
+          {
             userId: user.id,
             email: user.email,
-            clientId: status.clientId,
-          });
-          
-          return res.json({
-            access_token: mcpToken,
-            token_type: 'Bearer',
-            expires_in: 30 * 24 * 60 * 60,
+            name: user.name,
+            type: 'mcp',
             scope: 'projects:read tasks:read',
-          });
-        }
+            aud: client_id, // Resource indicator
+          },
+          process.env.JWT_SECRET!,
+          { expiresIn: '30d' }
+        );
+
+        logger.info('MCP token generated via OAuth 2.1 flow', {
+          userId: user.id,
+          email: user.email,
+          clientId: client_id,
+        });
+
+        return res.json({
+          access_token: mcpToken,
+          token_type: 'Bearer',
+          expires_in: 30 * 24 * 60 * 60,
+          scope: 'projects:read tasks:read',
+        });
         
       } catch (error) {
-        logger.error('Device flow token exchange failed', {
+        logger.error('OAuth 2.1 token exchange failed', {
           error: error instanceof Error ? error.message : String(error),
-          device_code: device_code?.substring(0, 8) + '...',
           clientId: client_id,
         });
         
         return res.status(500).json({
           error: 'server_error',
-          error_description: 'Failed to process device flow token request'
+          error_description: 'Failed to process authorization code'
         });
       }
     }
@@ -322,59 +311,113 @@ mcpRoutes.post('/token', async (req: any, res: any) => {
 });
 
 /**
- * POST /mcp/device/authorize - OAuth Device Flow - Generate device and user codes
+ * GET /mcp/authorize - OAuth 2.1 Authorization Endpoint
  */
-mcpRoutes.post('/device/authorize', async (req: any, res: any) => {
+mcpRoutes.get('/authorize', async (req: any, res: any) => {
   try {
-    const { client_id, scope } = req.body;
+    const { 
+      response_type, 
+      client_id, 
+      redirect_uri, 
+      scope, 
+      state, 
+      code_challenge, 
+      code_challenge_method 
+    } = req.query;
 
-    if (!client_id) {
+    // Validate required parameters
+    if (response_type !== 'code') {
       return res.status(400).json({
-        error: 'invalid_request',
-        error_description: 'client_id is required'
+        error: 'unsupported_response_type',
+        error_description: 'Only response_type=code is supported'
       });
     }
 
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
-    const result = DeviceFlowService.generateDeviceCode(client_id, scope, baseUrl);
+    if (!client_id || !redirect_uri) {
+      return res.status(400).json({
+        error: 'invalid_request',
+        error_description: 'Missing required parameters: client_id, redirect_uri'
+      });
+    }
 
-    logger.info('Device flow authorization initiated', {
+    // Validate PKCE parameters (required for OAuth 2.1)
+    if (!code_challenge || !code_challenge_method) {
+      return res.status(400).json({
+        error: 'invalid_request',
+        error_description: 'PKCE parameters required: code_challenge, code_challenge_method'
+      });
+    }
+
+    if (!['S256', 'plain'].includes(code_challenge_method)) {
+      return res.status(400).json({
+        error: 'invalid_request',
+        error_description: 'code_challenge_method must be S256 or plain'
+      });
+    }
+
+    // Generate authorization code
+    const authorizationCode = OAuthService.generateAuthorizationCode({
       client_id,
-      user_code: result.user_code,
-      device_code: result.device_code.substring(0, 8) + '...',
+      redirect_uri,
+      code_challenge,
+      code_challenge_method,
+      scope,
+      state,
     });
 
-    res.json(result);
+    logger.info('OAuth authorization initiated', {
+      client_id,
+      redirect_uri,
+      authorization_code: authorizationCode.substring(0, 8) + '...',
+    });
+
+    // Store OAuth params for the consent screen
+    const oauthParams = {
+      response_type,
+      client_id,
+      redirect_uri,
+      scope,
+      state,
+      code_challenge,
+      code_challenge_method,
+      authorization_code: authorizationCode,
+    };
+
+    // Redirect to consent screen
+    const consentUrl = new URL('/mcp-login', process.env.FRONTEND_BASE_URL || 'http://localhost:5173');
+    consentUrl.searchParams.set('oauth_params', encodeURIComponent(JSON.stringify(oauthParams)));
+    
+    res.redirect(consentUrl.toString());
 
   } catch (error) {
-    logger.error('Device flow authorization failed', {
+    logger.error('OAuth authorization failed', {
       error: error instanceof Error ? error.message : String(error),
-      body: req.body,
+      query: req.query,
     });
 
     Sentry.captureException(error, {
-      tags: { component: 'mcp_device_flow' },
+      tags: { component: 'mcp_oauth_authorize' },
     });
 
     res.status(500).json({
       error: 'server_error',
-      error_description: 'Failed to generate device code'
+      error_description: 'Failed to process authorization request'
     });
   }
 });
 
 /**
- * POST /mcp/device/verify - Verify user code and approve/deny
+ * POST /mcp/consent - Handle user consent for OAuth authorization
  */
-mcpRoutes.post('/device/verify', authenticateUser, async (req: any, res: any) => {
+mcpRoutes.post('/consent', authenticateUser, async (req: any, res: any) => {
   try {
-    const { user_code, action } = req.body; // action: 'approve' | 'deny'
+    const { authorization_code, action } = req.body; // action: 'approve' | 'deny'
     const userId = req.user.userId;
 
-    if (!user_code) {
+    if (!authorization_code) {
       return res.status(400).json({
         error: 'invalid_request',
-        error_description: 'user_code is required'
+        error_description: 'authorization_code is required'
       });
     }
 
@@ -385,56 +428,69 @@ mcpRoutes.post('/device/verify', authenticateUser, async (req: any, res: any) =>
       });
     }
 
-    // Find device code by user code
-    const deviceCode = DeviceFlowService.getDeviceCodeByUserCode(user_code);
-    if (!deviceCode) {
+    const codeDetails = OAuthService.getAuthorizationCodeDetails(authorization_code);
+    if (!codeDetails) {
       return res.status(404).json({
         error: 'invalid_grant',
-        error_description: 'Invalid or expired user code'
+        error_description: 'Invalid or expired authorization code'
       });
     }
 
-    let success = false;
     if (action === 'approve') {
-      success = DeviceFlowService.approveDeviceCode(deviceCode.device_code, userId);
-    } else {
-      success = DeviceFlowService.denyDeviceCode(deviceCode.device_code);
-    }
+      const success = OAuthService.approveAuthorizationCode(authorization_code, userId);
+      if (!success) {
+        return res.status(500).json({
+          error: 'server_error',
+          error_description: 'Failed to approve authorization'
+        });
+      }
 
-    if (!success) {
-      return res.status(500).json({
-        error: 'server_error',
-        error_description: 'Failed to process device verification'
+      logger.info('OAuth authorization approved', {
+        authorization_code: authorization_code.substring(0, 8) + '...',
+        user_id: userId,
+        client_id: codeDetails.client_id,
+      });
+
+      // Return success with redirect URL
+      const redirectUrl = new URL(codeDetails.redirect_uri);
+      redirectUrl.searchParams.set('code', authorization_code);
+      if (codeDetails.state) {
+        redirectUrl.searchParams.set('state', codeDetails.state);
+      }
+
+      res.json({
+        success: true,
+        redirect_uri: redirectUrl.toString(),
+      });
+    } else {
+      // User denied authorization
+      const redirectUrl = new URL(codeDetails.redirect_uri);
+      redirectUrl.searchParams.set('error', 'access_denied');
+      redirectUrl.searchParams.set('error_description', 'User denied authorization');
+      if (codeDetails.state) {
+        redirectUrl.searchParams.set('state', codeDetails.state);
+      }
+
+      res.json({
+        success: false,
+        redirect_uri: redirectUrl.toString(),
       });
     }
-
-    logger.info('Device code verified', {
-      user_code,
-      action,
-      user_id: userId,
-      client_id: deviceCode.client_id,
-    });
-
-    res.json({
-      success: true,
-      action,
-      client_id: deviceCode.client_id,
-    });
 
   } catch (error) {
-    logger.error('Device verification failed', {
+    logger.error('OAuth consent failed', {
       error: error instanceof Error ? error.message : String(error),
       body: req.body,
       user_id: req.user?.userId,
     });
 
     Sentry.captureException(error, {
-      tags: { component: 'mcp_device_verify' },
+      tags: { component: 'mcp_oauth_consent' },
     });
 
     res.status(500).json({
       error: 'server_error',
-      error_description: 'Failed to verify device code'
+      error_description: 'Failed to process consent'
     });
   }
 });
