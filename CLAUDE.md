@@ -401,3 +401,108 @@ interface MVPPlan {
 - **Service Layer**: Clean separation between database operations and API routes
 - **Middleware Architecture**: Composable Express middleware for cross-cutting concerns
 - **Design Consistency**: Standardized interaction patterns for copyable elements, deletion confirmations, and visual feedback
+
+## MCP Server Implementation
+
+### Overview
+Complete Model Context Protocol (MCP) server implementation enabling AI assistants and MCP clients to query project and task data through a standardized protocol.
+
+### Core Components
+
+#### 1. MCP Server Service (`/server/services/mcp-server.ts`)
+- **Built with**: MCP TypeScript SDK (`@modelcontextprotocol/sdk@1.16.0`)
+- **Architecture**: McpServer with SSEServerTransport for streamable HTTP
+- **Authentication**: User-scoped access with JWT/OAuth integration
+- **Tools Implemented**:
+  - `query_projects` - Get user's projects with optional status filtering and task inclusion
+  - `query_tasks` - Get tasks for specific projects with status/priority filtering
+
+#### 2. HTTP Transport & Routing (`/server/routes/mcp.ts`)
+- **Endpoints**:
+  - `GET /mcp/message` - Establishes SSE connection using official MCP SDK transport
+  - `POST /mcp/message` - Handles JSON-RPC messages through transport
+  - `GET /mcp` - Server information and capabilities
+  - `POST /mcp/token` - OAuth token exchange for MCP access
+- **Session Management**: UUID-based sessions with 2-hour expiration and automatic cleanup
+- **Transport**: Official `SSEServerTransport` from MCP SDK for proper streamable HTTP
+
+#### 3. OAuth Authentication Flow
+- **Discovery Endpoints**: 
+  - `/.well-known/oauth-authorization-server` - OAuth server metadata
+  - `/.well-known/oauth-protected-resource` - Resource server info
+  - `/register` - Dynamic client registration
+- **Authorization Flow**: 
+  - `/api/auth/authorize` - Redirects to frontend OAuth consent screen
+  - Frontend handles user consent at `/mcp-login` route
+  - Token exchange supports both OAuth code flow and direct JWT exchange
+- **Frontend Integration**: React component (`MCPConsentScreen.tsx`) for user authorization
+
+#### 4. Security & Validation
+- **Authentication**: 
+  - JWT token validation for initial connections
+  - Session-based authentication for subsequent requests
+  - User-scoped data access (users can only access their own projects/tasks)
+- **CORS Configuration**: Headers for `MCP-Protocol-Version`, `MCP-Session-Id`, etc.
+- **Header Validation**: Flexible Accept header handling (`application/json`, `text/event-stream`, `*/*`)
+- **Rate Limiting**: API protection with existing rate limiting middleware
+
+#### 5. Data Integration
+- **Database**: Full integration with existing PostgreSQL + Drizzle ORM
+- **Slug-based IDs**: Works with human-readable project/task identifiers
+- **User Context**: Respects existing user authentication and authorization
+- **Error Handling**: Comprehensive logging with Sentry integration
+
+### API Capabilities
+
+#### Tool: `query_projects`
+```typescript
+{
+  status?: 'active' | 'backlog' | 'completed' | 'archived',
+  include_tasks?: boolean (default: true)
+}
+```
+**Returns**: Array of user's projects with optional task details
+
+#### Tool: `query_tasks`
+```typescript
+{
+  project_id: string, // Project slug (required)
+  status?: 'backlog' | 'in_progress' | 'completed',
+  priority?: 'low' | 'medium' | 'high'
+}
+```
+**Returns**: Filtered tasks for specified project
+
+### Usage Instructions
+
+#### For MCP Clients (like Cursor)
+1. **Server URL**: `http://localhost:3001/mcp`
+2. **Authentication**: OAuth 2.0 flow with user consent
+3. **Transport**: Streamable HTTP with SSE
+4. **Protocol Version**: `2025-03-26`
+
+#### Configuration Requirements
+- **Environment Variables**: 
+  - `JWT_SECRET` - For token signing
+  - `DATABASE_URL` - PostgreSQL connection
+  - `FRONTEND_BASE_URL` - For OAuth redirects (default: `http://localhost:5173`)
+- **Dependencies**: `@modelcontextprotocol/sdk@1.16.0`
+
+### Technical Specifications
+
+- **Transport Protocol**: MCP Streamable HTTP with Server-Sent Events
+- **JSON-RPC**: 2.0 specification compliance
+- **Session Management**: UUID-based with automatic cleanup
+- **Error Handling**: Standard JSON-RPC error codes (-32601, -32603, etc.)
+- **Logging**: Structured logging with request/response tracking
+- **Security**: CORS protection, header validation, user-scoped access
+
+### Integration Points
+
+- **Existing Auth**: Seamlessly integrates with current JWT/OAuth system
+- **Database**: Uses existing Drizzle ORM and database service layer  
+- **API Routes**: Follows established Express.js routing patterns
+- **Frontend**: Custom OAuth consent screen integrated with React app
+- **Error Tracking**: Sentry integration for production monitoring
+
+This implementation provides a production-ready MCP server that allows AI assistants to programmatically access and query Shipbuilder project data while maintaining security and user privacy.
