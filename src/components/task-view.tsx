@@ -134,7 +134,7 @@ export function TaskView({ projectId, onBack }: TaskViewProps) {
   // Define handleTaskClose before useEffect that references it
   const handleTaskClose = useCallback(() => {
     setIsClosingPanel(true)
-    setClosingTask(selectedTask)
+    setClosingTask(selectedTask || null)
     setSelectedTaskId(null)
     clearPoppedOutTask()
     // Reset closing state after animation completes
@@ -501,7 +501,7 @@ export function TaskView({ projectId, onBack }: TaskViewProps) {
       {/* Task Detail Panel - Only show when not popped out */}
       {(selectedTask || closingTask) && !isPoppedOut && (
         <TaskDetailPanel
-          task={selectedTask || closingTask}
+          task={(selectedTask || closingTask)!}
           isOpen={!!selectedTaskId}
           onClose={handleTaskClose}
           onPopOut={handlePopOut}
