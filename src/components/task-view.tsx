@@ -40,7 +40,7 @@ import {
   Trash2
 } from 'lucide-react'
 import { useProjects } from '@/context/ProjectContext'
-import { TaskStatus, Priority } from '@/types/types'
+import { Task, TaskStatus, Priority } from '@/types/types'
 import { logger } from '@/lib/logger'
 import { cn } from '@/lib/utils'
 import { CopyableId } from '@/components/CopyableId'

@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -8,8 +7,11 @@ import { Badge } from './ui/badge';
 import { Shield, Eye, Database, CheckCircle, XCircle, AlertCircle, ExternalLink } from 'lucide-react';
 
 export function MCPConsentScreen() {
-  const [searchParams] = useSearchParams();
-  const { user, token } = useAuth();
+  // Use window.location.search instead of react-router-dom
+  const searchParams = new URLSearchParams(window.location.search);
+  const { user } = useAuth();
+  // Get JWT token from localStorage
+  const token = localStorage.getItem('authToken');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
@@ -206,7 +208,7 @@ export function MCPConsentScreen() {
               Requested Permissions:
             </h3>
             <div className="space-y-2">
-              {permissions.map((permission) => (
+              {permissions.map((permission: string) => (
                 <div key={permission} className="flex items-start space-x-3">
                   <Database className="h-4 w-4 text-yellow-600 mt-0.5" />
                   <div>
