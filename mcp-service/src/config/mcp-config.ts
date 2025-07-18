@@ -113,12 +113,13 @@ export function getFrontendUrl(): string {
  */
 export function getMCPServiceUrl(req: any): string {
   // In development, use localhost:3002
-  // In production, use the actual domain
+  // In production, use the actual domain with forced HTTPS
   if (process.env.NODE_ENV === 'development') {
     return `http://localhost:${process.env.PORT || 3002}`;
   }
   
-  return `${req.protocol}://${req.get('host')}`;
+  // Force HTTPS in production (handles load balancer/proxy scenarios)
+  return `https://${req.get('host')}`;
 }
 
 /**
