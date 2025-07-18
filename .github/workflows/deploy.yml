@@ -20,6 +20,12 @@ jobs:
         working-directory: ./server
         run: railway up --service=${{ env.SVC_ID }}
       
+      - name: Deploy MCP Service
+        env:
+          SVC_ID: 183b456d-df60-41ca-bb88-02f0e2f62262
+        working-directory: ./mcp-service
+        run: railway up --service=${{ env.SVC_ID }}
+      
       - name: Deploy Frontend
         env:
           SVC_ID: 24f5dd80-edae-4e36-a9c0-3f58ce04ff8b
