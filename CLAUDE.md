@@ -160,6 +160,7 @@ The application uses human-readable slug-based identifiers for projects and task
 - `ANTHROPIC_API_KEY` - Required for AI functionality
 - `JWT_SECRET` - JWT signing secret for authentication
 - `JWT_EXPIRES_IN` - JWT token expiration time (default: "7d")
+- `SERVICE_TOKEN` - Service-to-service authentication token for MCP service communication
 - `NODE_ENV` - Environment mode (development/production)
 - `PORT` - Server port (default: 3001)
 - `FRONTEND_BASE_URL` - Frontend URL for CORS (default: http://localhost:5173)

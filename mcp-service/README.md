@@ -54,6 +54,7 @@ npm start
 |----------|-------------|---------|
 | `JWT_SECRET` | JWT signing secret (must match main app) | `your-super-secret-jwt-key` |
 | `API_BASE_URL` | Main Shipbuilder API endpoint | `http://localhost:3001` |
+| `SERVICE_TOKEN` | Service-to-service authentication token (must match main app) | `your-service-token-here` |
 
 ### Optional Variables
 
@@ -71,6 +72,7 @@ npm start
 # Required
 JWT_SECRET=your-super-secret-jwt-key-that-matches-main-app
 API_BASE_URL=http://localhost:3001
+SERVICE_TOKEN=your-service-token-here
 
 # Optional
 NODE_ENV=development

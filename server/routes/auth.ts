@@ -8,6 +8,46 @@ import * as Sentry from '@sentry/node';
 
 const router = express.Router();
 
+// Service-to-service user lookup endpoint (for MCP service)
+router.get('/service/user/:userId', async (req: any, res: any) => {
+  try {
+    // Verify service token from MCP service
+    const serviceToken = req.headers['x-service-token'];
+    const expectedServiceToken = process.env.SERVICE_TOKEN || 'default-service-token';
+    
+    if (!serviceToken || serviceToken !== expectedServiceToken) {
+      return res.status(401).json({ error: 'Invalid service token' });
+    }
+    
+    const { userId } = req.params;
+    
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required' });
+    }
+    
+    // Get user from database
+    const user = await databaseService.getUserById(userId);
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Return user data (safe for service-to-service communication)
+    res.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        provider: user.provider
+      }
+    });
+    
+  } catch (error) {
+    console.error('Service user lookup error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 
 
 // Get current user endpoint (now uses JWT authentication)

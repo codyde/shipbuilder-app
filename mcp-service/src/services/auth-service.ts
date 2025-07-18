@@ -136,26 +136,22 @@ export class AuthService {
    */
   async getUserById(userId: string): Promise<{ id: string; email: string; name: string } | null> {
     try {
-      // For user lookup, we'll create a temporary token that matches main app format
-      const tempToken = jwt.sign({
-        userId,
-        email: 'temp@temp.com', // Temporary placeholder, will be overridden by actual user data
-        provider: 'mcp-service',
-        aud: 'project-management-app',
-        iss: 'auth-service'
-      }, this.jwtSecret, { 
-        expiresIn: '5m',
-        algorithm: 'HS256'
-      });
+      // Use service-to-service endpoint with service token
+      const serviceToken = process.env.SERVICE_TOKEN || 'default-service-token';
       
-      const response = await fetch(`${this.apiBaseUrl}/api/auth/me`, {
+      const response = await fetch(`${this.apiBaseUrl}/api/auth/service/user/${userId}`, {
         headers: {
-          'Authorization': `Bearer ${tempToken}`,
+          'X-Service-Token': serviceToken,
           'Content-Type': 'application/json'
         }
       });
 
       if (!response.ok) {
+        logger.warn('User lookup failed', {
+          userId,
+          status: response.status,
+          statusText: response.statusText
+        });
         return null;
       }
 
@@ -167,7 +163,7 @@ export class AuthService {
         name: user.name
       };
     } catch (error) {
-      logger.error('Failed to get user by ID via API', {
+      logger.error('Failed to get user by ID via service API', {
         error: error instanceof Error ? error.message : String(error),
         userId
       });
