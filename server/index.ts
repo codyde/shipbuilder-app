@@ -66,10 +66,7 @@ app.use('/api/api-keys', authenticateUser, apiKeyRoutes); // Note: API key route
 
 // OAuth Discovery routes (must be at root level)
 app.get('/.well-known/oauth-authorization-server', (req, res) => {
-  const isProxiedRequest = req.headers['x-forwarded-host'] || req.headers['x-forwarded-proto'] || req.headers['x-forwarded-for'];
-  const baseUrl = isProxiedRequest 
-    ? `http://${process.env.FRONTEND_BASE_URL?.replace(/^https?:\/\//, '') || 'localhost:5173'}`
-    : `${req.protocol}://${req.get('host')}`;
+  const baseUrl = `${req.protocol}://${req.get('host')}`;
   
   res.json({
     issuer: baseUrl,
@@ -91,10 +88,7 @@ app.get('/.well-known/oauth-authorization-server', (req, res) => {
 });
 
 app.get('/.well-known/oauth-protected-resource', (req, res) => {
-  const isProxiedRequest = req.headers['x-forwarded-host'] || req.headers['x-forwarded-proto'] || req.headers['x-forwarded-for'];
-  const baseUrl = isProxiedRequest 
-    ? `http://${process.env.FRONTEND_BASE_URL?.replace(/^https?:\/\//, '') || 'localhost:5173'}`
-    : `${req.protocol}://${req.get('host')}`;
+  const baseUrl = `${req.protocol}://${req.get('host')}`;
   
   res.json({
     resource: `${baseUrl}/mcp`,
@@ -111,10 +105,7 @@ app.get('/.well-known/oauth-protected-resource', (req, res) => {
 });
 
 app.post('/register', (req, res) => {
-  const isProxiedRequest = req.headers['x-forwarded-host'] || req.headers['x-forwarded-proto'] || req.headers['x-forwarded-for'];
-  const baseUrl = isProxiedRequest 
-    ? `http://${process.env.FRONTEND_BASE_URL?.replace(/^https?:\/\//, '') || 'localhost:5173'}`
-    : `${req.protocol}://${req.get('host')}`;
+  const baseUrl = `${req.protocol}://${req.get('host')}`;
   
   // Generate a simple client ID for this registration
   const clientId = `mcp_client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -176,9 +167,12 @@ app.get('/api/auth/authorize', (req, res) => {
 // MCP routes (Model Context Protocol)
 app.use('/mcp', mcpRoutes);
 
+<<<<<<< HEAD
 // Mount .well-known endpoints at root level for proper discovery
 app.use('/.well-known', mcpRoutes);
 
+=======
+>>>>>>> origin/main
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -187,7 +181,7 @@ app.get('/api/health', (req, res) => {
 // Add error logging middleware (should be last)
 app.use(errorLoggingMiddleware);
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   logger.info(`Server started successfully`, {
     port: PORT,
     environment: process.env.NODE_ENV || 'development',

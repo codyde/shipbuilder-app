@@ -13,39 +13,31 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      // MCP service main endpoint with SSE support (standalone service on port 3002)
-      '^/mcp$': {
-        target: 'http://localhost:3002',
+      // Device flow endpoints (main service on port 3001)
+      '/mcp/token': {
+        target: 'http://localhost:3001',
         changeOrigin: true,
-        ws: true, // Enable WebSocket proxying for SSE
-        configure: (proxy) => {
-          proxy.on('error', (err) => {
-            console.log('MCP proxy error:', err);
-          });
-          proxy.on('proxyReq', (proxyReq, req) => {
-            console.log('MCP proxy request:', req.method, req.url);
-            // Add proxy headers for backend detection
-            proxyReq.setHeader('X-Forwarded-Host', 'localhost:5173');
-            proxyReq.setHeader('X-Forwarded-Proto', 'http');
-          });
-          proxy.on('proxyRes', (proxyRes, req) => {
-            console.log('MCP proxy response:', proxyRes.statusCode, req.url);
+        configure: (proxy, _options) => {
+          proxy.on('proxyReq', (_proxyReq, req, _res) => {
+            console.log('MCP token proxy request:', req.method, req.url);
           });
         },
       },
-      // MCP service sub-endpoints (standalone service on port 3002)
-      '^/mcp/.*': {
-        target: 'http://localhost:3002',
+      '/mcp/test': {
+        target: 'http://localhost:3001',
         changeOrigin: true,
-        configure: (proxy) => {
-          proxy.on('proxyReq', (proxyReq, req) => {
-            console.log('MCP sub-endpoint proxy request:', req.method, req.url);
-            // Add proxy headers for backend detection
-            proxyReq.setHeader('X-Forwarded-Host', 'localhost:5173');
-            proxyReq.setHeader('X-Forwarded-Proto', 'http');
+        configure: (proxy, _options) => {
+          proxy.on('proxyReq', (_proxyReq, req, _res) => {
+            console.log('MCP test proxy request:', req.method, req.url);
           });
-          proxy.on('proxyRes', (proxyRes, req) => {
-            console.log('MCP sub-endpoint proxy response:', proxyRes.statusCode, req.url);
+        },
+      },
+      '/mcp/device': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        configure: (proxy, _options) => {
+          proxy.on('proxyReq', (_proxyReq, req, _res) => {
+            console.log('MCP device proxy request:', req.method, req.url);
           });
         },
       },
@@ -53,35 +45,19 @@ export default defineConfig({
       '^/api/.*': {
         target: 'http://localhost:3001',
         changeOrigin: true,
-        configure: (proxy) => {
-          proxy.on('proxyReq', (_proxyReq, req) => {
+        configure: (proxy, _options) => {
+          proxy.on('proxyReq', (_proxyReq, req, _res) => {
             console.log('API proxy request:', req.method, req.url);
           });
         },
       },
-      // OAuth discovery endpoints (MCP service on port 3002)
-      '^/\\.well-known/.*': {
-        target: 'http://localhost:3002',
+      // OAuth discovery for device flow (main service on port 3001)
+      '/.well-known': {
+        target: 'http://localhost:3001',
         changeOrigin: true,
-        configure: (proxy) => {
-          proxy.on('proxyReq', (proxyReq, req) => {
+        configure: (proxy, _options) => {
+          proxy.on('proxyReq', (_proxyReq, req, _res) => {
             console.log('OAuth discovery proxy request:', req.method, req.url);
-            // Add proxy headers for backend detection
-            proxyReq.setHeader('X-Forwarded-Host', 'localhost:5173');
-            proxyReq.setHeader('X-Forwarded-Proto', 'http');
-          });
-        },
-      },
-      // Client registration endpoint (MCP service on port 3002)
-      '^/register': {
-        target: 'http://localhost:3002',
-        changeOrigin: true,
-        configure: (proxy) => {
-          proxy.on('proxyReq', (proxyReq, req) => {
-            console.log('Client registration proxy request:', req.method, req.url);
-            // Add proxy headers for backend detection
-            proxyReq.setHeader('X-Forwarded-Host', 'localhost:5173');
-            proxyReq.setHeader('X-Forwarded-Proto', 'http');
           });
         },
       },
