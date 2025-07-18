@@ -17,6 +17,7 @@ import {
   MCP_DETAILED_CAPABILITIES,
   MCP_SERVER_INFO,
   getBaseUrl,
+  getFrontendUrl,
   generateOAuthDiscoveryMetadata,
   generateOAuthProtectedResourceMetadata,
   generateMCPServerInfo
@@ -363,7 +364,7 @@ mcpRoutes.get('/authorize', async (req: any, res: any) => {
     };
 
     // Redirect to consent screen
-    const frontendUrl = process.env.FRONTEND_BASE_URL || 'http://localhost:5173';
+    const frontendUrl = getFrontendUrl();
     const consentUrl = new URL('/mcp-login', frontendUrl);
     consentUrl.searchParams.set('oauth_params', encodeURIComponent(JSON.stringify(oauthParams)));
     

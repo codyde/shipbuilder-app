@@ -25,10 +25,30 @@ export function MCPConsentScreen() {
   const token = localStorage.getItem('authToken');
 
   useEffect(() => {
-    // Try to get OAuth params from URL first, then localStorage
+    // Try to get OAuth params from URL parameters first, then localStorage
     const urlParams = new URLSearchParams(window.location.search);
-    let encodedParams = urlParams.get('oauth_params');
     
+    // Check for individual parameters (from MCP authorization flow)
+    const authCode = urlParams.get('authorization_code');
+    const clientId = urlParams.get('client_id');
+    const scope = urlParams.get('scope');
+    const mcpService = urlParams.get('mcp_service');
+    
+    if (authCode && clientId) {
+      // Build OAuth params from individual URL parameters
+      const params: OAuthParams = {
+        response_type: 'code',
+        client_id: clientId,
+        redirect_uri: mcpService || '',
+        authorization_code: authCode,
+        scope: scope || 'projects:read tasks:read'
+      };
+      setOauthParams(params);
+      return;
+    }
+    
+    // Fallback: Try to get JSON-encoded oauth_params from URL or localStorage
+    let encodedParams = urlParams.get('oauth_params');
     if (!encodedParams) {
       encodedParams = localStorage.getItem('mcpOAuthParams');
     }
@@ -57,16 +77,17 @@ export function MCPConsentScreen() {
     
     setLoading(true);
     try {
-      // Submit consent approval
-      const response = await fetch(`${API_BASE_URL}/mcp/consent`, {
+      // Submit consent approval to MCP service
+      const mcpServiceUrl = new URLSearchParams(window.location.search).get('mcp_service') || 'http://localhost:3002';
+      const response = await fetch(`${mcpServiceUrl}/api/auth/consent`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
           authorization_code: oauthParams.authorization_code,
           action: 'approve',
+          main_app_token: token,
         }),
       });
       
@@ -95,16 +116,17 @@ export function MCPConsentScreen() {
     
     setLoading(true);
     try {
-      // Submit consent denial
-      const response = await fetch(`${API_BASE_URL}/mcp/consent`, {
+      // Submit consent denial to MCP service
+      const mcpServiceUrl = new URLSearchParams(window.location.search).get('mcp_service') || 'http://localhost:3002';
+      const response = await fetch(`${mcpServiceUrl}/api/auth/consent`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
           authorization_code: oauthParams.authorization_code,
           action: 'deny',
+          main_app_token: token,
         }),
       });
       

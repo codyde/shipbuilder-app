@@ -71,7 +71,9 @@ export const MCP_TRANSPORT_TYPE = 'streamable-http';
 /**
  * Default Frontend URL (used for OAuth redirects and proxy detection)
  */
-export const DEFAULT_FRONTEND_URL = 'http://localhost:5173';
+export const DEFAULT_FRONTEND_URL = process.env.NODE_ENV === 'production' 
+  ? 'https://shipbuilder.app' 
+  : 'http://localhost:5173';
 
 /**
  * Helper function to get base URL based on request headers
@@ -80,11 +82,21 @@ export function getBaseUrl(req: { headers: Record<string, string | string[] | un
   const isProxiedRequest = req.headers['x-forwarded-host'] || req.headers['x-forwarded-proto'] || req.headers['x-forwarded-for'];
   
   if (isProxiedRequest) {
+    // Request is coming through a proxy (production: nginx, development: vite)
+    // Return the frontend URL that clients should connect to
     const frontendUrl = process.env.FRONTEND_BASE_URL || DEFAULT_FRONTEND_URL;
-    return `http://${frontendUrl.replace(/^https?:\/\//, '')}`;
+    return frontendUrl.startsWith('http') ? frontendUrl : `https://${frontendUrl}`;
   }
   
+  // Direct connection to backend (development without proxy)
   return `${req.protocol}://${req.get('host')}`;
+}
+
+/**
+ * Helper function to get frontend URL for OAuth redirects
+ */
+export function getFrontendUrl(): string {
+  return process.env.FRONTEND_BASE_URL || DEFAULT_FRONTEND_URL;
 }
 
 /**

@@ -13,9 +13,9 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      // MCP main endpoint with SSE support
+      // MCP service main endpoint with SSE support (standalone service on port 3002)
       '^/mcp$': {
-        target: 'http://localhost:3001',
+        target: 'http://localhost:3002',
         changeOrigin: true,
         ws: true, // Enable WebSocket proxying for SSE
         configure: (proxy) => {
@@ -33,9 +33,9 @@ export default defineConfig({
           });
         },
       },
-      // MCP sub-endpoints
+      // MCP service sub-endpoints (standalone service on port 3002)
       '^/mcp/.*': {
-        target: 'http://localhost:3001',
+        target: 'http://localhost:3002',
         changeOrigin: true,
         configure: (proxy) => {
           proxy.on('proxyReq', (proxyReq, req) => {
@@ -59,9 +59,9 @@ export default defineConfig({
           });
         },
       },
-      // OAuth discovery endpoints
+      // OAuth discovery endpoints (MCP service on port 3002)
       '^/\\.well-known/.*': {
-        target: 'http://localhost:3001',
+        target: 'http://localhost:3002',
         changeOrigin: true,
         configure: (proxy) => {
           proxy.on('proxyReq', (proxyReq, req) => {
@@ -72,9 +72,9 @@ export default defineConfig({
           });
         },
       },
-      // Client registration endpoint
+      // Client registration endpoint (MCP service on port 3002)
       '^/register': {
-        target: 'http://localhost:3001',
+        target: 'http://localhost:3002',
         changeOrigin: true,
         configure: (proxy) => {
           proxy.on('proxyReq', (proxyReq, req) => {
