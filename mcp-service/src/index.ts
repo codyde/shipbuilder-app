@@ -1,5 +1,5 @@
+import './instrument.js';
 import express from 'express';
-import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import * as Sentry from '@sentry/node';
@@ -15,18 +15,6 @@ import {
   MCP_OAUTH_SCOPES
 } from './config/mcp-config.js';
 import { logger } from './utils/logger.js';
-
-// Initialize Sentry
-if (process.env.SENTRY_DSN) {
-  Sentry.init({
-    dsn: process.env.SENTRY_DSN,
-    environment: process.env.NODE_ENV || 'development',
-    tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
-  });
-  logger.info('Sentry initialized', { 
-    environment: process.env.NODE_ENV || 'development' 
-  });
-}
 
 const app = express();
 const PORT = process.env.PORT || 3002;
