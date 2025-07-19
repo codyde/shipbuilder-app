@@ -180,7 +180,7 @@ export function LoginScreen() {
           left: '20%',
           width: '300px',
           height: '300px',
-          background: 'radial-gradient(circle, rgba(147, 51, 234, 0.1), rgba(79, 70, 229, 0.05), transparent 70%)',
+          background: 'radial-gradient(circle, rgba(139, 69, 255, 0.15), rgba(139, 69, 255, 0.08), transparent 70%)',
         },
         secondaryOrb: {
           transform: 'translate(-50%, -50%)',
@@ -189,7 +189,7 @@ export function LoginScreen() {
           left: 'auto',
           width: '250px',
           height: '250px',
-          background: 'radial-gradient(circle, rgba(236, 72, 153, 0.08), rgba(168, 85, 247, 0.05), transparent 60%)',
+          background: 'radial-gradient(circle, rgba(139, 69, 255, 0.12), rgba(139, 69, 255, 0.06), transparent 60%)',
         },
         trailingOrb: {
           transform: 'translate(-50%, -50%)',
@@ -197,7 +197,7 @@ export function LoginScreen() {
           left: '80%',
           width: '400px',
           height: '400px',
-          background: 'radial-gradient(circle, rgba(147, 51, 234, 0.03), rgba(79, 70, 229, 0.02), transparent 80%)',
+          background: 'radial-gradient(circle, rgba(139, 69, 255, 0.05), rgba(139, 69, 255, 0.03), transparent 80%)',
         },
         velocityTail: { display: 'none' },
         secondaryTail: { display: 'none' },
@@ -241,32 +241,32 @@ export function LoginScreen() {
         transform: `translate(${primaryPos.x}px, ${primaryPos.y}px)`,
         width: '600px',
         height: '600px',
-        background: `radial-gradient(circle, rgba(147, 51, 234, 0.15), rgba(79, 70, 229, 0.1), rgba(16, 185, 129, 0.05), transparent 70%)`,
+        background: `radial-gradient(circle, rgba(139, 69, 255, 0.2), rgba(139, 69, 255, 0.12), transparent 70%)`,
       },
       secondaryOrb: {
         transform: `translate(${secondaryPos.x}px, ${secondaryPos.y}px)`,
         width: '400px',
         height: '400px',
-        background: `radial-gradient(circle, rgba(236, 72, 153, 0.08), rgba(168, 85, 247, 0.05), transparent 60%)`,
+        background: `radial-gradient(circle, rgba(139, 69, 255, 0.12), rgba(139, 69, 255, 0.08), transparent 60%)`,
       },
       trailingOrb: {
         transform: `translate(${trailingPos.x}px, ${trailingPos.y}px)`,
         width: '800px',
         height: '800px',
-        background: `radial-gradient(circle, rgba(147, 51, 234, 0.05), rgba(79, 70, 229, 0.03), transparent 80%)`,
+        background: `radial-gradient(circle, rgba(139, 69, 255, 0.08), rgba(139, 69, 255, 0.05), transparent 80%)`,
       },
       velocityTail: {
         transform: `translate(${velocityTailPos.x}px, ${velocityTailPos.y}px)`,
         width: `${Math.max(200, Math.abs(mouseVelocity.x) * 8)}px`,
         height: `${Math.max(200, Math.abs(mouseVelocity.y) * 8)}px`,
-        background: `radial-gradient(ellipse, rgba(147, 51, 234, ${Math.min(0.08, velocity * 0.002)}), rgba(79, 70, 229, ${Math.min(0.05, velocity * 0.001)}), transparent 60%)`,
+        background: `radial-gradient(ellipse, rgba(139, 69, 255, ${Math.min(0.12, velocity * 0.003)}), rgba(139, 69, 255, ${Math.min(0.08, velocity * 0.002)}), transparent 60%)`,
         borderRadius: '50%',
       },
       secondaryTail: {
         transform: `translate(${secondaryTailPos.x}px, ${secondaryTailPos.y}px)`,
         width: `${Math.max(150, Math.abs(mouseVelocity.x) * 6)}px`,
         height: `${Math.max(150, Math.abs(mouseVelocity.y) * 6)}px`,
-        background: `radial-gradient(ellipse, rgba(236, 72, 153, ${Math.min(0.04, velocity * 0.001)}), rgba(168, 85, 247, ${Math.min(0.03, velocity * 0.0008)}), transparent 70%)`,
+        background: `radial-gradient(ellipse, rgba(139, 69, 255, ${Math.min(0.08, velocity * 0.002)}), rgba(139, 69, 255, ${Math.min(0.05, velocity * 0.001)}), transparent 70%)`,
         borderRadius: '50%',
       },
     };
@@ -289,7 +289,7 @@ export function LoginScreen() {
   }, [mousePosition, windowWidth, windowHeight, isMobile, isClient]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden py-2 sm:py-3 md:py-4 lg:py-4 xl:py-4 px-4 sm:px-6 lg:px-8 bg-black">
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden py-2 sm:py-3 md:py-4 lg:py-4 xl:py-4 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-black via-purple-950/20 to-black">
       {/* Optimized orb effects using transform for better performance */}
       <div 
         className={`absolute ${isMobile ? 'top-0 left-0' : 'top-0 left-0'} z-0 rounded-full`}
@@ -358,7 +358,7 @@ export function LoginScreen() {
           <div className="flex justify-center lg:justify-end order-1 lg:order-2">
             <div className="max-w-full sm:max-w-sm md:max-w-md lg:max-w-lg xl:max-w-xl w-full">
               <Card 
-                className="border-2 bg-black/95 backdrop-blur-sm border-gray-700 transition-all duration-300 ease-out"
+                className="border-2 bg-black/80 backdrop-blur-sm border-purple-600/50 transition-all duration-300 ease-out"
                 style={getBoxShadowFilter()}
               >
                 <CardHeader className="text-center px-4 sm:px-6 py-3 sm:py-4">
