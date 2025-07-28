@@ -346,3 +346,5 @@ ShipBuilder now supports multiple AI providers with intelligent model selection.
 - **For OpenAI**: Set `OPENAI_API_KEY` in your `.env` file
 - You can configure both to allow users to switch between providers
 - Only providers with valid API keys will be available in settings
+
+this is a test
