@@ -44,6 +44,8 @@ export function MVPBuilder({ className = '', onClose }: MVPBuilderProps) {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [creationProgress, setCreationProgress] = useState<string[]>([]);
   const [generationText, setGenerationText] = useState('');
+  const [tasksCreated, setTasksCreated] = useState(0);
+  const [progressValue, setProgressValue] = useState(0);
   const progressEndRef = useRef<HTMLDivElement>(null);
 
   // Initialize draggable functionality
@@ -174,6 +176,8 @@ export function MVPBuilder({ className = '', onClose }: MVPBuilderProps) {
     setError(null);
     setSuccessMessage(null);
     setCreationProgress([]);
+    setTasksCreated(0);
+    setProgressValue(0);
 
     try {
       const token = localStorage.getItem('authToken');
@@ -218,6 +222,8 @@ export function MVPBuilder({ className = '', onClose }: MVPBuilderProps) {
       const decoder = new TextDecoder();
       let buffer = '';
 
+      let lastToolCalled = ''; // Track the last tool called
+
       if (reader) {
         while (true) {
           const { done, value } = await reader.read();
@@ -257,6 +263,7 @@ export function MVPBuilder({ className = '', onClose }: MVPBuilderProps) {
                     // Tool is being called
                     const toolName = data.toolName;
                     const args = data.args;
+                    lastToolCalled = toolName; // Set the last tool called
                     console.log(`🔧 Tool Call: ${toolName}`, args);
                     if (toolName === 'createProject') {
                       setCreationProgress(prev => [...prev, `🚀 Creating project: "${args.name}"`]);
@@ -268,10 +275,19 @@ export function MVPBuilder({ className = '', onClose }: MVPBuilderProps) {
                     const result = data.result;
                     console.log(`✅ Tool Result: ${result.success ? 'Success' : 'Failed'}`, result.message);
                     if (result.success) {
+                      if (lastToolCalled === 'createTask') {
+                        setTasksCreated(prev => {
+                          const newTasksCreated = prev + 1;
+                          const totalTasks = mvpPlan.tasks.length;
+                          setProgressValue((newTasksCreated / totalTasks) * 100);
+                          return newTasksCreated;
+                        });
+                      }
                       setCreationProgress(prev => [...prev, `✅ ${result.message}`]);
                     } else {
                       setCreationProgress(prev => [...prev, `❌ ${result.message || result.error}`]);
                     }
+                    lastToolCalled = ''; // Reset after result
                   }
                 } else if (line.startsWith('8:')) {
                   // Handle finish/complete messages
