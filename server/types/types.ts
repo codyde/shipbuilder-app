@@ -54,7 +54,6 @@ export interface Task {
   details?: string;
   status: TaskStatus;
   priority: Priority;
-  dueDate?: string;
   subtasks?: Subtask[];
   comments?: Comment[];
   createdAt: string;
@@ -82,7 +81,6 @@ export interface CreateTaskInput {
   title: string;
   description?: string;
   priority?: Priority;
-  dueDate?: string;
   status?: TaskStatus;
 }
 

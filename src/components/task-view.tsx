@@ -40,7 +40,7 @@ import {
   Trash2
 } from 'lucide-react'
 import { useProjects } from '@/context/ProjectContext'
-import { Task, TaskStatus, Priority } from '@/types/types'
+import { TaskStatus, Priority } from '@/types/types'
 import { logger } from '@/lib/logger'
 import { cn } from '@/lib/utils'
 import { CopyableId } from '@/components/CopyableId'
@@ -105,56 +105,35 @@ const getPriorityIcon = (priority: Priority) => {
 type ViewMode = 'list' | 'kanban'
 
 export function TaskView({ projectId, onBack }: TaskViewProps) {
-  const { projects, createTask, updateTask, deleteTask, poppedOutTask, setPoppedOutTask, clearPoppedOutTask } = useProjects()
+  const { projects, createTask, updateTask, deleteTask } = useProjects()
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
-  const [isClosingPanel, setIsClosingPanel] = useState(false)
-  const [closingTask, setClosingTask] = useState<Task | null>(null)
   const [newTask, setNewTask] = useState({
     title: '',
     description: '',
     priority: Priority.MEDIUM as Priority,
-    dueDate: '',
   })
 
   const project = projects.find(p => p.id === projectId)
   const selectedTask = selectedTaskId ? project?.tasks.find(t => t.id === selectedTaskId) : null
-  
-  // Check if current project has the popped out task
-  const isPoppedOut = poppedOutTask?.projectId === projectId && poppedOutTask?.taskId === selectedTaskId
-
-  // Auto-select the popped out task when navigating to this project
-  useEffect(() => {
-    if (poppedOutTask?.projectId === projectId && !selectedTaskId) {
-      setSelectedTaskId(poppedOutTask.taskId)
-    }
-  }, [poppedOutTask, projectId, selectedTaskId])
 
   // Define handleTaskClose before useEffect that references it
   const handleTaskClose = useCallback(() => {
-    setIsClosingPanel(true)
-    setClosingTask(selectedTask || null)
     setSelectedTaskId(null)
-    clearPoppedOutTask()
-    // Reset closing state after animation completes
-    setTimeout(() => {
-      setIsClosingPanel(false)
-      setClosingTask(null)
-    }, 300)
-  }, [selectedTask, clearPoppedOutTask])
+  }, [])
 
   // Handle escape key to close the sidebar
   useEffect(() => {
     const handleEscapeKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && selectedTaskId && !isPoppedOut) {
+      if (event.key === 'Escape' && selectedTaskId) {
         handleTaskClose()
       }
     }
 
     document.addEventListener('keydown', handleEscapeKey)
     return () => document.removeEventListener('keydown', handleEscapeKey)
-  }, [selectedTaskId, isPoppedOut, handleTaskClose])
+  }, [selectedTaskId, handleTaskClose])
 
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -164,13 +143,11 @@ export function TaskView({ projectId, onBack }: TaskViewProps) {
         title: newTask.title.trim(),
         description: newTask.description.trim() || undefined,
         priority: newTask.priority,
-        dueDate: newTask.dueDate || undefined,
       })
       setNewTask({
         title: '',
         description: '',
         priority: Priority.MEDIUM as Priority,
-        dueDate: '',
       })
       setIsCreateDialogOpen(false)
     }
@@ -217,11 +194,6 @@ export function TaskView({ projectId, onBack }: TaskViewProps) {
     }
   }
 
-  const handlePopOut = () => {
-    if (selectedTaskId) {
-      setPoppedOutTask(projectId, selectedTaskId)
-    }
-  }
 
   if (!project) {
     return (
@@ -233,7 +205,7 @@ export function TaskView({ projectId, onBack }: TaskViewProps) {
 
   return (
     <div className="flex h-full bg-background">
-      <div className={cn("flex-1 flex flex-col transition-all duration-300 ease-in-out", (selectedTaskId || isClosingPanel) && "md:mr-96")}>
+      <div className="flex-1 flex flex-col">
         {/* Header */}
       <div className="border-b px-4 md:px-6 py-4">
         <div className="flex items-center justify-between gap-4 min-w-0">
@@ -306,32 +278,21 @@ export function TaskView({ projectId, onBack }: TaskViewProps) {
                     rows={3}
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="priority">Priority</Label>
-                    <Select
-                      value={newTask.priority}
-                      onValueChange={(value: Priority) => setNewTask(prev => ({ ...prev, priority: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={Priority.LOW}>Low</SelectItem>
-                        <SelectItem value={Priority.MEDIUM}>Medium</SelectItem>
-                        <SelectItem value={Priority.HIGH}>High</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="dueDate">Due date</Label>
-                    <Input
-                      id="dueDate"
-                      type="date"
-                      value={newTask.dueDate}
-                      onChange={(e) => setNewTask(prev => ({ ...prev, dueDate: e.target.value }))}
-                    />
-                  </div>
+                <div>
+                  <Label htmlFor="priority">Priority</Label>
+                  <Select
+                    value={newTask.priority}
+                    onValueChange={(value: Priority) => setNewTask(prev => ({ ...prev, priority: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={Priority.LOW}>Low</SelectItem>
+                      <SelectItem value={Priority.MEDIUM}>Medium</SelectItem>
+                      <SelectItem value={Priority.HIGH}>High</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="flex justify-end gap-2">
                   <Button type="button" variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
@@ -388,7 +349,6 @@ export function TaskView({ projectId, onBack }: TaskViewProps) {
                   <TableHead className="w-[140px]">Task ID</TableHead>
                   <TableHead className="w-[120px]">Status</TableHead>
                   <TableHead className="w-[100px]">Priority</TableHead>
-                  <TableHead className="w-[120px]">Due date</TableHead>
                   <TableHead className="w-[40px]"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -398,7 +358,7 @@ export function TaskView({ projectId, onBack }: TaskViewProps) {
                     <TableRow 
                       key={task.id}
                       className={cn(
-                        "cursor-pointer hover:bg-muted/50 border-b transition-colors",
+                        "hover:bg-muted/50 border-b transition-colors",
                         selectedTaskId === task.id && "bg-muted/30 border-l-4 border-l-primary"
                       )}
                       onClick={() => setSelectedTaskId(selectedTaskId === task.id ? null : task.id)}
@@ -419,7 +379,7 @@ export function TaskView({ projectId, onBack }: TaskViewProps) {
                       </TableCell>
                       <TableCell className="max-w-[200px]">
                         <TaskHoverCard task={task}>
-                          <div className="space-y-1 cursor-help">
+                          <div className="space-y-1">
                           <div className={cn(
                             'font-medium text-sm break-words',
                             task.status === TaskStatus.COMPLETED && 'line-through text-muted-foreground'
@@ -466,15 +426,6 @@ export function TaskView({ projectId, onBack }: TaskViewProps) {
                         </div>
                       </TableCell>
                       <TableCell>
-                        {task.dueDate ? (
-                          <span className="text-sm text-muted-foreground">
-                            {new Date(task.dueDate).toLocaleDateString()}
-                          </span>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
                         <Button
                           variant="ghost"
                           size="sm"
@@ -498,13 +449,17 @@ export function TaskView({ projectId, onBack }: TaskViewProps) {
         </div>
       </div>
 
-      {/* Task Detail Panel - Only show when not popped out */}
-      {(selectedTask || closingTask) && !isPoppedOut && (
+      {/* Task Detail Panel */}
+      {selectedTask && (
         <TaskDetailPanel
-          task={(selectedTask || closingTask)!}
+          task={selectedTask}
           isOpen={!!selectedTaskId}
           onClose={handleTaskClose}
-          onPopOut={handlePopOut}
+          onOpenChange={(open) => {
+            if (!open) {
+              handleTaskClose()
+            }
+          }}
         />
       )}
     </div>

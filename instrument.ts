@@ -10,7 +10,13 @@ Sentry.init({
     Sentry.browserTracingIntegration(),
     Sentry.replayIntegration(),
     Sentry.feedbackIntegration({
+      autoInject: false, // Disable automatic widget injection
       colorScheme: "system",
+      enableScreenshot: true,
+      showBranding: true,
+      formTitle: "Send Feedback",
+      submitButtonLabel: "Send Feedback",
+      cancelButtonLabel: "Cancel",
     }),
   ],
 

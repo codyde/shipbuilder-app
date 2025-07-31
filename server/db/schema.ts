@@ -39,7 +39,6 @@ export const tasks = pgTable('tasks', {
   details: text('details'),
   status: taskStatusEnum('status').notNull().default('backlog'),
   priority: priorityEnum('priority').notNull().default('medium'),
-  dueDate: timestamp('due_date'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
@@ -66,10 +65,22 @@ export const apiKeys = pgTable('api_keys', {
   isActive: text('is_active').notNull().default('true'), // 'true' or 'false' as text
 });
 
+export const components = pgTable('components', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(), // Component name (e.g., "React+Node", "Django+PostgreSQL")
+  description: text('description').notNull(), // Detailed description of what this component provides
+  tags: text('tags').array().notNull().default([]), // Tags for searching/filtering
+  isActive: text('is_active').notNull().default('true'), // 'true' or 'false' as text
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   projects: many(projects),
   apiKeys: many(apiKeys),
+  components: many(components),
 }));
 
 export const projectsRelations = relations(projects, ({ one, many }) => ({
@@ -99,6 +110,13 @@ export const commentsRelations = relations(comments, ({ one }) => ({
 export const apiKeysRelations = relations(apiKeys, ({ one }) => ({
   user: one(users, {
     fields: [apiKeys.userId],
+    references: [users.id],
+  }),
+}));
+
+export const componentsRelations = relations(components, ({ one }) => ({
+  user: one(users, {
+    fields: [components.userId],
     references: [users.id],
   }),
 }));

@@ -2,12 +2,10 @@ import { useState, useEffect } from 'react'
 import { 
   X, 
   MessageSquare, 
-  Calendar,
   Flag,
   User,
   Clock,
-  Send,
-  ExternalLink
+  Send
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -26,33 +24,39 @@ import { Card } from '@/components/ui/card'
 import { Task, TaskStatus, Priority, Comment } from '@/types/types'
 import { useProjects } from '@/context/ProjectContext'
 import { useAuth } from '@/context/AuthContext'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 import { logger } from '@/lib/logger'
 import { getApiUrl } from '@/lib/api-config'
 import { SimpleMarkdownEditor } from '@/components/SimpleMarkdownEditor'
 import { SimpleMarkdownModal } from '@/components/SimpleMarkdownModal'
 import { AIGenerateDialog } from '@/components/AIGenerateDialog'
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerClose,
+} from '@/components/ui/drawer'
 
 interface TaskDetailPanelProps {
   task: Task
   isOpen: boolean
   onClose: () => void
-  onPopOut?: () => void
+  onOpenChange?: (open: boolean) => void
 }
 
 
-export function TaskDetailPanel({ task, isOpen, onClose, onPopOut }: TaskDetailPanelProps) {
+export function TaskDetailPanel({ task, isOpen, onClose, onOpenChange }: TaskDetailPanelProps) {
   const { updateTask } = useProjects()
   const { user } = useAuth()
+  const isMobile = useIsMobile()
   const [editingField, setEditingField] = useState<string | null>(null)
-  const [isExiting, setIsExiting] = useState(false)
-  const [shouldRender, setShouldRender] = useState(isOpen)
   const [editValues, setEditValues] = useState({
     title: task.title,
     description: task.description || '',
     details: task.details || '',
     priority: task.priority,
-    dueDate: task.dueDate || '',
   })
   const [newComment, setNewComment] = useState('')
   const [comments, setComments] = useState<Comment[]>(task.comments || [])
@@ -65,27 +69,18 @@ export function TaskDetailPanel({ task, isOpen, onClose, onPopOut }: TaskDetailP
       description: task.description || '',
       details: task.details || '',
       priority: task.priority,
-      dueDate: task.dueDate || '',
     })
     setComments(task.comments || [])
   }, [task])
 
-  // Handle opening and closing animations
-  useEffect(() => {
-    if (isOpen) {
-      setShouldRender(true)
-      setIsExiting(false)
-    } else if (shouldRender) {
-      // Start exit animation
-      setIsExiting(true)
-      // Remove from DOM after animation completes
-      const timer = setTimeout(() => {
-        setShouldRender(false)
-        setIsExiting(false)
-      }, 250) // Match the exit animation duration
-      return () => clearTimeout(timer)
+  // Handle drawer open/close state
+  const handleOpenChange = (newOpen: boolean) => {
+    if (onOpenChange) {
+      onOpenChange(newOpen)
+    } else if (!newOpen && onClose) {
+      onClose()
     }
-  }, [isOpen, shouldRender])
+  }
 
   const handleSave = async (field: string) => {
     const updates: Partial<Task> = {}
@@ -111,11 +106,6 @@ export function TaskDetailPanel({ task, isOpen, onClose, onPopOut }: TaskDetailP
           updates.priority = editValues.priority
         }
         break
-      case 'dueDate':
-        if (editValues.dueDate !== (task.dueDate || '')) {
-          updates.dueDate = editValues.dueDate || undefined
-        }
-        break
     }
 
     if (Object.keys(updates).length > 0) {
@@ -139,9 +129,6 @@ export function TaskDetailPanel({ task, isOpen, onClose, onPopOut }: TaskDetailP
         break
       case 'priority':
         setEditValues(prev => ({ ...prev, priority: task.priority }))
-        break
-      case 'dueDate':
-        setEditValues(prev => ({ ...prev, dueDate: task.dueDate || '' }))
         break
     }
     setEditingField(null)
@@ -313,97 +300,88 @@ export function TaskDetailPanel({ task, isOpen, onClose, onPopOut }: TaskDetailP
     }
   }
 
-  const handleClose = () => {
-    onClose() // Let the useEffect handle the animation
-  }
-
-  if (!shouldRender) return null
-
   return (
-    <div className={`fixed inset-y-0 right-0 w-96 bg-background border-l shadow-lg z-50 flex flex-col ${isExiting ? 'task-panel-exit' : 'task-panel-enter'}`}>
-      {/* Header */}
-      <div className="p-4 border-b">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Task Details</h2>
-          <div className="flex gap-1">
-            {onPopOut && (
-              <Button variant="ghost" size="sm" onClick={onPopOut} title="Pop out window">
-                <ExternalLink className="h-4 w-4" />
-              </Button>
-            )}
-            <Button variant="ghost" size="sm" onClick={handleClose}>
-              <X className="h-4 w-4" />
-            </Button>
+    <Drawer open={isOpen} onOpenChange={handleOpenChange} direction={isMobile ? "bottom" : "right"} shouldScaleBackground={false}>
+      <DrawerContent className={isMobile ? "h-[85vh] !max-h-[85vh] flex flex-col fixed" : "custom-width w-[400px] lg:w-[33vw] lg:min-w-[500px] lg:max-w-[800px] h-full flex flex-col fixed"}>
+        <DrawerHeader className={`border-b flex-shrink-0 ${isMobile ? 'p-3' : 'p-3 lg:p-4'}`}>
+          <div className="flex items-center justify-between">
+            <DrawerTitle className={`text-left font-semibold ${isMobile ? 'text-base' : 'text-base lg:text-lg'}`}>Task Details</DrawerTitle>
+            <div className="flex gap-1">
+              <DrawerClose asChild>
+                <Button variant="ghost" size="sm" className={`${isMobile ? 'h-8 w-8 p-0' : 'h-8 w-8 lg:h-9 lg:w-9 p-0'}`}>
+                  <X className={`${isMobile ? 'h-4 w-4' : 'h-4 w-4 lg:h-5 lg:w-5'}`} />
+                </Button>
+              </DrawerClose>
+            </div>
           </div>
-        </div>
-      </div>
+        </DrawerHeader>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-6 task-content-animate">
-        {/* Title */}
-        <div>
-          <Label className="text-sm font-medium">Title</Label>
-          {editingField === 'title' ? (
-            <div className="mt-1 space-y-2">
-              <Input
-                value={editValues.title}
-                onChange={(e) => setEditValues(prev => ({ ...prev, title: e.target.value }))}
-                autoFocus
-              />
-              <div className="flex gap-2">
-                <Button size="sm" onClick={() => handleSave('title')}>Save</Button>
-                <Button size="sm" variant="outline" onClick={() => handleCancel('title')}>Cancel</Button>
+        {/* Content */}
+        <div className={`flex-1 overflow-y-auto overscroll-contain min-h-0 ${isMobile ? 'p-3 space-y-4' : 'p-3 lg:p-4 space-y-4 lg:space-y-6'}`} style={isMobile ? { maxHeight: 'calc(85vh - 120px)' } : {}}>
+          {/* Title */}
+          <div>
+            {editingField === 'title' ? (
+              <div className="space-y-2">
+                <Input
+                  value={editValues.title}
+                  onChange={(e) => setEditValues(prev => ({ ...prev, title: e.target.value }))}
+                  autoFocus
+                  className={`${isMobile ? 'h-12 text-lg font-semibold' : 'h-12 lg:h-14 text-lg lg:text-xl font-semibold'}`}
+                />
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={() => handleSave('title')} className={`${isMobile ? 'h-8 text-sm px-4' : 'h-8 lg:h-10 text-sm lg:text-base px-4 lg:px-6'}`}>Save</Button>
+                  <Button size="sm" variant="outline" onClick={() => handleCancel('title')} className={`${isMobile ? 'h-8 text-sm px-4' : 'h-8 lg:h-10 text-sm lg:text-base px-4 lg:px-6'}`}>Cancel</Button>
+                </div>
               </div>
-            </div>
-          ) : (
-            <div 
-              className="mt-1 p-2 rounded cursor-pointer hover:bg-muted"
-              onClick={() => setEditingField('title')}
-            >
-              {task.title}
-            </div>
-          )}
-        </div>
+            ) : (
+              <h1 
+                className={`p-3 rounded cursor-pointer hover:bg-muted font-semibold leading-tight ${isMobile ? 'text-lg' : 'text-lg lg:text-xl'} ${isMobile ? '' : 'lg:p-4'}`}
+                onClick={() => setEditingField('title')}
+              >
+                {task.title}
+              </h1>
+            )}
+          </div>
 
         {/* Status and Priority */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className={`grid grid-cols-2 ${isMobile ? 'gap-4' : 'gap-4 lg:gap-6'}`}>
           <div>
-            <Label className="text-sm font-medium">Status</Label>
-            <div className="mt-1">
-              <Badge className={cn('capitalize', getStatusColor(task.status))}>
+            <Label className={`font-medium ${isMobile ? 'text-base' : 'text-base lg:text-lg'}`}>Status</Label>
+            <div className={`${isMobile ? 'mt-1' : 'mt-1 lg:mt-2'}`}>
+              <Badge className={cn('capitalize text-sm lg:text-base px-2 lg:px-3 py-1 lg:py-1.5', getStatusColor(task.status))}>
                 {task.status.replace('_', ' ')}
               </Badge>
             </div>
           </div>
           <div>
-            <Label className="text-sm font-medium">Priority</Label>
+            <Label className={`font-medium ${isMobile ? 'text-base' : 'text-base lg:text-lg'}`}>Priority</Label>
             {editingField === 'priority' ? (
-              <div className="mt-1 space-y-2">
+              <div className={`mt-1 space-y-2 ${isMobile ? '' : 'lg:mt-2 lg:space-y-3'}`}>
                 <Select
                   value={editValues.priority}
                   onValueChange={(value: Priority) => setEditValues(prev => ({ ...prev, priority: value }))}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className={`${isMobile ? 'h-10 text-base' : 'h-10 lg:h-12 text-base lg:text-lg'}`}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={Priority.LOW}>Low</SelectItem>
-                    <SelectItem value={Priority.MEDIUM}>Medium</SelectItem>
-                    <SelectItem value={Priority.HIGH}>High</SelectItem>
+                    <SelectItem value={Priority.LOW} className="text-base lg:text-lg">Low</SelectItem>
+                    <SelectItem value={Priority.MEDIUM} className="text-base lg:text-lg">Medium</SelectItem>
+                    <SelectItem value={Priority.HIGH} className="text-base lg:text-lg">High</SelectItem>
                   </SelectContent>
                 </Select>
                 <div className="flex gap-2">
-                  <Button size="sm" onClick={() => handleSave('priority')}>Save</Button>
-                  <Button size="sm" variant="outline" onClick={() => handleCancel('priority')}>Cancel</Button>
+                  <Button size="sm" onClick={() => handleSave('priority')} className={`${isMobile ? 'h-8 text-sm px-4' : 'h-8 lg:h-10 text-sm lg:text-base px-4 lg:px-6'}`}>Save</Button>
+                  <Button size="sm" variant="outline" onClick={() => handleCancel('priority')} className={`${isMobile ? 'h-8 text-sm px-4' : 'h-8 lg:h-10 text-sm lg:text-base px-4 lg:px-6'}`}>Cancel</Button>
                 </div>
               </div>
             ) : (
               <div 
-                className="mt-1 inline-block cursor-pointer"
+                className={`mt-1 inline-block cursor-pointer ${isMobile ? '' : 'lg:mt-2'}`}
                 onClick={() => setEditingField('priority')}
               >
-                <Badge className={cn('capitalize', getPriorityColor(task.priority))}>
-                  <Flag className="h-3 w-3 mr-1" />
+                <Badge className={cn('capitalize text-sm lg:text-base px-2 lg:px-3 py-1 lg:py-1.5', getPriorityColor(task.priority))}>
+                  <Flag className={`mr-1 ${isMobile ? 'h-3 w-3' : 'h-3 w-3 lg:h-4 lg:w-4'}`} />
                   {task.priority}
                 </Badge>
               </div>
@@ -411,51 +389,27 @@ export function TaskDetailPanel({ task, isOpen, onClose, onPopOut }: TaskDetailP
           </div>
         </div>
 
-        {/* Due Date */}
-        <div>
-          <Label className="text-sm font-medium">Due Date</Label>
-          {editingField === 'dueDate' ? (
-            <div className="mt-1 space-y-2">
-              <Input
-                type="date"
-                value={editValues.dueDate}
-                onChange={(e) => setEditValues(prev => ({ ...prev, dueDate: e.target.value }))}
-              />
-              <div className="flex gap-2">
-                <Button size="sm" onClick={() => handleSave('dueDate')}>Save</Button>
-                <Button size="sm" variant="outline" onClick={() => handleCancel('dueDate')}>Cancel</Button>
-              </div>
-            </div>
-          ) : (
-            <div 
-              className="mt-1 p-2 rounded cursor-pointer hover:bg-muted flex items-center"
-              onClick={() => setEditingField('dueDate')}
-            >
-              <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
-              {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'No due date'}
-            </div>
-          )}
-        </div>
 
         {/* Description */}
         <div>
-          <Label className="text-sm font-medium">Description</Label>
+          <Label className={`font-medium ${isMobile ? 'text-base' : 'text-base lg:text-lg'}`}>Description</Label>
           {editingField === 'description' ? (
-            <div className="mt-1 space-y-2">
+            <div className={`mt-1 space-y-2 ${isMobile ? '' : 'lg:mt-2 lg:space-y-3'}`}>
               <Textarea
                 value={editValues.description}
                 onChange={(e) => setEditValues(prev => ({ ...prev, description: e.target.value }))}
-                rows={3}
+                rows={isMobile ? 3 : 4}
                 placeholder="Add a description..."
+                className={`${isMobile ? 'text-base' : 'text-base lg:text-lg'} resize-none`}
               />
               <div className="flex gap-2">
-                <Button size="sm" onClick={() => handleSave('description')}>Save</Button>
-                <Button size="sm" variant="outline" onClick={() => handleCancel('description')}>Cancel</Button>
+                <Button size="sm" onClick={() => handleSave('description')} className={`${isMobile ? 'h-8 text-sm px-4' : 'h-8 lg:h-10 text-sm lg:text-base px-4 lg:px-6'}`}>Save</Button>
+                <Button size="sm" variant="outline" onClick={() => handleCancel('description')} className={`${isMobile ? 'h-8 text-sm px-4' : 'h-8 lg:h-10 text-sm lg:text-base px-4 lg:px-6'}`}>Cancel</Button>
               </div>
             </div>
           ) : (
             <div 
-              className="mt-1 p-2 rounded cursor-pointer hover:bg-muted h-[80px] overflow-y-auto border border-dashed"
+              className={`mt-1 p-3 rounded cursor-pointer hover:bg-muted overflow-y-auto border border-dashed ${isMobile ? 'h-[80px] text-base' : 'h-[80px] lg:h-[100px] text-base lg:text-lg'} ${isMobile ? '' : 'lg:mt-2 lg:p-4'}`}
               onClick={() => setEditingField('description')}
             >
               {task.description ? (
@@ -523,26 +477,27 @@ export function TaskDetailPanel({ task, isOpen, onClose, onPopOut }: TaskDetailP
 
         {/* Comments */}
         <div>
-          <div className="flex items-center justify-between mb-4">
-            <Label className="text-sm font-medium flex items-center">
-              <MessageSquare className="h-4 w-4 mr-2" />
+          <div className={`flex items-center justify-between ${isMobile ? 'mb-4' : 'mb-4 lg:mb-6'}`}>
+            <Label className={`font-medium flex items-center ${isMobile ? 'text-base' : 'text-base lg:text-lg'}`}>
+              <MessageSquare className={`mr-2 ${isMobile ? 'h-4 w-4' : 'h-4 w-4 lg:h-5 lg:w-5'}`} />
               Comments ({comments.length})
             </Label>
           </div>
 
           {/* Comment Form */}
-          <form onSubmit={handleAddComment} className="mb-4">
-            <div className="space-y-2">
+          <form onSubmit={handleAddComment} className={`${isMobile ? 'mb-4' : 'mb-4 lg:mb-6'}`}>
+            <div className={`space-y-2 ${isMobile ? '' : 'lg:space-y-3'}`}>
               <Textarea
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
                 placeholder={user ? "Add a comment..." : "Please log in to add comments"}
-                rows={3}
+                rows={isMobile ? 3 : 4}
                 disabled={!user}
+                className={`${isMobile ? 'text-base' : 'text-base lg:text-lg'} resize-none`}
               />
               <div className="flex justify-end">
-                <Button type="submit" size="sm" disabled={!newComment.trim() || !user}>
-                  <Send className="h-4 w-4 mr-2" />
+                <Button type="submit" size="sm" disabled={!newComment.trim() || !user} className={`${isMobile ? 'h-8 text-sm px-4' : 'h-8 lg:h-10 text-sm lg:text-base px-4 lg:px-6'}`}>
+                  <Send className={`mr-2 ${isMobile ? 'h-4 w-4' : 'h-4 w-4 lg:h-5 lg:w-5'}`} />
                   Comment
                 </Button>
               </div>
@@ -550,44 +505,45 @@ export function TaskDetailPanel({ task, isOpen, onClose, onPopOut }: TaskDetailP
           </form>
 
           {/* Comments List */}
-          <div className="space-y-3">
+          <div className={`space-y-3 ${isMobile ? '' : 'lg:space-y-4'}`}>
             {comments.map((comment) => (
-              <Card key={comment.id} className="p-3">
-                <div className="flex items-start justify-between mb-2">
+              <Card key={comment.id} className={`${isMobile ? 'p-3' : 'p-3 lg:p-4'}`}>
+                <div className={`flex items-start justify-between ${isMobile ? 'mb-2' : 'mb-2 lg:mb-3'}`}>
                   <div className="flex items-center gap-2">
-                    <User className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">{comment.author}</span>
+                    <User className={`text-muted-foreground ${isMobile ? 'h-4 w-4' : 'h-4 w-4 lg:h-5 lg:w-5'}`} />
+                    <span className={`font-medium ${isMobile ? 'text-sm' : 'text-sm lg:text-base'}`}>{comment.author}</span>
                   </div>
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Clock className="h-3 w-3" />
+                  <div className={`flex items-center gap-1 text-muted-foreground ${isMobile ? 'text-xs' : 'text-xs lg:text-sm'}`}>
+                    <Clock className={`${isMobile ? 'h-3 w-3' : 'h-3 w-3 lg:h-4 lg:w-4'}`} />
                     {new Date(comment.createdAt).toLocaleDateString()}
                   </div>
                 </div>
-                <div className="text-sm whitespace-pre-wrap">{comment.content}</div>
+                <div className={`whitespace-pre-wrap ${isMobile ? 'text-sm' : 'text-sm lg:text-base'}`}>{comment.content}</div>
               </Card>
             ))}
             {comments.length === 0 && (
-              <div className="text-center py-8 text-muted-foreground">
-                <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">No comments yet</p>
-                <p className="text-xs">Be the first to add a comment</p>
+              <div className={`text-center text-muted-foreground ${isMobile ? 'py-8' : 'py-8 lg:py-12'}`}>
+                <MessageSquare className={`mx-auto mb-2 opacity-50 ${isMobile ? 'h-8 w-8' : 'h-8 w-8 lg:h-10 lg:w-10'}`} />
+                <p className={`${isMobile ? 'text-sm' : 'text-sm lg:text-base'}`}>No comments yet</p>
+                <p className={`${isMobile ? 'text-xs' : 'text-xs lg:text-sm'}`}>Be the first to add a comment</p>
               </div>
             )}
           </div>
         </div>
-      </div>
+        </div>
 
-      {/* Markdown Editor Modal */}
-      <SimpleMarkdownModal
-        isOpen={isEditorModalOpen}
-        onClose={() => setIsEditorModalOpen(false)}
-        value={editValues.details}
-        onChange={(value) => setEditValues(prev => ({ ...prev, details: value }))}
-        onSave={handleEditorModalSave}
-        title="Task Implementation Details"
-        onGenerateAI={handleGenerateDetails}
-        isGenerating={isGeneratingDetails}
-      />
-    </div>
+        {/* Markdown Editor Modal */}
+        <SimpleMarkdownModal
+          isOpen={isEditorModalOpen}
+          onClose={() => setIsEditorModalOpen(false)}
+          value={editValues.details}
+          onChange={(value) => setEditValues(prev => ({ ...prev, details: value }))}
+          onSave={handleEditorModalSave}
+          title="Task Implementation Details"
+          onGenerateAI={handleGenerateDetails}
+          isGenerating={isGeneratingDetails}
+        />
+      </DrawerContent>
+    </Drawer>
   )
 }
