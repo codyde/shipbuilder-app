@@ -1,9 +1,9 @@
 import { db } from './connection.js';
-import { projects, tasks, comments, users, apiKeys } from './schema.js';
+import { projects, tasks, comments, users, apiKeys, components } from './schema.js';
 import { eq, sql, and } from 'drizzle-orm';
 import { logger } from '../lib/logger.js';
 import { generateUniqueProjectSlug, getProjectIdFromTaskSlug } from '../utils/slug-utils.js';
-import type { Project, Task, Comment, User, CreateProjectInput, CreateTaskInput, CreateCommentInput, TaskStatus, ProjectStatus, Priority } from '../types/types.js';
+import type { Project, Task, Comment, User, Component, CreateProjectInput, CreateTaskInput, CreateCommentInput, CreateComponentInput, UpdateComponentInput, TaskStatus, ProjectStatus, Priority } from '../types/types.js';
 
 class DatabaseService {
   // Helper methods for slug generation
@@ -224,7 +224,6 @@ class DatabaseService {
         priority: t.priority as Priority,
         description: t.description || undefined,
         details: t.details || undefined,
-        dueDate: t.dueDate?.toISOString(),
         comments: t.comments?.map(c => ({
           ...c,
           createdAt: c.createdAt.toISOString(),
@@ -262,7 +261,6 @@ class DatabaseService {
         priority: t.priority as Priority,
         description: t.description || undefined,
         details: t.details || undefined,
-        dueDate: t.dueDate?.toISOString(),
         comments: t.comments?.map(c => ({
           ...c,
           createdAt: c.createdAt.toISOString(),
@@ -400,7 +398,6 @@ class DatabaseService {
               description: input.description,
               priority: input.priority || 'medium',
               status: input.status || 'backlog',
-              dueDate: input.dueDate ? new Date(input.dueDate) : null,
             })
             .returning();
 
@@ -415,7 +412,6 @@ class DatabaseService {
             priority: task.priority as Priority,
             description: task.description || undefined,
             details: task.details || undefined,
-            dueDate: task.dueDate?.toISOString(),
             createdAt: task.createdAt.toISOString(),
             updatedAt: task.updatedAt.toISOString(),
           };
@@ -462,7 +458,6 @@ class DatabaseService {
       priority: task.priority as Priority,
       description: task.description || undefined,
       details: task.details || undefined,
-      dueDate: task.dueDate?.toISOString(),
       comments: task.comments?.map(c => ({
         ...c,
         createdAt: c.createdAt.toISOString(),
@@ -497,7 +492,6 @@ class DatabaseService {
     const [updated] = await db.update(tasks)
       .set({
         ...updates,
-        dueDate: updates.dueDate ? new Date(updates.dueDate) : undefined,
         updatedAt: sql`NOW()`,
       })
       .where(eq(tasks.id, taskId))
@@ -668,6 +662,80 @@ class DatabaseService {
       .where(and(eq(apiKeys.id, keyId), eq(apiKeys.userId, userId)));
 
     return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  // Component methods
+  async createComponent(userId: string, componentData: CreateComponentInput): Promise<Component> {
+    logger.info(`Creating component: ${componentData.name} for user: ${userId}`);
+    
+    const [component] = await db.insert(components).values({
+      userId,
+      name: componentData.name,
+      description: componentData.description,
+      tags: componentData.tags || [],
+    }).returning();
+    
+    return this.formatComponent(component);
+  }
+
+  async getComponents(userId: string): Promise<Component[]> {
+    const userComponents = await db.query.components.findMany({
+      where: and(eq(components.userId, userId), eq(components.isActive, 'true')),
+      orderBy: [components.updatedAt],
+    });
+    
+    return userComponents.map(c => this.formatComponent(c));
+  }
+
+  async getComponentById(componentId: string, userId: string): Promise<Component | null> {
+    const component = await db.query.components.findFirst({
+      where: and(eq(components.id, componentId), eq(components.userId, userId), eq(components.isActive, 'true')),
+    });
+    
+    return component ? this.formatComponent(component) : null;
+  }
+
+  async updateComponent(componentId: string, userId: string, updateData: UpdateComponentInput): Promise<Component | null> {
+    logger.info(`Updating component: ${componentId} for user: ${userId}`);
+    
+    const updateValues: any = {
+      updatedAt: new Date(),
+    };
+    
+    if (updateData.name !== undefined) updateValues.name = updateData.name;
+    if (updateData.description !== undefined) updateValues.description = updateData.description;
+    if (updateData.tags !== undefined) updateValues.tags = updateData.tags;
+    if (updateData.isActive !== undefined) updateValues.isActive = updateData.isActive ? 'true' : 'false';
+    
+    const [updatedComponent] = await db.update(components)
+      .set(updateValues)
+      .where(and(eq(components.id, componentId), eq(components.userId, userId)))
+      .returning();
+    
+    return updatedComponent ? this.formatComponent(updatedComponent) : null;
+  }
+
+  async deleteComponent(componentId: string, userId: string): Promise<boolean> {
+    logger.info(`Deleting component: ${componentId} for user: ${userId}`);
+    
+    const result = await db.update(components)
+      .set({ isActive: 'false' })
+      .where(and(eq(components.id, componentId), eq(components.userId, userId)));
+    
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  private formatComponent(component: any): Component {
+    return {
+      id: component.id,
+      userId: component.userId,
+      name: component.name,
+      description: component.description,
+      tags: component.tags || [],
+      isActive: component.isActive === 'true',
+      createdAt: component.createdAt.toISOString(),
+      updatedAt: component.updatedAt.toISOString(),
+    };
   }
 }
 

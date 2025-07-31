@@ -180,7 +180,7 @@ Format your response in markdown with clear sections and actionable steps. Be sp
 
 aiRoutes.post('/generatemvp', async (req: any, res: any) => {
   try {
-    const { projectIdea } = req.body;
+    const { projectIdea, selectedComponents } = req.body;
     
     if (!projectIdea) {
       return res.status(400).json({ error: 'Project idea is required' });
@@ -219,6 +219,19 @@ Task descriptions should be in the format of prompts that an AI can use to gener
 For UI related tasks, prefer to use Shadcn UI and Tailwind CSS as part of the build.
 
 For database related tasks, prefer to use PostgreSQL and use Drizzle ORM to manage it. Include these in the tasks.
+
+${selectedComponents && selectedComponents.length > 0 ? `
+SELECTED COMPONENTS:
+The user has selected the following reusable components to incorporate into their MVP:
+
+${selectedComponents.map((comp: any, index: number) => `
+${index + 1}. ${comp.name}
+   Description: ${comp.description}
+   Tags: ${comp.tags?.join(', ') || 'None'}
+`).join('')}
+
+Please incorporate the guidance and patterns from these selected components when creating the tech stack recommendations and development tasks. Use the component descriptions to inform your approach to the project architecture and implementation strategy.
+` : ''}
 
 Respond with a JSON object in this exact format:
 {

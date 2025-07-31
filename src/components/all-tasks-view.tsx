@@ -109,7 +109,6 @@ export function AllTasksView({ onProjectSelect }: AllTasksViewProps) {
     title: '',
     description: '',
     priority: Priority.MEDIUM as Priority,
-    dueDate: '',
   })
 
   // Aggregate all tasks from all projects (excluding archived projects)
@@ -148,13 +147,11 @@ export function AllTasksView({ onProjectSelect }: AllTasksViewProps) {
         title: newTask.title.trim(),
         description: newTask.description.trim() || undefined,
         priority: newTask.priority,
-        dueDate: newTask.dueDate || undefined,
       })
       setNewTask({
         title: '',
         description: '',
         priority: Priority.MEDIUM as Priority,
-        dueDate: '',
       })
       setSelectedProjectId('')
       setIsCreateDialogOpen(false)
@@ -299,15 +296,6 @@ export function AllTasksView({ onProjectSelect }: AllTasksViewProps) {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div>
-                      <Label htmlFor="dueDate">Due date</Label>
-                      <Input
-                        id="dueDate"
-                        type="date"
-                        value={newTask.dueDate}
-                        onChange={(e) => setNewTask(prev => ({ ...prev, dueDate: e.target.value }))}
-                      />
-                    </div>
                   </div>
                   <div className="flex justify-end gap-2">
                     <Button type="button" variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
@@ -355,7 +343,6 @@ export function AllTasksView({ onProjectSelect }: AllTasksViewProps) {
                   <TableHead className="w-[150px]">Project</TableHead>
                   <TableHead className="w-[120px]">Status</TableHead>
                   <TableHead className="w-[100px]">Priority</TableHead>
-                  <TableHead className="w-[120px]">Due date</TableHead>
                   <TableHead className="w-[80px]"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -364,7 +351,7 @@ export function AllTasksView({ onProjectSelect }: AllTasksViewProps) {
                   <TableRow 
                     key={`${task.projectId}-${task.id}`}
                     className={cn(
-                      "cursor-pointer hover:bg-muted/50 border-b transition-colors",
+                      "hover:bg-muted/50 border-b transition-colors",
                       selectedTaskId === task.id && selectedTaskProjectId === task.projectId && "bg-muted/30 border-l-4 border-l-primary"
                     )}
                     onClick={() => handleTaskClick(task.projectId, task.id)}
@@ -385,7 +372,7 @@ export function AllTasksView({ onProjectSelect }: AllTasksViewProps) {
                     </TableCell>
                     <TableCell className="max-w-[200px]">
                       <TaskHoverCard task={task}>
-                        <div className="space-y-1 cursor-help">
+                        <div className="space-y-1">
                         <div className={cn(
                           'font-medium text-sm break-words',
                           task.status === TaskStatus.COMPLETED && 'line-through text-muted-foreground'
@@ -439,15 +426,6 @@ export function AllTasksView({ onProjectSelect }: AllTasksViewProps) {
                         {getPriorityIcon(task.priority)}
                         <span className="capitalize">{task.priority}</span>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      {task.dueDate ? (
-                        <span className="text-sm text-muted-foreground">
-                          {new Date(task.dueDate).toLocaleDateString()}
-                        </span>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">—</span>
-                      )}
                     </TableCell>
                     <TableCell>
                       <Button

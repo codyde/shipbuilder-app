@@ -15,6 +15,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { UserProfile } from '@/components/UserProfile'
+import { SentryFeedback } from '@/components/SentryFeedback'
 // Note: DropdownMenu temporarily commented out until @radix-ui/react-dropdown-menu is added
 // import {
 //   DropdownMenu,
@@ -41,12 +42,13 @@ import {
   Rocket,
   Trash2,
   Copy,
-  Check
+  Check,
+  Package
 } from 'lucide-react'
 import { useProjects } from '@/context/ProjectContext'
 import { useAuth } from '@/context/AuthContext'
 
-type View = 'all-issues' | 'active' | 'backlog' | 'archived' | 'project' | 'tasks' | 'all-tasks' | 'settings'
+type View = 'all-issues' | 'active' | 'backlog' | 'archived' | 'project' | 'tasks' | 'all-tasks' | 'components' | 'settings'
 
 interface AppSidebarProps {
   currentView: View
@@ -171,7 +173,7 @@ export function AppSidebar({ currentView, onViewChange, onProjectSelect, onMVPBu
             <div className="flex h-6 w-6 items-center justify-center rounded overflow-hidden">
               <img src="/shipbuilder-icon.png" alt="ShipBuilder" className="h-6 w-6 object-contain rounded" />
             </div>
-            <span className="font-semibold text-sm group-data-[collapsible=icon]:hidden">ShipBuilder</span>
+            <span className="font-semibold text-base group-data-[collapsible=icon]:hidden">ShipBuilder</span>
           </div>
           <SidebarTrigger className="h-6 w-6" />
         </div>
@@ -182,17 +184,17 @@ export function AppSidebar({ currentView, onViewChange, onProjectSelect, onMVPBu
         <div className="p-3 border-b space-y-2">
           <Button
             onClick={onMVPBuilderToggle}
-            className="w-full h-9 text-sm font-medium bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-md group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:p-0 min-w-0"
+            className="w-full h-10 text-base font-medium bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-md group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:p-0 min-w-0"
           >
-            <Rocket className="w-4 h-4 group-data-[collapsible=icon]:mr-0 mr-2 flex-shrink-0" />
+            <Rocket className="w-5 h-5 group-data-[collapsible=icon]:mr-0 mr-2 flex-shrink-0" />
             <span className="group-data-[collapsible=icon]:sr-only truncate min-w-0">AI Assistant</span>
           </Button>
           <Button
             onClick={onNewProject}
             variant="outline"
-            className="w-full h-9 text-sm font-medium border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 hover:border-gray-400 dark:hover:border-gray-500 group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:p-0 min-w-0"
+            className="w-full h-10 text-base font-medium border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 hover:border-gray-400 dark:hover:border-gray-500 group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:p-0 min-w-0"
           >
-            <Plus className="w-4 h-4 group-data-[collapsible=icon]:mr-0 mr-2 flex-shrink-0" />
+            <Plus className="w-5 h-5 group-data-[collapsible=icon]:mr-0 mr-2 flex-shrink-0" />
             <span className="group-data-[collapsible=icon]:sr-only truncate min-w-0">New Project</span>
           </Button>
         </div>
@@ -205,13 +207,13 @@ export function AppSidebar({ currentView, onViewChange, onProjectSelect, onMVPBu
                   <SidebarMenuButton
                     isActive={currentView === item.id}
                     onClick={() => onViewChange(item.id)}
-                    className="h-7"
+                    className="h-9"
                     tooltip={item.title}
                   >
-                    <item.icon className="h-8 w-8" />
-                    <span className="text-xs">{item.title}</span>
+                    <item.icon className="h-5 w-5" />
+                    <span className="text-sm font-medium">{item.title}</span>
                     {item.count && (
-                      <span className="ml-auto text-xs text-muted-foreground">
+                      <span className="ml-auto text-sm text-muted-foreground">
                         {item.count}
                       </span>
                     )}
@@ -223,7 +225,7 @@ export function AppSidebar({ currentView, onViewChange, onProjectSelect, onMVPBu
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupLabel className="text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
+          <SidebarGroupLabel className="text-sm text-muted-foreground group-data-[collapsible=icon]:hidden font-medium">
             Projects
           </SidebarGroupLabel>
           <SidebarGroupContent>
@@ -238,26 +240,26 @@ export function AppSidebar({ currentView, onViewChange, onProjectSelect, onMVPBu
                     <SidebarMenuItem key={project.id}>
                       <SidebarMenuButton
                         onClick={() => onProjectSelect(project.id)}
-                        className="h-7 group"
+                        className="h-9 group"
                         tooltip={project.name}
                       >
-                        <Folder className="h-8 w-8" />
-                        <span className="text-xs truncate">{project.name}</span>
+                        <Folder className="h-5 w-5" />
+                        <span className="text-sm truncate font-medium">{project.name}</span>
                         <div className="ml-auto flex items-center gap-1 opacity-100 transition-opacity">
-                          <span className="text-xs text-muted-foreground">
+                          <span className="text-sm font-medium text-muted-foreground">
                             {totalTasks > 0 && `${completedTasks}/${totalTasks}`}
                           </span>
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-4 w-4 p-0 hover:bg-red-100 hover:text-red-600"
+                            className="h-6 w-6 p-0 hover:bg-red-100 hover:text-red-600"
                             onClick={(e) => {
                               e.stopPropagation()
                               handleDeleteProject({ id: project.id, name: project.name })
                             }}
                             title="Delete Project"
                           >
-                            <Trash2 className="h-3 w-3" />
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
                       </SidebarMenuButton>
@@ -267,28 +269,49 @@ export function AppSidebar({ currentView, onViewChange, onProjectSelect, onMVPBu
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-sm text-muted-foreground group-data-[collapsible=icon]:hidden font-medium">
+            Tools
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  isActive={currentView === 'components'}
+                  onClick={() => onViewChange('components')}
+                  className="h-9"
+                  tooltip="Components"
+                >
+                  <Package className="h-5 w-5" />
+                  <span className="text-sm font-medium">Components</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
       </SidebarContent>
 
       <div className="mt-auto border-t p-2">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton 
-              className="h-7" 
+              className="h-9" 
               tooltip="Settings"
               onClick={() => onViewChange('settings')}
               isActive={currentView === 'settings'}
             >
-              <Settings className="h-8 w-8" />
-              <span className="text-xs">Settings</span>
+              <Settings className="h-5 w-5" />
+              <span className="text-sm font-medium">Settings</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
             <UserProfile>
               <SidebarMenuButton 
-                className="h-8 justify-start gap-2" 
+                className="h-10 justify-start gap-2" 
                 tooltip={`Profile (${user?.name})`}
               >
-                <Avatar className="h-6 w-6">
+                <Avatar className="h-7 w-7">
                   <AvatarImage 
                     src={user?.avatar} 
                     alt={user?.name}
@@ -296,7 +319,7 @@ export function AppSidebar({ currentView, onViewChange, onProjectSelect, onMVPBu
                       e.currentTarget.style.display = 'none';
                     }}
                   />
-                  <AvatarFallback className="text-[10px]">
+                  <AvatarFallback className="text-sm font-medium">
                     {user?.name
                       .split(' ')
                       .map(n => n[0])
@@ -306,20 +329,25 @@ export function AppSidebar({ currentView, onViewChange, onProjectSelect, onMVPBu
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 text-left min-w-0">
-                  <div className="text-xs font-medium truncate">{user?.name}</div>
-                  <div className="text-[10px] text-muted-foreground truncate">{user?.email}</div>
+                  <div className="text-sm font-semibold truncate">{user?.name}</div>
+                  <div className="text-xs text-muted-foreground truncate">{user?.email}</div>
                 </div>
               </SidebarMenuButton>
             </UserProfile>
           </SidebarMenuItem>
           <SidebarMenuItem>
+            <SentryFeedback 
+              className="text-muted-foreground hover:text-foreground hover:bg-accent"
+            />
+          </SidebarMenuItem>
+          <SidebarMenuItem>
             <SidebarMenuButton 
-              className="h-7 text-red-600 hover:text-red-700" 
+              className="h-9 text-red-600 hover:text-red-700" 
               tooltip="Logout"
               onClick={logout}
             >
-              <LogOut className="h-8 w-8" />
-              <span className="text-xs">Logout</span>
+              <LogOut className="h-5 w-5" />
+              <span className="text-sm font-medium">Logout</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -341,7 +369,7 @@ export function AppSidebar({ currentView, onViewChange, onProjectSelect, onMVPBu
               <p className="text-sm font-medium">
                 To confirm, type the project name exactly:
               </p>
-              <div className="inline-flex items-center gap-1 px-2 py-1 bg-muted/30 rounded border font-mono cursor-pointer hover:bg-muted/50 transition-colors" onClick={handleCopyProjectName} title="Click to copy project name">
+              <div className="inline-flex items-center gap-1 px-2 py-1 bg-muted/30 rounded border font-mono hover:bg-muted/50 transition-colors" onClick={handleCopyProjectName} title="Click to copy project name">
                 <span className="text-sm text-foreground select-all">
                   {projectToDelete?.name}
                 </span>

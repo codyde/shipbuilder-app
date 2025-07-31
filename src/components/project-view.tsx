@@ -295,7 +295,7 @@ export function ProjectView({ view, onProjectSelect, newProjectDialogOpen, onNew
                   return (
                     <TableRow 
                       key={project.id}
-                      className={`cursor-pointer hover:bg-muted/50 border-b ${isDeleting ? 'opacity-50 pointer-events-none' : ''}`}
+                      className={`hover:bg-muted/50 border-b ${isDeleting ? 'opacity-50 pointer-events-none' : ''}`}
                       onClick={() => !isDeleting && onProjectSelect(project.id)}
                     >
                       <TableCell>
@@ -461,7 +461,7 @@ export function ProjectView({ view, onProjectSelect, newProjectDialogOpen, onNew
               <p className="text-sm font-medium">
                 To confirm, type the project name exactly:
               </p>
-              <div className="inline-flex items-center gap-1 px-2 py-1 bg-muted/30 rounded border font-mono cursor-pointer hover:bg-muted/50 transition-colors" onClick={handleCopyProjectName} title="Click to copy project name">
+              <div className="inline-flex items-center gap-1 px-2 py-1 bg-muted/30 rounded border font-mono hover:bg-muted/50 transition-colors" onClick={handleCopyProjectName} title="Click to copy project name">
                 <span className="text-sm text-foreground select-all">
                   {projectToManage?.name}
                 </span>

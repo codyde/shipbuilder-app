@@ -8,6 +8,7 @@ import { AppSidebar } from '@/components/app-sidebar'
 import { ProjectView } from '@/components/project-view'
 import { TaskView } from '@/components/task-view'
 import { AllTasksView } from '@/components/all-tasks-view'
+import { ComponentsView } from '@/components/components-view'
 import { SettingsView } from '@/components/settings-view'
 import { AIAssistant } from '@/components/AIAssistant'
 import { CommandMenu } from '@/components/command-menu'
@@ -15,10 +16,9 @@ import { LoginScreen } from '@/components/LoginScreen'
 import { LoadingAnimation } from '@/components/ui/loading-animation'
 import { ConnectionStatus } from '@/components/ConnectionStatus'
 import { SidebarInset } from '@/components/ui/sidebar'
-import { GlobalTaskPopout } from '@/components/GlobalTaskPopout'
 import { MCPConsentScreen } from '@/pages/MCPConsentScreen'
 
-type View = 'all-issues' | 'active' | 'backlog' | 'archived' | 'project' | 'tasks' | 'all-tasks' | 'settings'
+type View = 'all-issues' | 'active' | 'backlog' | 'archived' | 'project' | 'tasks' | 'all-tasks' | 'components' | 'settings'
 
 function AppContent() {
   const { user, loading } = useAuth();
@@ -150,6 +150,8 @@ function AppContent() {
               />
             ) : currentView === 'all-tasks' ? (
               <AllTasksView onProjectSelect={handleProjectSelect} />
+            ) : currentView === 'components' ? (
+              <ComponentsView />
             ) : currentView === 'settings' ? (
               <SettingsView />
             ) : (
@@ -168,7 +170,6 @@ function AppContent() {
           onClose={() => setAiAssistantOpen(false)}
           initialTab={initialTab}
         />
-        <GlobalTaskPopout />
         <CommandMenu 
           open={commandMenuOpen} 
           onOpenChange={setCommandMenuOpen} 

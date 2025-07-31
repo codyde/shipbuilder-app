@@ -53,7 +53,6 @@ export interface Task {
   details?: string;
   status: TaskStatus;
   priority: Priority;
-  dueDate?: string;
   subtasks?: Subtask[];
   comments?: Comment[];
   createdAt: string;
@@ -81,7 +80,6 @@ export interface CreateTaskInput {
   title: string;
   description?: string;
   priority?: Priority;
-  dueDate?: string;
   status?: TaskStatus;
 }
 
@@ -129,3 +127,28 @@ export interface CreateCommentInput {
 // Slug validation types
 export type ProjectSlug = string; // Format: alphanumeric + hyphens (e.g., "photoshare")
 export type TaskSlug = string;    // Format: {project-slug}-{number} (e.g., "photoshare-1")
+
+// Component types
+export interface Component {
+  id: string; // UUID format
+  userId: string; // UUID format
+  name: string; // Component name (e.g., "React+Node", "Django+PostgreSQL")
+  description: string; // Detailed description of what this component provides
+  tags: string[]; // Tags for searching/filtering
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateComponentInput {
+  name: string;
+  description: string;
+  tags?: string[];
+}
+
+export interface UpdateComponentInput {
+  name?: string;
+  description?: string;
+  tags?: string[];
+  isActive?: boolean;
+}

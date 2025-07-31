@@ -7,7 +7,6 @@ interface ProjectState {
   projects: Project[];
   loading: boolean;
   error: string | null;
-  poppedOutTask: { projectId: string; taskId: string } | null;
 }
 
 type ProjectAction =
@@ -20,13 +19,11 @@ type ProjectAction =
   | { type: 'ADD_TASK'; payload: { projectId: string; task: Task } }
   | { type: 'UPDATE_TASK'; payload: { projectId: string; task: Task } }
   | { type: 'DELETE_TASK'; payload: { projectId: string; taskId: string } }
-  | { type: 'SET_POPPED_OUT_TASK'; payload: { projectId: string; taskId: string } | null };
 
 const initialState: ProjectState = {
   projects: [],
   loading: false,
   error: null,
-  poppedOutTask: null,
 };
 
 function projectReducer(state: ProjectState, action: ProjectAction): ProjectState {
@@ -83,11 +80,6 @@ function projectReducer(state: ProjectState, action: ProjectAction): ProjectStat
             : p
         )
       };
-    case 'SET_POPPED_OUT_TASK':
-      return {
-        ...state,
-        poppedOutTask: action.payload
-      };
     default:
       return state;
   }
@@ -101,9 +93,6 @@ interface ProjectContextValue extends ProjectState {
   updateTask: (projectId: string, taskId: string, updates: Partial<Task>) => Promise<void>;
   deleteTask: (projectId: string, taskId: string) => Promise<void>;
   refreshProjects: () => Promise<void>;
-  setPoppedOutTask: (projectId: string, taskId: string) => void;
-  clearPoppedOutTask: () => void;
-  getPoppedOutTask: () => Task | null;
 }
 
 const ProjectContext = createContext<ProjectContextValue | undefined>(undefined);
@@ -376,23 +365,6 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     refreshProjects();
   }, []);
 
-  const setPoppedOutTask = (projectId: string, taskId: string) => {
-    dispatch({ type: 'SET_POPPED_OUT_TASK', payload: { projectId, taskId } });
-  };
-
-  const clearPoppedOutTask = () => {
-    dispatch({ type: 'SET_POPPED_OUT_TASK', payload: null });
-  };
-
-  const getPoppedOutTask = (): Task | null => {
-    if (!state.poppedOutTask) return null;
-    
-    const project = state.projects.find(p => p.id === state.poppedOutTask!.projectId);
-    if (!project) return null;
-    
-    const task = project.tasks.find(t => t.id === state.poppedOutTask!.taskId);
-    return task || null;
-  };
 
   const value: ProjectContextValue = {
     ...state,
@@ -403,9 +375,6 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     updateTask,
     deleteTask,
     refreshProjects,
-    setPoppedOutTask,
-    clearPoppedOutTask,
-    getPoppedOutTask,
   };
 
   return (

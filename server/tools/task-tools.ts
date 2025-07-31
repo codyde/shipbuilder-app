@@ -88,14 +88,10 @@ export const createTaskTools = (userId: string) => ({
           enum: ['low', 'medium', 'high'],
           description: 'Priority level of the task'
         },
-        dueDate: {
-          type: 'string',
-          description: 'Optional due date in ISO format'
-        }
       },
       required: ['projectId', 'title']
     },
-    execute: async (args: { projectId: string; title: string; description?: string; priority?: Priority; dueDate?: string }) => {
+    execute: async (args: { projectId: string; title: string; description?: string; priority?: Priority }) => {
       try {
         console.log(`\n📝 \x1b[34m[TASK_CREATE]\x1b[0m Starting task: \x1b[33m${args.title}\x1b[0m → \x1b[35m${args.projectId}\x1b[0m`);
         logger.info('Attempting to create MVP task', {
@@ -104,7 +100,6 @@ export const createTaskTools = (userId: string) => ({
           taskTitle: args.title,
           priority: args.priority,
           hasDescription: !!args.description,
-          hasDueDate: !!args.dueDate
         });
 
         // Check for existing task with same title in project (prevent duplicates)
@@ -160,7 +155,6 @@ export const createTaskTools = (userId: string) => ({
           taskId: task.id,
           taskTitle: task.title,
           taskPriority: task.priority,
-          hasDueDate: !!task.dueDate
         });
 
 

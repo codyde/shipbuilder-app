@@ -1,7 +1,6 @@
 import React from 'react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Badge } from '@/components/ui/badge';
-import { Calendar } from 'lucide-react';
 import { Task, TaskStatus } from '@/types/types';
 import { cn } from '@/lib/utils';
 
@@ -42,15 +41,6 @@ export function TaskHoverCard({ task, children }: TaskHoverCardProps) {
             </div>
           )}
 
-          {/* Due Date */}
-          {task.dueDate && (
-            <div className="pt-2 border-t">
-              <Badge variant="outline" className="text-xs flex items-center gap-1">
-                <Calendar className="w-3 h-3" />
-                {new Date(task.dueDate).toLocaleDateString()}
-              </Badge>
-            </div>
-          )}
         </div>
       </TooltipContent>
     </Tooltip>

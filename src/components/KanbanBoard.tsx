@@ -29,7 +29,6 @@ import {
   Clock,
   Circle,
   AlertCircle,
-  Calendar,
   Plus,
 } from 'lucide-react'
 
@@ -190,12 +189,6 @@ function KanbanTask({ task, onTaskClick, isSelected }: KanbanTaskProps) {
           
           <div className="flex items-center justify-between text-xs mt-2">
             <div className="flex items-center gap-2">
-              {task.dueDate && (
-                <Badge variant="outline" className="text-xs h-5">
-                  <Calendar className="h-3 w-3 mr-1" />
-                  {new Date(task.dueDate).toLocaleDateString()}
-                </Badge>
-              )}
             </div>
             
             {totalSubtasks > 0 && (

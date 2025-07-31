@@ -6,9 +6,10 @@ import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Accordion } from '@/components/ui/accordion';
+import { Badge } from '@/components/ui/badge';
 import { ToolStatusDisplay } from '@/components/ui/tool-status-display';
 import { useMVPStatusStream } from '@/hooks/useMVPStatusStream';
-import { X, Lightbulb, GripHorizontal, Loader2, Rocket, CheckCircle } from 'lucide-react';
+import { X, Lightbulb, GripHorizontal, Loader2, Rocket, CheckCircle, Package } from 'lucide-react';
 import { useDraggable } from '@/hooks/useDraggable';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { getApiUrl } from '@/lib/api-config';
@@ -44,6 +45,13 @@ interface MVPPlan {
   }[];
 }
 
+interface Component {
+  id: string;
+  name: string;
+  description: string;
+  tags: string[];
+}
+
 
 export function MVPBuilder({ className = '', onClose, open = true, onOpenChange }: MVPBuilderProps) {
   const { refreshProjects } = useProjects();
@@ -59,6 +67,12 @@ export function MVPBuilder({ className = '', onClose, open = true, onOpenChange 
   const [generationText, setGenerationText] = useState('');
   const [currentStatusIndex, setCurrentStatusIndex] = useState(0);
   const streamingTextRef = useRef<HTMLDivElement>(null);
+  
+  // Component-related state
+  const [components, setComponents] = useState<Component[]>([]);
+  const [selectedComponents, setSelectedComponents] = useState<Component[]>([]);
+  const [componentSearch, setComponentSearch] = useState('');
+  const [loadingComponents, setLoadingComponents] = useState(false);
 
   // Use the new MVP status streaming hook
   const {
@@ -108,6 +122,54 @@ export function MVPBuilder({ className = '', onClose, open = true, onOpenChange 
     "Optimizing for maximum awesomeness...",
     "Teaching pixels to behave..."
   ];
+
+  // Fetch components on mount
+  const fetchComponents = async () => {
+    setLoadingComponents(true);
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) return;
+
+      const response = await fetch(getApiUrl('components'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setComponents(data.components || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch components:', error);
+    } finally {
+      setLoadingComponents(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user) {
+      fetchComponents();
+    }
+  }, [user]);
+
+  // Component selection handlers
+  const handleComponentSelect = (component: Component) => {
+    if (!selectedComponents.find(c => c.id === component.id)) {
+      setSelectedComponents(prev => [...prev, component]);
+    }
+    setComponentSearch('');
+  };
+
+  const handleComponentRemove = (componentId: string) => {
+    setSelectedComponents(prev => prev.filter(c => c.id !== componentId));
+  };
+
+  const filteredComponents = components.filter(component =>
+    component.name.toLowerCase().includes(componentSearch.toLowerCase()) ||
+    component.description.toLowerCase().includes(componentSearch.toLowerCase()) ||
+    component.tags.some(tag => tag.toLowerCase().includes(componentSearch.toLowerCase()))
+  ).filter(component => !selectedComponents.find(c => c.id === component.id));
 
   // Initialize draggable functionality
   const { ref: dragRef, handleMouseDown, style: dragStyle } = useDraggable({
@@ -196,6 +258,11 @@ export function MVPBuilder({ className = '', onClose, open = true, onOpenChange 
         },
         body: JSON.stringify({
           projectIdea: trimmedIdea,
+          selectedComponents: selectedComponents.map(c => ({
+            name: c.name,
+            description: c.description,
+            tags: c.tags
+          }))
         }),
         signal: controller.signal,
       });
@@ -458,6 +525,59 @@ export function MVPBuilder({ className = '', onClose, open = true, onOpenChange 
                     <p className="text-xs text-muted-foreground mt-1">
                       {projectIdea.length}/500
                     </p>
+                  </div>
+
+                  {/* Components Section for Mobile */}
+                  <div>
+                    <label className="text-xs font-medium mb-1 block flex items-center gap-1">
+                      <Package className="w-3 h-3" />
+                      Components
+                    </label>
+                    
+                    {/* Selected Components */}
+                    {selectedComponents.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mb-2">
+                        {selectedComponents.map((component) => (
+                          <Badge
+                            key={component.id}
+                            variant="secondary"
+                            className="text-xs cursor-pointer hover:bg-red-100 hover:text-red-700"
+                            onClick={() => handleComponentRemove(component.id)}
+                          >
+                            {component.name} ×
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Component Search for Mobile */}
+                    <div className="relative">
+                      <Input
+                        value={componentSearch}
+                        onChange={(e) => setComponentSearch(e.target.value)}
+                        placeholder="Add components..."
+                        className="text-sm h-8"
+                        disabled={isGenerating || loadingComponents}
+                      />
+                      
+                      {/* Component Dropdown for Mobile */}
+                      {componentSearch && filteredComponents.length > 0 && (
+                        <div className="absolute top-full left-0 right-0 z-10 bg-background border rounded-md shadow-lg max-h-32 overflow-y-auto mt-1">
+                          {filteredComponents.slice(0, 3).map((component) => (
+                            <div
+                              key={component.id}
+                              onClick={() => handleComponentSelect(component)}
+                              className="p-2 hover:bg-muted cursor-pointer border-b last:border-b-0"
+                            >
+                              <div className="text-xs font-medium">{component.name}</div>
+                              <div className="text-xs text-muted-foreground line-clamp-1">
+                                {component.description}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   <Button 
@@ -759,6 +879,64 @@ export function MVPBuilder({ className = '', onClose, open = true, onOpenChange 
                     }`}>
                       {projectIdea.length}/500
                     </p>
+                  </div>
+                </div>
+
+                {/* Components Section */}
+                <div>
+                  <label className="text-sm font-medium mb-2 block flex items-center gap-2">
+                    <Package className="w-4 h-4" />
+                    Components (Optional)
+                  </label>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Add reusable components to enhance your MVP planning
+                    {loadingComponents && <span className="text-blue-600"> (Loading...)</span>}
+                    {!loadingComponents && components.length === 0 && <span className="text-orange-600"> (No components found - create some in Components page)</span>}
+                    {!loadingComponents && components.length > 0 && <span className="text-green-600"> ({components.length} available)</span>}
+                  </p>
+                  
+                  {/* Selected Components */}
+                  {selectedComponents.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {selectedComponents.map((component) => (
+                        <Badge
+                          key={component.id}
+                          variant="secondary"
+                          className="cursor-pointer hover:bg-red-100 hover:text-red-700"
+                          onClick={() => handleComponentRemove(component.id)}
+                        >
+                          {component.name} ×
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Component Search */}
+                  <div className="relative">
+                    <Input
+                      value={componentSearch}
+                      onChange={(e) => setComponentSearch(e.target.value)}
+                      placeholder="Search and select components..."
+                      disabled={isGenerating || loadingComponents}
+                    />
+                    
+                    {/* Component Dropdown */}
+                    {componentSearch && filteredComponents.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 z-10 bg-background border rounded-md shadow-lg max-h-40 overflow-y-auto mt-1">
+                        {filteredComponents.slice(0, 5).map((component) => (
+                          <div
+                            key={component.id}
+                            onClick={() => handleComponentSelect(component)}
+                            className="p-2 hover:bg-muted cursor-pointer border-b last:border-b-0"
+                          >
+                            <div className="text-sm font-medium">{component.name}</div>
+                            <div className="text-xs text-muted-foreground line-clamp-1">
+                              {component.description}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 
