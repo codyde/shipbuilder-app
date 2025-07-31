@@ -22,9 +22,9 @@ export class ShipbuilderMCPServer {
   private authService: AuthService;
 
   constructor() {
-    this.server = new McpServer(MCP_SERVER_INFO, {
+    this.server = Sentry.wrapMcpServerWithSentry(new McpServer(MCP_SERVER_INFO, {
       capabilities: MCP_DETAILED_CAPABILITIES,
-    });
+    }));
 
     this.authService = new AuthService();
     this.setupTools();
