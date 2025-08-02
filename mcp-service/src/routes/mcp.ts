@@ -48,7 +48,7 @@ async function initializeMCPInfrastructure() {
       },
       enableJsonResponse: false,
       allowedHosts: process.env.NODE_ENV === 'production' ? 
-        [process.env.ALLOWED_HOST || 'localhost'] : undefined,
+        [process.env.ALLOWED_HOST || 'mcp.shipbuilder.app', 'localhost'] : undefined,
       enableDnsRebindingProtection: process.env.NODE_ENV === 'production'
     });
     
