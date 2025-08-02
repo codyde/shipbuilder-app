@@ -22,6 +22,7 @@ export class ShipbuilderMCPServer {
   private authService: AuthService;
 
   constructor() {
+    // Sentry wrapper re-enabled with patched SDK
     this.server = Sentry.wrapMcpServerWithSentry(new McpServer(MCP_SERVER_INFO, {
       capabilities: MCP_DETAILED_CAPABILITIES,
     }));
@@ -29,6 +30,8 @@ export class ShipbuilderMCPServer {
     this.authService = new AuthService();
     this.setupTools();
     this.setupErrorHandling();
+    
+    logger.info('MCP server created with patched Sentry wrapper');
   }
 
   private setupErrorHandling() {
@@ -258,8 +261,8 @@ export class ShipbuilderMCPServer {
    * Set authentication context for the MCP session
    */
   setAuthContext(authContext: Omit<MCPAuthContext, 'userToken'>) {
-    // Generate a main app compatible JWT token for API calls
-    const userToken = this.authService.generateMainAppToken(
+    // Generate an API-compatible JWT token for service calls
+    const userToken = this.authService.generateAPIToken(
       authContext.userId,
       authContext.email,
       authContext.name
@@ -310,6 +313,90 @@ export class ShipbuilderMCPServer {
    */
   async handleQueryTasksPublic(args: any) {
     return await this.handleQueryTasks(args);
+  }
+
+  /**
+   * Handle create_project tool calls
+   */
+  private async handleCreateProject(args: any) {
+    if (!this.authContext) {
+      throw new Error('No authentication context available');
+    }
+
+    // Validate required fields
+    if (!args.name || typeof args.name !== 'string' || args.name.trim().length === 0) {
+      throw new Error('Project name is required and must be a non-empty string');
+    }
+
+    // Validate name length
+    if (args.name.length > 100) {
+      throw new Error('Project name must not exceed 100 characters');
+    }
+
+    // Prepare project data
+    const projectData: { name: string; description?: string; status?: string } = {
+      name: args.name.trim()
+    };
+
+    if (args.description && typeof args.description === 'string') {
+      projectData.description = args.description.trim();
+    }
+
+    if (args.status && ['active', 'backlog', 'completed', 'archived'].includes(args.status)) {
+      projectData.status = args.status;
+    }
+
+    logger.info('Creating project via MCP', {
+      userId: this.authContext.userId,
+      projectName: projectData.name,
+      hasDescription: !!projectData.description,
+      status: projectData.status || 'active'
+    });
+
+    // Create project using the API service
+    const project = await mcpAPIService.createProject(projectData, this.authContext.userToken);
+
+    logger.info('Project created successfully via MCP', {
+      userId: this.authContext.userId,
+      projectId: project.id,
+      projectName: project.name
+    });
+
+    // Transform for MCP response
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text: JSON.stringify({
+            success: true,
+            data: {
+              project: {
+                id: project.id,
+                name: project.name,
+                description: project.description,
+                status: project.status,
+                created_at: project.createdAt,
+                updated_at: project.updatedAt,
+                task_count: project.tasks?.length || 0
+              }
+            },
+            message: `Project "${project.name}" created successfully with ID: ${project.id}`,
+            user: {
+              id: this.authContext.userId,
+              email: this.authContext.email,
+              name: this.authContext.name,
+            },
+          }, null, 2),
+        },
+      ],
+    };
+  }
+
+  /**
+   * Public method to handle create_project tool calls
+   */
+  async handleCreateProjectPublic(args: any) {
+    return await this.handleCreateProject(args);
   }
 
   /**

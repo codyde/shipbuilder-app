@@ -32,35 +32,38 @@ export class AuthService {
   }
 
   /**
-   * Validate JWT token issued by main application
+   * Validate any JWT token (main app, MCP, or service tokens)
+   * Consolidated method that handles all token types
    */
-  async validateMainAppToken(token: string): Promise<UserInfo | null> {
+  async validateToken(token: string): Promise<UserInfo | null> {
     try {
       const decoded = jwt.verify(token, this.jwtSecret) as any;
       
-      // Verify user still exists by calling the main API
-      const userExists = await this.verifyUserExists(decoded.userId, token);
-      
-      if (!userExists) {
-        logger.warn('User not found via API', { userId: decoded.userId });
-        return null;
-      }
+      logger.info('Token validated', {
+        userId: decoded.userId,
+        email: decoded.email,
+        type: decoded.type || 'main-app',
+        aud: decoded.aud,
+        iss: decoded.iss
+      });
 
       return {
         userId: decoded.userId,
         email: decoded.email,
-        name: decoded.name
+        name: decoded.name || decoded.email // Fallback to email if name is not present
       };
     } catch (error) {
       logger.error('Token validation failed', {
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
+        tokenLength: token?.length,
+        tokenPrefix: token?.substring(0, 20) + '...'
       });
       return null;
     }
   }
 
   /**
-   * Generate MCP-specific token
+   * Generate MCP access token for OAuth clients
    */
   generateMCPToken(userId: string, email: string, name: string, clientId?: string): string {
     const payload = {
@@ -77,12 +80,13 @@ export class AuthService {
   }
 
   /**
-   * Generate main app compatible JWT token for API calls
+   * Generate API-compatible JWT token for service calls
    */
-  generateMainAppToken(userId: string, email: string, name: string): string {
+  generateAPIToken(userId: string, email: string, name: string): string {
     const payload = {
       userId,
       email,
+      name,
       provider: 'mcp-service',
       aud: 'project-management-app',
       iss: 'auth-service'
@@ -95,58 +99,15 @@ export class AuthService {
   }
 
   /**
-   * Validate MCP token
-   */
-  async validateMCPToken(token: string): Promise<UserInfo | null> {
-    try {
-      const decoded = jwt.verify(token, this.jwtSecret) as any;
-      
-      if (decoded.type !== 'mcp') {
-        logger.warn('Invalid token type', { type: decoded.type });
-        return null;
-      }
-
-      return {
-        userId: decoded.userId,
-        email: decoded.email,
-        name: decoded.name
-      };
-    } catch (error) {
-      logger.error('MCP token validation failed', {
-        error: error instanceof Error ? error.message : String(error)
-      });
-      return null;
-    }
-  }
-
-  /**
-   * Validate any JWT token (main app or MCP)
-   */
-  async validateToken(token: string): Promise<UserInfo | null> {
-    try {
-      const decoded = jwt.verify(token, this.jwtSecret) as any;
-      
-      return {
-        userId: decoded.userId,
-        email: decoded.email,
-        name: decoded.name
-      };
-    } catch (error) {
-      logger.error('Token validation failed', {
-        error: error instanceof Error ? error.message : String(error)
-      });
-      return null;
-    }
-  }
-
-  /**
    * Get user by ID via API
    */
   async getUserById(userId: string): Promise<{ id: string; email: string; name: string } | null> {
     try {
       // Use service-to-service endpoint with service token
       const serviceToken = process.env.SERVICE_TOKEN || 'default-service-token';
-      const url = `${this.apiBaseUrl}/api/auth/service/user/${userId}`;
+      // Ensure no double slashes in URL
+      const baseUrl = this.apiBaseUrl.endsWith('/') ? this.apiBaseUrl.slice(0, -1) : this.apiBaseUrl;
+      const url = `${baseUrl}/api/auth/service/user/${userId}`;
       
       logger.info('Making service-to-service user lookup', {
         url,
@@ -163,11 +124,27 @@ export class AuthService {
       });
 
       if (!response.ok) {
-        logger.warn('User lookup failed', {
+        const responseText = await response.text();
+        let errorDetails = responseText;
+        try {
+          const errorJson = JSON.parse(responseText);
+          errorDetails = errorJson.error || responseText;
+        } catch {}
+        
+        logger.warn('User not found via API', {
           userId,
           status: response.status,
-          statusText: response.statusText
+          statusText: response.statusText,
+          error: errorDetails,
+          serviceTokenConfigured: !!serviceToken && serviceToken !== 'default-service-token',
+          apiUrl: this.apiBaseUrl
         });
+        
+        // Log specific guidance for common issues
+        if (response.status === 401) {
+          logger.error('SERVICE TOKEN MISMATCH: The SERVICE_TOKEN environment variable must be set to the same value in both the main application and MCP service');
+        }
+        
         return null;
       }
 
@@ -187,25 +164,4 @@ export class AuthService {
     }
   }
 
-  /**
-   * Verify if user exists via API
-   */
-  private async verifyUserExists(userId: string, token: string): Promise<boolean> {
-    try {
-      const response = await fetch(`${this.apiBaseUrl}/api/auth/me`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      return response.ok;
-    } catch (error) {
-      logger.error('Failed to verify user exists via API', {
-        error: error instanceof Error ? error.message : String(error),
-        userId
-      });
-      return false;
-    }
-  }
 }

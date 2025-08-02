@@ -66,6 +66,32 @@ export const MCP_TOOLS: MCPToolDefinition[] = [
       },
       required: ['project_id']
     }
+  },
+  {
+    name: 'create_project',
+    description: 'Create a new project for the authenticated user',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          description: 'The name of the project',
+          minLength: 1,
+          maxLength: 100
+        },
+        description: {
+          type: 'string',
+          description: 'Optional description of the project'
+        },
+        status: {
+          type: 'string',
+          enum: ['active', 'backlog', 'completed', 'archived'],
+          default: 'active',
+          description: 'Initial status of the project'
+        }
+      },
+      required: ['name']
+    }
   }
 ];
 

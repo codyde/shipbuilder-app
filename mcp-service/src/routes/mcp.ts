@@ -1,8 +1,10 @@
 import express from 'express';
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { randomUUID } from 'crypto';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { ShipbuilderMCPServer } from '../services/mcp-server.js';
 import { AuthService } from '../services/auth-service.js';
 import { OAuthService } from '../services/oauth-service.js';
+import { sessionService } from '../services/session-service.js';
 import { mcpAuthMiddleware, authMiddleware } from '../middleware/auth.js';
 import { logger } from '../utils/logger.js';
 import * as Sentry from '@sentry/node';
@@ -16,71 +18,171 @@ import {
   MCP_OAUTH_SCOPES,
   MCP_TOKEN_EXPIRY,
   MCP_TOKEN_EXPIRY_SECONDS,
-  MCP_SESSION_CLEANUP_INTERVAL,
-  MCP_SESSION_MAX_AGE,
   MCP_DETAILED_CAPABILITIES,
   MCP_SERVER_INFO,
-  getMCPServiceUrl,
-  getFrontendUrl,
-  generateOAuthDiscoveryMetadata,
-  generateOAuthProtectedResourceMetadata,
-  generateMCPServerInfo
+  getMCPServiceUrl
 } from '../config/mcp-config.js';
 
 const router = express.Router();
 const authService = new AuthService();
 
-// Store active MCP sessions with transport
-const mcpSessions = new Map<string, { 
-  mcpServer: ShipbuilderMCPServer; 
-  transport: SSEServerTransport;
-  userId: string; 
-  createdAt: Date 
-}>();
+// Global MCP server and transport instances
+let globalMcpServer: ShipbuilderMCPServer | null = null;
+let globalMcpTransport: StreamableHTTPServerTransport | null = null;
+let transportStarted = false;
+
+// Initialize global MCP infrastructure
+async function initializeMCPInfrastructure() {
+  if (!globalMcpServer || !globalMcpTransport) {
+    // Create MCP server
+    globalMcpServer = new ShipbuilderMCPServer();
+    
+    // Create transport
+    globalMcpTransport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: () => randomUUID(),
+      onsessioninitialized: async (sessionId: string) => {
+        logger.info('MCP session initialized', { sessionId: sessionId.slice(0, 8) + '...' });
+      },
+      onsessionclosed: async (sessionId: string) => {
+        logger.info('MCP session closed', { sessionId: sessionId.slice(0, 8) + '...' });
+      },
+      enableJsonResponse: false,
+      allowedHosts: process.env.NODE_ENV === 'production' ? 
+        [process.env.ALLOWED_HOST || 'localhost'] : undefined,
+      enableDnsRebindingProtection: process.env.NODE_ENV === 'production'
+    });
+    
+    logger.info('MCP infrastructure initialized');
+  }
+  
+  // Connect server to transport only once
+  if (!transportStarted && globalMcpTransport && globalMcpServer) {
+    const mcpServerInstance = globalMcpServer.getServer();
+    
+    // SessionId is now automatically initialized by enhanced Sentry SDK patches
+    // No manual pre-initialization needed - Sentry handles this transparently
+    await mcpServerInstance.connect(globalMcpTransport);
+    
+    // IMPORTANT: Don't override onmessage after connect() - this breaks Sentry's instrumentation!
+    // Sentry wraps onmessage during connect() to add MCP analytics tracking.
+    // Our custom handler was breaking the transport context (this = undefined).
+    
+    logger.info('MCP server connected to transport with Sentry instrumentation intact');
+    
+    transportStarted = true;
+    logger.info('MCP server connected to transport and message logging installed');
+  }
+  
+  return { server: globalMcpServer, transport: globalMcpTransport };
+}
 
 /**
- * Cleanup old sessions (run every 30 minutes)
+ * Unified MCP Streamable HTTP handler (MCP 2025-03-26 compliant)
+ * Handles both GET (SSE) and POST (JSON-RPC) requests through StreamableHTTPServerTransport
  */
-setInterval(() => {
-  const now = Date.now();
-  for (const [sessionId, session] of mcpSessions.entries()) {
-    // Remove sessions older than configured max age
-    if (now - session.createdAt.getTime() > MCP_SESSION_MAX_AGE) {
-      session.mcpServer.clearAuthContext();
-      session.transport.close();
-      mcpSessions.delete(sessionId);
-      logger.info('Cleaned up expired MCP session', { sessionId, userId: session.userId });
+async function mcpStreamableHandler(req: any, res: any) {
+  try {
+    // Initialize MCP infrastructure
+    const { server: mcpServer, transport: mcpTransport } = await initializeMCPInfrastructure();
+    
+    // REQUIRE authentication for ALL MCP requests
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.status(401).json({ 
+        error: 'authentication_required',
+        error_description: 'Authorization header is required for MCP access',
+        message: 'Please provide a valid Bearer token to access the MCP server'
+      });
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    const userInfo = await authService.validateToken(token);
+    
+    if (!userInfo) {
+      return res.status(401).json({ 
+        error: 'invalid_token',
+        error_description: 'Invalid or expired MCP token',
+        message: 'Please authenticate with a valid token'
+      });
+    }
+    
+    // Set auth context on the global connected server instance
+    mcpServer.setAuthContext({
+      userId: userInfo.userId,
+      email: userInfo.email,
+      name: userInfo.name
+    });
+    
+    // Verify auth context was set
+    const currentAuth = mcpServer.getAuthContext();
+    logger.info('Auth context set and verified', {
+      userId: currentAuth?.userId,
+      email: currentAuth?.email,
+      contextSet: !!currentAuth,
+      serverConnected: mcpServer.getServer().isConnected(),
+      transportStarted: transportStarted
+    });
+    
+    req.auth = {
+      userId: userInfo.userId,
+      email: userInfo.email,
+      name: userInfo.name
+    };
+    
+    // Let the connected transport handle the request directly
+    try {
+      logger.info('About to process request via transport', {
+        method: req.method,
+        url: req.url,
+        hasBody: !!req.body,
+        bodyKeys: req.body ? Object.keys(req.body) : [],
+        userId: req.auth?.userId
+      });
+      
+      await mcpTransport.handleRequest(req, res, req.body);
+      
+      logger.info('MCP request processed successfully via transport', {
+        method: req.method,
+        userId: req.auth?.userId,
+        acceptHeader: req.headers.accept,
+        responseWritten: res.headersSent,
+        statusCode: res.statusCode
+      });
+    } catch (transportError) {
+      logger.error('Transport request handling failed', {
+        error: transportError instanceof Error ? transportError.message : String(transportError),
+        stack: transportError instanceof Error ? transportError.stack : undefined,
+        method: req.method,
+        userId: req.auth?.userId
+      });
+      throw transportError;
+    }
+    
+  } catch (error) {
+    logger.error('Error in MCP streamable handler', {
+      error: error instanceof Error ? error.message : String(error),
+      method: req.method,
+      userId: req.auth?.userId
+    });
+    
+    if (!res.headersSent) {
+      res.status(500).json({
+        error: 'Internal Server Error',
+        message: 'Failed to handle MCP request'
+      });
     }
   }
-}, MCP_SESSION_CLEANUP_INTERVAL);
+}
 
 /**
- * GET / - Provides server info OR establishes SSE connection
+ * GET / - Streamable HTTP transport: SSE stream endpoint
  */
-router.get('/', async (req: any, res: any) => {
-  // Check if this is an SSE connection request (has Authorization header)
-  const authHeader = req.headers.authorization;
-  const acceptHeader = req.headers.accept || '';
-  
-  if (authHeader && acceptHeader.includes('text/event-stream')) {
-    // This is an SSE connection request - delegate to SSE handler
-    return mcpSSEHandler(req, res);
-  }
-  
-  const baseUrl = getMCPServiceUrl(req);
-  
-  logger.info('MCP server info request', {
-    baseUrl,
-    userAgent: req.headers['user-agent'],
-  });
-  
-  // Return server info with tools list
-  const serverInfo = generateMCPServerInfo(baseUrl);
-  res.json({
-    ...serverInfo,
-    tools: MCP_TOOLS_BASIC,
-  });
-});
+router.get('/', mcpStreamableHandler);
+
+/**
+ * POST / - Streamable HTTP transport: JSON-RPC message endpoint
+ */
+router.post('/', mcpStreamableHandler);
 
 /**
  * POST /token - OAuth token exchange for MCP access
@@ -114,443 +216,187 @@ router.post('/token', async (req: any, res: any) => {
         if (!client_id || !redirect_uri) {
           return res.status(400).json({
             error: 'invalid_request',
-            error_description: 'Missing required parameters: client_id, redirect_uri'
+            error_description: 'Missing required parameters: client_id and redirect_uri'
           });
         }
-
-        // Validate and consume the authorization code
+        
+        // Validate authorization code with PKCE
         const validation = await OAuthService.validateAndConsumeAuthorizationCode({
           authorization_code: code,
           client_id,
           redirect_uri,
-          code_verifier,
+          code_verifier
         });
-
+        
         if (!validation.valid) {
-          logger.error('Authorization code validation failed', {
-            error: validation.error,
+          logger.warn('Authorization code validation failed', {
             client_id,
             redirect_uri,
-            authorization_code: code?.substring(0, 8) + '...',
+            error: validation.error
           });
+          
           return res.status(400).json({
             error: 'invalid_grant',
             error_description: validation.error || 'Invalid authorization code'
           });
         }
-
-        // Get user details for token
-        const user = await authService.getUserById(validation.userId!);
         
-        if (!user) {
-          logger.error('User not found for token generation', {
+        // Get real user data from the main app
+        const userData = await authService.getUserById(validation.userId!);
+        
+        if (!userData) {
+          logger.error('Failed to get user data for OAuth token generation', {
             userId: validation.userId,
+            client_id
           });
-          return res.status(400).json({
-            error: 'invalid_grant',
-            error_description: 'User not found'
+          return res.status(500).json({
+            error: 'server_error',
+            error_description: 'Failed to retrieve user information'
           });
         }
-
-        // Create MCP access token
+        
+        // Generate MCP access token with real user data
         const mcpToken = authService.generateMCPToken(
-          user.id,
-          user.email,
-          user.name,
+          userData.id,
+          userData.email,
+          userData.name,
           client_id
         );
-
-        logger.info('MCP token generated via OAuth 2.1 flow', {
-          userId: user.id,
-          email: user.email,
-          clientId: client_id,
+        
+        logger.info('MCP token generated successfully', {
+          user_id: validation.userId,
+          client_id,
+          redirect_uri,
+          token_prefix: mcpToken.substring(0, 16) + '...'
         });
-
-        return res.json({
+        
+        // Return OAuth 2.1 compliant token response
+        res.json({
           access_token: mcpToken,
           token_type: 'Bearer',
           expires_in: MCP_TOKEN_EXPIRY_SECONDS,
-          scope: MCP_OAUTH_SCOPES.join(' '),
+          scope: MCP_OAUTH_SCOPES.join(' ')
         });
         
       } catch (error) {
-        logger.error('OAuth 2.1 token exchange failed', {
+        logger.error('OAuth code exchange error', {
           error: error instanceof Error ? error.message : String(error),
-          clientId: client_id,
+          client_id,
+          redirect_uri
         });
         
         return res.status(500).json({
           error: 'server_error',
-          error_description: 'Failed to process authorization code'
+          error_description: 'Internal server error during token exchange'
         });
       }
     }
-    
-    // Handle direct JWT token exchange (fallback for development)
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
+    // Handle JWT token exchange (for development/testing)
+    else if (grant_type === 'urn:ietf:params:oauth:grant-type:jwt-bearer') {
+      const { assertion } = req.body;
+      
+      if (!assertion) {
+        return res.status(400).json({
+          error: 'invalid_request',
+          error_description: 'Missing assertion parameter for JWT bearer grant'
+        });
+      }
       
       try {
-        const userInfo = await authService.validateMainAppToken(token);
+        // Validate the JWT assertion
+        const userInfo = await authService.validateToken(assertion);
         
-        if (userInfo) {
-          const mcpToken = authService.generateMCPToken(
-            userInfo.userId,
-            userInfo.email,
-            userInfo.name
-          );
-
-          logger.info('MCP token generated via direct JWT exchange', {
-            userId: userInfo.userId,
-            email: userInfo.email,
-          });
-
-          return res.json({
-            access_token: mcpToken,
-            token_type: 'Bearer',
-            expires_in: MCP_TOKEN_EXPIRY_SECONDS,
-            scope: MCP_OAUTH_SCOPES.join(' '),
-            mcp_endpoint: getMCPServiceUrl(req),
-            instructions: {
-              usage: 'Use this token in the Authorization header: Bearer <token>',
-              endpoint: getMCPServiceUrl(req),
-              headers: {
-                'Authorization': 'Bearer <token>',
-                'Content-Type': 'application/json',
-                'Accept': 'application/json, text/event-stream',
-                'MCP-Protocol-Version': MCP_PROTOCOL_VERSION
-              },
-            },
+        if (!userInfo) {
+          return res.status(400).json({
+            error: 'invalid_grant',
+            error_description: 'Invalid JWT assertion'
           });
         }
+        
+        // Generate MCP token from JWT
+        const mcpToken = authService.generateMCPToken(
+          userInfo.userId,
+          userInfo.email,
+          userInfo.name
+        );
+        
+        logger.info('JWT to MCP token exchange successful', {
+          user_id: userInfo.userId,
+          email: userInfo.email,
+          token_prefix: mcpToken.substring(0, 16) + '...'
+        });
+        
+        res.json({
+          access_token: mcpToken,
+          token_type: 'Bearer',
+          expires_in: MCP_TOKEN_EXPIRY_SECONDS,
+          scope: MCP_OAUTH_SCOPES.join(' ')
+        });
+        
       } catch (error) {
-        return res.status(401).json({ error: 'Invalid token' });
+        logger.error('JWT exchange error', {
+          error: error instanceof Error ? error.message : String(error)
+        });
+        
+        return res.status(500).json({
+          error: 'server_error',
+          error_description: 'Internal server error during JWT exchange'
+        });
       }
     }
-
-    return res.status(400).json({ 
-      error: 'invalid_request',
-      error_description: 'Missing required parameters. Provide either authorization code or Bearer token.'
-    });
-
-  } catch (error) {
-    logger.error('Failed to generate MCP token', {
-      error: error instanceof Error ? error.message : String(error),
-      body: req.body
-    });
-    
-    if (process.env.SENTRY_DSN) {
-      Sentry.captureException(error, {
-        tags: { component: 'mcp_token_generation' },
+    else {
+      return res.status(400).json({
+        error: 'unsupported_grant_type',
+        error_description: `Grant type '${grant_type}' is not supported`
       });
     }
     
-    res.status(500).json({ 
+  } catch (error) {
+    logger.error('Token exchange endpoint error', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      body: req.body,
+      headers: {
+        'content-type': req.headers['content-type'],
+        'user-agent': req.headers['user-agent']
+      }
+    });
+    
+    res.status(500).json({
       error: 'server_error',
-      error_description: 'Failed to generate MCP token'
+      error_description: 'Internal server error'
     });
   }
 });
 
 /**
- * Handle SSE connection for MCP
+ * GET /sessions/stats - Get session statistics (for monitoring)
  */
-async function mcpSSEHandler(req: any, res: any) {
+router.get('/sessions/stats', authMiddleware, async (req: any, res: any) => {
   try {
-    // Authenticate the request
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    if (!token) {
-      return res.status(401).json({ 
-        error: 'Authentication required',
-        message: 'Provide token via Authorization header'
-      });
-    }
-
-    const userInfo = await authService.validateMCPToken(token);
-    if (!userInfo) {
-      return res.status(401).json({ 
-        error: 'Authentication failed',
-        message: 'Invalid or expired MCP token'
-      });
-    }
-
-    logger.info('MCP SSE connection request', {
-      userId: userInfo.userId,
-      userAgent: req.headers['user-agent'],
-    });
-
-    // Create MCP server instance
-    const mcpServer = new ShipbuilderMCPServer();
-    mcpServer.setAuthContext({
-      userId: userInfo.userId,
-      email: userInfo.email,
-      name: userInfo.name,
-    });
-
-    // Create SSE transport
-    const transport = new SSEServerTransport('/', res, {
-      enableDnsRebindingProtection: false,
-    });
-
-    // Connect server to transport
-    await mcpServer.getServer().connect(transport);
+    const stats = await sessionService.getStats();
+    const userSessions = await sessionService.getUserSessions(req.user.userId);
     
-    // Store session
-    mcpSessions.set(transport.sessionId, {
-      mcpServer,
-      transport,
-      userId: userInfo.userId,
-      createdAt: new Date(),
+    res.json({
+      global: stats,
+      user: {
+        sessions: userSessions.length,
+        connections: userSessions.map(s => ({
+          connectionId: s.connectionId,
+          createdAt: s.createdAt,
+          lastActivity: s.lastActivity,
+          activeStreams: s.activeStreams.size,
+          userAgent: s.userAgent
+        }))
+      }
     });
-
-    logger.info('MCP SSE transport connected', {
-      sessionId: transport.sessionId,
-      userId: userInfo.userId,
-    });
-
-    // Handle transport events
-    transport.onclose = () => {
-      logger.info('MCP transport closed', {
-        sessionId: transport.sessionId,
-        userId: userInfo.userId,
-      });
-      mcpSessions.delete(transport.sessionId);
-      mcpServer.clearAuthContext();
-    };
-
-    transport.onerror = (error) => {
-      logger.error('MCP transport error', {
-        sessionId: transport.sessionId,
-        userId: userInfo.userId,
-        error: error.message,
-      });
-    };
-
   } catch (error) {
-    logger.error('Failed to establish MCP SSE connection', {
+    logger.error('Failed to get session stats', {
       error: error instanceof Error ? error.message : String(error),
       userId: req.user?.userId
     });
-
-    res.status(500).json({
-      error: 'Failed to establish MCP connection',
-      details: error instanceof Error ? error.message : String(error),
-    });
-  }
-}
-
-/**
- * POST / - Handle incoming MCP messages
- */
-router.post('/', mcpAuthMiddleware, async (req: any, res: any) => {
-  try {
-    // Get session ID from header or query parameter, or create session-less flow
-    let sessionId = req.headers['mcp-session-id'] || req.query.sessionId;
     
-    logger.info('MCP POST message received', {
-      sessionId,
-      userId: req.user.userId,
-      method: req.body?.method,
-      hasBody: !!req.body,
-    });
-
-    // Try to find an active session for this user if no explicit session ID provided
-    if (!sessionId) {
-      // Look for any active session for this user
-      for (const [sid, session] of mcpSessions.entries()) {
-        if (session.userId === req.user.userId) {
-          sessionId = sid;
-          logger.info('Found active session for user', {
-            userId: req.user.userId,
-            sessionId: sid,
-          });
-          break;
-        }
-      }
-    }
-
-    // For clients that don't establish SSE first, create a session-less MCP server
-    if (!sessionId) {
-      logger.info('Creating session-less MCP server for direct request', {
-        method: req.body?.method,
-      });
-
-      const mcpServer = new ShipbuilderMCPServer();
-      mcpServer.setAuthContext({
-        userId: req.user.userId,
-        email: req.user.email,
-        name: req.user.name,
-      });
-
-      // Handle the request directly without transport
-      const body = req.body;
-      
-      if (body && body.method) {
-        let response;
-
-        // Handle different MCP methods manually
-        if (body.method === 'initialize') {
-          response = {
-            jsonrpc: '2.0',
-            id: body.id,
-            result: {
-              protocolVersion: MCP_PROTOCOL_VERSION,
-              capabilities: MCP_DETAILED_CAPABILITIES,
-              serverInfo: MCP_SERVER_INFO
-            }
-          };
-        } else if (body.method === 'notifications/initialized') {
-          // Client acknowledges initialization - no response needed
-          res.status(204).send();
-          return;
-        } else if (body.method === 'ping') {
-          response = {
-            jsonrpc: '2.0',
-            id: body.id,
-            result: {}
-          };
-        } else if (body.method === 'tools/list') {
-          logger.info('MCP tools/list request received', {
-            userId: req.user.userId,
-            requestId: body.id,
-          });
-          
-          response = {
-            jsonrpc: '2.0',
-            id: body.id,
-            result: {
-              tools: MCP_TOOLS
-            }
-          };
-        } else if (body.method === 'prompts/list') {
-          response = {
-            jsonrpc: '2.0',
-            id: body.id,
-            result: {
-              prompts: []
-            }
-          };
-        } else if (body.method === 'resources/list') {
-          response = {
-            jsonrpc: '2.0',
-            id: body.id,
-            result: {
-              resources: []
-            }
-          };
-        } else if (body.method === 'tools/call') {
-          // Handle tool calls
-          const toolName = body.params?.name;
-          const toolArgs = body.params?.arguments || {};
-
-          if (!isValidToolName(toolName)) {
-            response = {
-              jsonrpc: '2.0',
-              id: body.id,
-              error: {
-                code: -32601,
-                message: `Unknown tool: ${toolName}`
-              }
-            };
-          } else {
-            try {
-              let result;
-              if (toolName === 'query_projects') {
-                result = await mcpServer.handleQueryProjectsPublic(toolArgs);
-              } else if (toolName === 'query_tasks') {
-                result = await mcpServer.handleQueryTasksPublic(toolArgs);
-              }
-              
-              response = {
-                jsonrpc: '2.0',
-                id: body.id,
-                result
-              };
-            } catch (error) {
-              response = {
-                jsonrpc: '2.0',
-                id: body.id,
-                error: {
-                  code: -32603,
-                  message: error instanceof Error ? error.message : 'Internal error'
-                }
-              };
-            }
-          }
-        } else {
-          // Unknown method
-          response = {
-            jsonrpc: '2.0',
-            id: body.id,
-            error: {
-              code: -32601,
-              message: `Method not found: ${body.method}`
-            }
-          };
-        }
-
-        logger.info('Sending MCP response (session-less)', {
-          method: body.method,
-          id: body.id,
-          hasResult: !!response.result,
-          hasError: !!response.error,
-        });
-
-        mcpServer.clearAuthContext();
-        return res.status(200).json(response);
-      }
-      
-      // Clean up
-      mcpServer.clearAuthContext();
-      return res.status(400).json({
-        jsonrpc: '2.0',
-        id: null,
-        error: {
-          code: -32600,
-          message: 'Invalid request - no method provided'
-        }
-      });
-    }
-
-    // Session-based flow (for SSE clients)
-    const session = mcpSessions.get(sessionId);
-    if (!session) {
-      return res.status(404).json({
-        error: 'Session not found',
-        sessionId,
-      });
-    }
-
-    // Log the request before delegating to transport
-    logger.info('Delegating MCP request to SSE transport', {
-      sessionId,
-      method: req.body?.method,
-      id: req.body?.id,
-      userId: req.user.userId,
-    });
-
-    // Let the transport handle the POST message
-    await session.transport.handlePostMessage(req, res, req.body);
-
-  } catch (error) {
-    logger.error('MCP POST message failed', {
-      error: error instanceof Error ? error.message : String(error),
-      sessionId: req.headers['mcp-session-id'],
-      userId: req.user?.userId,
-      method: req.body?.method
-    });
-
-    if (process.env.SENTRY_DSN) {
-      Sentry.captureException(error, {
-        tags: { component: 'mcp_post_message' },
-        user: { id: req.user?.userId, email: req.user?.email },
-      });
-    }
-
-    res.status(500).json({
-      error: 'Failed to process MCP message',
-    });
+    res.status(500).json({ error: 'Failed to get session stats' });
   }
 });
 

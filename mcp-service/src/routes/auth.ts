@@ -51,10 +51,10 @@ router.get('/authorize', async (req: any, res: any) => {
       });
     }
 
-    if (!['S256', 'plain'].includes(code_challenge_method)) {
+    if (code_challenge_method !== 'S256') {
       return res.status(400).json({
         error: 'invalid_request',
-        error_description: 'code_challenge_method must be S256 or plain'
+        error_description: 'Only S256 code_challenge_method is supported'
       });
     }
 
@@ -128,11 +128,23 @@ router.post('/consent', async (req: any, res: any) => {
     }
 
     // Validate main app token
-    const userInfo = await authService.validateMainAppToken(main_app_token);
+    if (!main_app_token) {
+      logger.error('Missing main_app_token in consent request');
+      return res.status(400).json({
+        error: 'invalid_request',
+        error_description: 'main_app_token is required'
+      });
+    }
+    
+    const userInfo = await authService.validateToken(main_app_token);
     if (!userInfo) {
+      logger.error('Failed to validate main app token', {
+        tokenLength: main_app_token?.length,
+        tokenPrefix: main_app_token?.substring(0, 20) + '...'
+      });
       return res.status(401).json({
         error: 'invalid_token',
-        error_description: 'Invalid main application token'
+        error_description: 'Invalid or expired authentication token. Please log in again.'
       });
     }
 

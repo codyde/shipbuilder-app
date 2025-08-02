@@ -94,9 +94,9 @@ export const MCP_DETAILED_CAPABILITIES = MCP_SERVICE_CONFIG.CAPABILITIES.detaile
 export const MCP_SERVER_INFO = MCP_SERVICE_CONFIG.SERVER_INFO;
 
 /**
- * Transport Configuration
+ * Transport Configuration (MCP 2025-03-26 compliant)
  */
-export const MCP_TRANSPORT_TYPE = 'streamable-http';
+export const MCP_TRANSPORT_TYPE = 'streamable-http'; // StreamableHTTPServerTransport
 
 /**
  * Get frontend URL for OAuth redirects
@@ -131,7 +131,6 @@ export function generateOAuthDiscoveryMetadata(baseUrl: string) {
     authorization_endpoint: `${baseUrl}/api/auth/authorize`,
     token_endpoint: `${baseUrl}/token`,
     registration_endpoint: `${baseUrl}/register`,
-    jwks_uri: `${baseUrl}/.well-known/jwks.json`,
     // OAuth 2.1: Only secure response types
     response_types_supported: ['code'],
     // OAuth 2.1: Authorization code grant with refresh token support
@@ -160,7 +159,6 @@ export function generateOAuthProtectedResourceMetadata(baseUrl: string) {
   return {
     resource: baseUrl,
     authorization_servers: [baseUrl],
-    jwks_uri: `${baseUrl}/.well-known/jwks.json`,
     bearer_methods_supported: MCP_OAUTH_BEARER_METHODS,
     resource_documentation: baseUrl,
     scopes_supported: MCP_OAUTH_SCOPES,

@@ -88,7 +88,7 @@ export const mcpAuthMiddleware = async (req: Request, res: Response, next: NextF
     const token = authHeader.substring(7);
     
     // Validate MCP token specifically
-    const userInfo = await authService.validateMCPToken(token);
+    const userInfo = await authService.validateToken(token);
     
     if (!userInfo) {
       res.status(401).json({

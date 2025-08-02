@@ -12,6 +12,7 @@ This service exposes Shipbuilder's project and task data through the standardize
 - **OAuth 2.1 Authentication**: Secure user consent flow with PKCE
 - **API-Based Architecture**: Communicates with main Shipbuilder API (no direct database access)
 - **Root-Level Protocol**: Clean URLs without `/mcp` prefix
+- **Multiple Transport Options**: SSE, HTTP Streaming, and Session-less modes
 - **Production Ready**: Comprehensive logging, error handling, and monitoring
 
 ## Quick Start
@@ -53,7 +54,7 @@ npm start
 | Variable | Description | Example |
 |----------|-------------|---------|
 | `JWT_SECRET` | JWT signing secret (must match main app) | `your-super-secret-jwt-key` |
-| `API_BASE_URL` | Main Shipbuilder API endpoint | `http://localhost:3001` |
+| `API_BASE_URL` | Main Shipbuilder API endpoint (no trailing slash) | `http://localhost:3001` |
 | `SERVICE_TOKEN` | Service-to-service authentication token (must match main app) | `your-service-token-here` |
 
 ### Optional Variables
@@ -99,7 +100,8 @@ MCP Client → MCP Service (port 3002) → Main API (port 3001) → Database
 ## API Endpoints
 
 ### MCP Protocol
-- `GET/POST /` - MCP protocol endpoint (root level)
+- `GET /` - Opens SSE stream for server-to-client messages (requires Accept: text/event-stream)
+- `POST /` - Handles client-to-server messages, returns JSON or SSE based on Accept header
 - `POST /token` - OAuth token exchange
 
 ### Authentication
@@ -180,6 +182,59 @@ Get tasks for a specific project.
 }
 ```
 
+## Transport Implementation
+
+This MCP service implements the **Streamable HTTP** transport as specified in the MCP protocol version 2025-03-26.
+
+### Streamable HTTP Transport
+
+The service provides a single MCP endpoint that supports both POST and GET methods:
+
+#### POST / - Client-to-Server Messages
+- **Accept Headers**: `application/json` and/or `text/event-stream`
+- **Request Body**: Single JSON-RPC message or array of messages
+- **Response Types**:
+  - For responses/notifications only: Returns 202 Accepted with no body
+  - For requests with `Accept: application/json`: Returns JSON response
+  - For requests with `Accept: text/event-stream`: Returns SSE stream with responses
+
+#### GET / - Server-to-Client Messages  
+- **Accept Header**: Must include `text/event-stream`
+- **Purpose**: Opens SSE stream for server-initiated requests/notifications
+- **Authentication**: Requires Bearer token in Authorization header
+
+### Session Management
+
+The service supports stateful sessions using the `Mcp-Session-Id` header:
+
+1. On `initialize` request, server returns a session ID in the `Mcp-Session-Id` response header
+2. Clients must include this header in all subsequent requests
+3. Sessions expire after 2 hours of inactivity
+4. Clients can explicitly terminate sessions with `DELETE /` (if implemented)
+
+### Example Usage
+
+```bash
+# Initialize and get session ID
+RESPONSE=$(curl -X POST http://localhost:3002/ \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -d '{"jsonrpc": "2.0", "method": "initialize", "params": {}, "id": 1}' \
+  -i)
+
+# Extract session ID from headers
+SESSION_ID=$(echo "$RESPONSE" | grep -i "Mcp-Session-Id:" | cut -d' ' -f2)
+
+# Make subsequent requests with session ID
+curl -X POST http://localhost:3002/ \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -H "Mcp-Session-Id: $SESSION_ID" \
+  -d '{"jsonrpc": "2.0", "method": "tools/list", "id": 2}'
+```
+
 ## Authentication Flow
 
 1. **Client Registration**: MCP client registers with the service
@@ -193,11 +248,13 @@ Get tasks for a specific project.
 ### Available Scripts
 
 ```bash
-npm run dev      # Start development server with hot reload
-npm run build    # Build TypeScript to JavaScript
-npm start        # Start production server
-npm run lint     # Run ESLint
-npm test         # Run tests
+npm run dev           # Start development server with hot reload
+npm run build         # Build TypeScript to JavaScript
+npm start             # Start production server
+npm run lint          # Run ESLint
+npm test              # Run tests
+npm run patch-sentry  # Apply Sentry SDK patches
+npm run verify-patches # Verify patches are applied correctly
 ```
 
 ### Development Requirements

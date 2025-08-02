@@ -1,4 +1,5 @@
 import './instrument.js';
+import 'dotenv/config';
 import express from 'express';
 import helmet from 'helmet';
 import compression from 'compression';
@@ -65,23 +66,7 @@ app.get('/.well-known/oauth-protected-resource', (req: any, res: any) => {
   res.json(generateOAuthProtectedResourceMetadata(baseUrl));
 });
 
-// JWKS endpoint (JSON Web Key Set)
-app.get('/.well-known/jwks.json', (req: any, res: any) => {
-  // For this MCP service, we use symmetric JWT tokens
-  // In a production environment, you might want to use asymmetric keys
-  res.json({
-    keys: [
-      // For symmetric keys used with HS256, we don't expose the actual secret
-      // This is a placeholder to satisfy OAuth discovery requirements
-      {
-        kty: 'oct', // Key type: symmetric key
-        use: 'sig', // Usage: signature
-        alg: 'HS256', // Algorithm
-        k: 'placeholder' // This would normally be the key, but we keep it secret
-      }
-    ]
-  });
-});
+// Removed JWKS endpoint - not needed with symmetric JWT tokens
 
 // OAuth 2.1 Dynamic Client Registration endpoint (RFC 7591 + OAuth 2.1 security requirements)
 app.post('/register', (req: any, res: any) => {
@@ -250,12 +235,12 @@ app.use('*', (req, res) => {
     available_endpoints: {
       health: 'GET /health',
       mcp: 'GET|POST /',
+      mcp_streaming: 'POST /stream',
       oauth_auth: 'GET /api/auth/authorize',
       oauth_consent: 'POST /api/auth/consent',
       oauth_token: 'POST /token',
       oauth_register: 'POST /register',
-      oauth_discovery: 'GET /.well-known/oauth-authorization-server',
-      oauth_jwks: 'GET /.well-known/jwks.json'
+      oauth_discovery: 'GET /.well-known/oauth-authorization-server'
     }
   });
 });

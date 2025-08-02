@@ -12,7 +12,8 @@ class MCPAPIService {
    */
   async getProjects(userId: string, userToken: string): Promise<Project[]> {
     try {
-      const response = await fetch(`${this.apiBaseUrl}/api/projects`, {
+      const baseUrl = this.apiBaseUrl.endsWith('/') ? this.apiBaseUrl.slice(0, -1) : this.apiBaseUrl;
+      const response = await fetch(`${baseUrl}/api/projects`, {
         headers: {
           'Authorization': `Bearer ${userToken}`,
           'Content-Type': 'application/json'
@@ -39,7 +40,8 @@ class MCPAPIService {
    */
   async getProject(projectId: string, userToken: string): Promise<Project | null> {
     try {
-      const response = await fetch(`${this.apiBaseUrl}/api/projects/${projectId}`, {
+      const baseUrl = this.apiBaseUrl.endsWith('/') ? this.apiBaseUrl.slice(0, -1) : this.apiBaseUrl;
+      const response = await fetch(`${baseUrl}/api/projects/${projectId}`, {
         headers: {
           'Authorization': `Bearer ${userToken}`,
           'Content-Type': 'application/json'
@@ -65,6 +67,37 @@ class MCPAPIService {
     }
   }
 
+
+  /**
+   * Create a new project
+   */
+  async createProject(projectData: { name: string; description?: string; status?: string }, userToken: string): Promise<Project> {
+    try {
+      const baseUrl = this.apiBaseUrl.endsWith('/') ? this.apiBaseUrl.slice(0, -1) : this.apiBaseUrl;
+      const response = await fetch(`${baseUrl}/api/projects`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${userToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(projectData)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API request failed: ${response.status} ${response.statusText} - ${errorText}`);
+      }
+
+      const project = await response.json() as Project;
+      return project;
+    } catch (error) {
+      logger.error('Failed to create project via API', {
+        error: error instanceof Error ? error.message : String(error),
+        projectData
+      });
+      throw new Error('Failed to create project');
+    }
+  }
 
   /**
    * Validate if project slug is correctly formatted
