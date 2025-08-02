@@ -164,3 +164,8 @@ docker-compose.override.yml
 
 # Generated API documentation
 api-docs/
+
+# Upstream repositories for PRs
+sentry-javascript/
+
+backup/

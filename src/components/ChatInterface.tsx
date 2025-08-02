@@ -27,11 +27,28 @@ interface ChatMessageProps {
     role: 'user' | 'assistant' | 'data' | 'system';
     content: string;
     toolInvocations?: ToolInvocation[];
+    parts?: Array<{
+      type: 'text' | 'tool-invocation' | 'reasoning' | 'source' | 'file' | 'step-start';
+      text?: string;
+      toolInvocation?: {
+        toolCallId: string;
+        toolName: string;
+        args: Record<string, unknown>;
+        state: 'partial-call' | 'call' | 'result';
+        result?: unknown;
+      };
+      reasoning?: string;
+      source?: unknown;
+      file?: unknown;
+    }>;
   };
 }
 
 function ChatMessage({ message }: ChatMessageProps) {
   const isUser = message.role === 'user';
+  
+  // Check if message has parts (AI SDK format)
+  const hasParts = message.parts && message.parts.length > 0;
   
   return (
     <div className={`max-w-[85%] ${isUser ? 'self-end' : 'self-start'}`}>
@@ -45,11 +62,73 @@ function ChatMessage({ message }: ChatMessageProps) {
             {message.content}
           </div>
         ) : (
-          <MarkdownRenderer 
-            content={message.content} 
-            className="text-sm leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0" 
-          />
+          <>
+            {/* If message has parts, render them; otherwise render content */}
+            {hasParts ? (
+              <div className="text-sm leading-relaxed">
+                {message.parts!.map((part, index) => {
+                  switch (part.type) {
+                    case 'text':
+                      return (
+                        <MarkdownRenderer 
+                          key={index}
+                          content={part.text || ''} 
+                          className="[&>*:first-child]:mt-0 [&>*:last-child]:mb-0" 
+                        />
+                      );
+                    case 'tool-invocation':
+                      return (
+                        <div key={index} className="mt-3 pt-3 border-t border-border/30">
+                          <Badge variant="secondary" className="text-xs">
+                            {part.toolInvocation?.toolName}
+                          </Badge>
+                          {part.toolInvocation?.state === 'result' && (
+                            <div className="mt-1 text-xs">
+                              {typeof part.toolInvocation.result === 'object' && 
+                               part.toolInvocation.result !== null &&
+                               (part.toolInvocation.result as any)?.success !== false ? (
+                                <span className="text-green-600">
+                                  ✓ {typeof part.toolInvocation.result === 'string' 
+                                      ? part.toolInvocation.result 
+                                      : JSON.stringify(part.toolInvocation.result)}
+                                </span>
+                              ) : (
+                                <span className="text-red-600">
+                                  ✗ {typeof part.toolInvocation.result === 'string' 
+                                      ? part.toolInvocation.result 
+                                      : JSON.stringify(part.toolInvocation.result)}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    case 'reasoning':
+                      return (
+                        <div key={index} className="mt-2 p-2 bg-muted/50 rounded text-xs">
+                          <span className="font-medium">Reasoning: </span>
+                          {part.reasoning}
+                        </div>
+                      );
+                    case 'source':
+                    case 'file':
+                    case 'step-start':
+                      // Handle other part types if needed
+                      return null;
+                    default:
+                      return null;
+                  }
+                })}
+              </div>
+            ) : (
+              <MarkdownRenderer 
+                content={message.content} 
+                className="text-sm leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0" 
+              />
+            )}
+          </>
         )}
+        {/* Legacy toolInvocations support */}
         {message.toolInvocations && message.toolInvocations.length > 0 && (
           <div className="mt-3 pt-3 border-t border-border/30">
             {message.toolInvocations.map((tool, index) => (
@@ -59,10 +138,10 @@ function ChatMessage({ message }: ChatMessageProps) {
                 </Badge>
                 {tool.result && (
                   <div className="mt-1 text-xs">
-                    {tool.result.success ? (
-                      <span className="text-green-600">✓ {tool.result.message}</span>
+                    {(tool.result as any)?.success ? (
+                      <span className="text-green-600">✓ {(tool.result as any)?.message}</span>
                     ) : (
-                      <span className="text-red-600">✗ {tool.result.message}</span>
+                      <span className="text-red-600">✗ {(tool.result as any)?.message}</span>
                     )}
                   </div>
                 )}
@@ -94,13 +173,16 @@ export function ChatInterface({ className = '', onClose, open = true, onOpenChan
 
   // Initialize draggable functionality with position persistence
   const { ref: dragRef, handleMouseDown, style: dragStyle } = useDraggable({
-    initialPosition: { x: window.innerWidth - 400, y: 100 },
+    initialPosition: { 
+      x: typeof window !== 'undefined' ? window.innerWidth - 400 : 800, 
+      y: 100 
+    },
     storageKey: 'chat-window-position',
     bounds: {
       left: 0,
       top: 0,
-      right: window.innerWidth,
-      bottom: window.innerHeight,
+      right: typeof window !== 'undefined' ? window.innerWidth : 1200,
+      bottom: typeof window !== 'undefined' ? window.innerHeight : 800,
     },
   });
 
@@ -114,7 +196,7 @@ export function ChatInterface({ className = '', onClose, open = true, onOpenChan
     isToolExecuting
   } = useChatWithStatus({
     api: getApiUrl('chat/stream'),
-    fetch: async (url, options) => {
+    fetch: async (url: string | URL | Request, options?: RequestInit) => {
       const token = localStorage.getItem('authToken');
       
       const headers = {
@@ -126,7 +208,7 @@ export function ChatInterface({ className = '', onClose, open = true, onOpenChan
         headers['Authorization'] = `Bearer ${token}`;
       }
       
-      return fetch(url, {
+      return fetch(url as string, {
         ...options,
         headers,
       });

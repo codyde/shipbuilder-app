@@ -125,6 +125,30 @@ export interface CreateCommentInput {
   author: string;
 }
 
+export interface Component {
+  id: string; // UUID format
+  userId: string; // UUID format
+  name: string;
+  description: string;
+  tags: string[];
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateComponentInput {
+  name: string;
+  description: string;
+  tags: string[];
+}
+
+export interface UpdateComponentInput {
+  name?: string;
+  description?: string;
+  tags?: string[];
+  isActive?: boolean;
+}
+
 // Slug validation types
 export type ProjectSlug = string; // Format: alphanumeric + hyphens (e.g., "photoshare")
 export type TaskSlug = string;    // Format: {project-slug}-{number} (e.g., "photoshare-1") 

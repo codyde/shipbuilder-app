@@ -83,7 +83,24 @@ chatRoutes.post('/stream', async (req: any, res: any) => {
       createTask: taskTools.createTask,
       updateTaskStatus: taskTools.updateTaskStatus,
       listProjects: taskTools.listProjects,
-      getProject: taskTools.getProject
+      getProject: taskTools.getProject,
+      // MCP tools
+      query_projects: {
+        description: 'Get all projects for the authenticated user (MCP tool)',
+        execute: async (args: any) => {
+          // Call the listProjects tool which does the same thing
+          const result = await taskTools.listProjects.execute();
+          return result;
+        }
+      },
+      query_tasks: {
+        description: 'Get tasks for a specific project (MCP tool)',
+        execute: async (args: { project_id: string }) => {
+          // Call the getProject tool to get project with tasks
+          const result = await taskTools.getProject.execute({ projectId: args.project_id });
+          return result;
+        }
+      }
     }, statusStreamer);
 
     const result = streamText({
@@ -105,6 +122,8 @@ You have access to these tools:
 - updateTaskStatus: Update a task's status (backlog, in_progress, completed)
 - listProjects: List all projects
 - getProject: Get details of a specific project
+- query_projects: Get all projects (MCP tool - same as listProjects)
+- query_tasks: Get tasks for a specific project (MCP tool - use project_id parameter)
 
 Be helpful and proactive in suggesting project management best practices.`,
       tools: {
@@ -147,6 +166,24 @@ Be helpful and proactive in suggesting project management best practices.`,
             projectId: z.string().describe('The ID of the project to retrieve')
           }),
           execute: async (args) => wrappedTools.getProject.execute(args)
+        }),
+        // MCP tools
+        query_projects: tool({
+          description: wrappedTools.query_projects.description,
+          parameters: z.object({
+            status: z.enum(['active', 'backlog', 'completed', 'archived']).optional().describe('Filter projects by status'),
+            include_tasks: z.boolean().optional().default(true).describe('Whether to include tasks in the response')
+          }),
+          execute: async (args) => wrappedTools.query_projects.execute(args)
+        }),
+        query_tasks: tool({
+          description: wrappedTools.query_tasks.description,
+          parameters: z.object({
+            project_id: z.string().describe('Project slug (e.g., "photoshare")'),
+            status: z.enum(['backlog', 'in_progress', 'completed']).optional().describe('Filter tasks by status'),
+            priority: z.enum(['low', 'medium', 'high']).optional().describe('Filter tasks by priority')
+          }),
+          execute: async (args) => wrappedTools.query_tasks.execute(args)
         })
       },
       ...(Object.keys(providerOptions).length > 0 && { providerOptions })
