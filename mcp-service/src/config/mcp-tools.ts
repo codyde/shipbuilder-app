@@ -24,6 +24,7 @@ export interface MCPToolBasicInfo {
  * Detailed tool definitions with full JSON schemas
  */
 export const MCP_TOOLS: MCPToolDefinition[] = [
+  // Core query tools
   {
     name: 'query_projects',
     description: 'Get all projects for the authenticated user',
@@ -67,6 +68,8 @@ export const MCP_TOOLS: MCPToolDefinition[] = [
       required: ['project_id']
     }
   },
+
+  // Essential project management
   {
     name: 'create_project',
     description: 'Create a new project for the authenticated user',
@@ -91,6 +94,169 @@ export const MCP_TOOLS: MCPToolDefinition[] = [
         }
       },
       required: ['name']
+    }
+  },
+
+  // Essential task management
+  {
+    name: 'create_task',
+    description: 'Create a new task within a project',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project_id: {
+          type: 'string',
+          description: 'Project slug (e.g., "photoshare")'
+        },
+        title: {
+          type: 'string',
+          description: 'The title of the task',
+          minLength: 1
+        },
+        description: {
+          type: 'string',
+          description: 'Optional description of the task'
+        },
+        priority: {
+          type: 'string',
+          enum: ['low', 'medium', 'high'],
+          default: 'medium',
+          description: 'Priority level of the task'
+        },
+        status: {
+          type: 'string',
+          enum: ['backlog', 'in_progress', 'completed'],
+          default: 'backlog',
+          description: 'Initial status of the task'
+        }
+      },
+      required: ['project_id', 'title']
+    }
+  },
+  {
+    name: 'update_task_status',
+    description: 'Update the status of a task',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project_id: {
+          type: 'string',
+          description: 'Project slug (e.g., "photoshare")'
+        },
+        task_id: {
+          type: 'string',
+          description: 'Task slug (e.g., "photoshare-1")'
+        },
+        status: {
+          type: 'string',
+          enum: ['backlog', 'in_progress', 'completed'],
+          description: 'New status for the task'
+        }
+      },
+      required: ['project_id', 'task_id', 'status']
+    }
+  },
+  {
+    name: 'delete_task',
+    description: 'Delete a task from a project',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project_id: {
+          type: 'string',
+          description: 'Project slug (e.g., "photoshare")'
+        },
+        task_id: {
+          type: 'string',
+          description: 'Task slug (e.g., "photoshare-1")'
+        }
+      },
+      required: ['project_id', 'task_id']
+    }
+  },
+  {
+    name: 'delete_project',
+    description: 'Delete a project and all its tasks',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project_id: {
+          type: 'string',
+          description: 'Project slug (e.g., "photoshare")'
+        }
+      },
+      required: ['project_id']
+    }
+  },
+  {
+    name: 'generate_task_details',
+    description: 'Generate detailed implementation guidance for a task using AI',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project_id: {
+          type: 'string',
+          description: 'Project slug (e.g., "photoshare")'
+        },
+        task_id: {
+          type: 'string',
+          description: 'Task slug (e.g., "photoshare-1")'
+        },
+        prompt: {
+          type: 'string',
+          description: 'Additional context or specific guidance request',
+          minLength: 1
+        }
+      },
+      required: ['project_id', 'task_id', 'prompt']
+    }
+  },
+
+  // Core AI tools
+  {
+    name: 'generate_mvp_plan',
+    description: 'Generate an AI-powered MVP plan from a project idea without creating anything',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project_idea: {
+          type: 'string',
+          description: 'The project idea to analyze and plan',
+          minLength: 10,
+          maxLength: 500
+        }
+      },
+      required: ['project_idea']
+    }
+  },
+  {
+    name: 'create_mvp_project',
+    description: 'Create a complete MVP project with all tasks from an AI-generated plan',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        mvp_plan: {
+          type: 'object',
+          description: 'The MVP plan object from generate_mvp_plan',
+          properties: {
+            projectName: { type: 'string' },
+            description: { type: 'string' },
+            tasks: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  title: { type: 'string' },
+                  description: { type: 'string' },
+                  priority: { type: 'string', enum: ['low', 'medium', 'high'] }
+                }
+              }
+            }
+          },
+          required: ['projectName', 'description', 'tasks']
+        }
+      },
+      required: ['mvp_plan']
     }
   }
 ];

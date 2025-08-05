@@ -31,6 +31,10 @@ let globalMcpServer: ShipbuilderMCPServer | null = null;
 let globalMcpTransport: StreamableHTTPServerTransport | null = null;
 let transportStarted = false;
 
+// Session tracking for MCP lifecycle compliance
+// Per MCP spec: Each initialize request creates a new session
+const activeSessions = new Map<string, { userId: string, createdAt: number }>();
+
 // Initialize global MCP infrastructure
 async function initializeMCPInfrastructure() {
   if (!globalMcpServer || !globalMcpTransport) {
@@ -38,19 +42,43 @@ async function initializeMCPInfrastructure() {
     globalMcpServer = new ShipbuilderMCPServer();
     
     // Create transport
-    globalMcpTransport = new StreamableHTTPServerTransport({
+    const transportConfig = {
       sessionIdGenerator: () => randomUUID(),
       onsessioninitialized: async (sessionId: string) => {
-        logger.info('MCP session initialized', { sessionId: sessionId.slice(0, 8) + '...' });
+        logger.info('MCP session initialized per spec', { 
+          sessionId: sessionId.slice(0, 8) + '...',
+          timestamp: new Date().toISOString(),
+          totalActiveSessions: activeSessions.size
+        });
+        
+        // Track session - userId will be set during authentication
+        activeSessions.set(sessionId, { userId: 'pending', createdAt: Date.now() });
       },
       onsessionclosed: async (sessionId: string) => {
-        logger.info('MCP session closed', { sessionId: sessionId.slice(0, 8) + '...' });
+        logger.info('MCP session closed per spec', { 
+          sessionId: sessionId.slice(0, 8) + '...',
+          timestamp: new Date().toISOString(),
+          totalActiveSessions: activeSessions.size - 1
+        });
+        
+        // Clean up session tracking per MCP lifecycle
+        activeSessions.delete(sessionId);
       },
-      enableJsonResponse: false,
+      // Note: Session cleanup will be handled by the transport internally
+      enableJsonResponse: true,  // ✅ Enable JSON responses for Claude Code compatibility
       allowedHosts: process.env.NODE_ENV === 'production' ? 
         [process.env.ALLOWED_HOST || 'mcp.shipbuilder.app', 'localhost'] : undefined,
       enableDnsRebindingProtection: process.env.NODE_ENV === 'production'
+    };
+    
+    logger.info('Creating MCP transport with config', {
+      enableJsonResponse: transportConfig.enableJsonResponse,
+      allowedHosts: transportConfig.allowedHosts,
+      enableDnsRebindingProtection: transportConfig.enableDnsRebindingProtection,
+      nodeEnv: process.env.NODE_ENV
     });
+    
+    globalMcpTransport = new StreamableHTTPServerTransport(transportConfig);
     
     logger.info('MCP infrastructure initialized');
   }
@@ -82,8 +110,43 @@ async function initializeMCPInfrastructure() {
  */
 async function mcpStreamableHandler(req: any, res: any) {
   try {
+    // Check for fresh initialize request first (before initializing infrastructure)
+    const isInitializeRequest = req.body && req.body.method === 'initialize';
+    const sessionId = req.headers['mcp-session-id'];
+    
+    // Handle fresh initialize requests per MCP spec
+    if (isInitializeRequest && !sessionId) {
+      logger.info('Fresh initialize request detected - resetting transport', {
+        method: req.body.method,
+        hasExistingTransport: !!globalMcpTransport,
+        transportStarted
+      });
+      
+      // Reset global transport to allow fresh initialization per MCP spec
+      globalMcpTransport = null;
+      transportStarted = false;
+      
+      // Clear any existing sessions since we're starting fresh
+      activeSessions.clear();
+    }
+    
     // Initialize MCP infrastructure
     const { server: mcpServer, transport: mcpTransport } = await initializeMCPInfrastructure();
+    
+    // Debug headers for session ID issues
+    const protocolVersion = req.headers['mcp-protocol-version'];
+    
+    logger.info('MCP request headers debug', {
+      method: req.method,
+      url: req.url,
+      hasSessionId: !!sessionId,
+      sessionId: sessionId ? sessionId.slice(0, 8) + '...' : 'missing',
+      protocolVersion,
+      userAgent: req.headers['user-agent'],
+      acceptHeader: req.headers.accept,
+      isInitializeRequest,
+      allHeaders: Object.keys(req.headers)
+    });
     
     // REQUIRE authentication for ALL MCP requests
     const authHeader = req.headers.authorization;
@@ -110,8 +173,23 @@ async function mcpStreamableHandler(req: any, res: any) {
     mcpServer.setAuthContext({
       userId: userInfo.userId,
       email: userInfo.email,
-      name: userInfo.name
+      name: userInfo.name,
+      userToken: token
     });
+    
+    // Track session-user association per MCP spec
+    if (sessionId) {
+      const existingSession = activeSessions.get(sessionId);
+      if (existingSession) {
+        existingSession.userId = userInfo.userId;
+        
+        logger.info('MCP session authenticated', {
+          sessionId: sessionId.slice(0, 8) + '...',
+          userId: userInfo.userId,
+          totalActiveSessions: activeSessions.size
+        });
+      }
+    }
     
     // Verify auth context was set
     const currentAuth = mcpServer.getAuthContext();
@@ -120,7 +198,8 @@ async function mcpStreamableHandler(req: any, res: any) {
       email: currentAuth?.email,
       contextSet: !!currentAuth,
       serverConnected: mcpServer.getServer().isConnected(),
-      transportStarted: transportStarted
+      transportStarted: transportStarted,
+      hasSessionId: !!sessionId
     });
     
     req.auth = {
@@ -136,17 +215,19 @@ async function mcpStreamableHandler(req: any, res: any) {
         url: req.url,
         hasBody: !!req.body,
         bodyKeys: req.body ? Object.keys(req.body) : [],
-        userId: req.auth?.userId
+        userId: req.auth?.userId,
+        body: req.body ? JSON.stringify(req.body).slice(0, 200) + '...' : null
       });
       
       await mcpTransport.handleRequest(req, res, req.body);
       
-      logger.info('MCP request processed successfully via transport', {
+      logger.info('MCP request processed via transport', {
         method: req.method,
         userId: req.auth?.userId,
         acceptHeader: req.headers.accept,
         responseWritten: res.headersSent,
-        statusCode: res.statusCode
+        statusCode: res.statusCode,
+        success: res.statusCode < 400
       });
     } catch (transportError) {
       logger.error('Transport request handling failed', {

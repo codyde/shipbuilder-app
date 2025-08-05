@@ -12,6 +12,8 @@ Sentry.init({
     tracesSampleRate: 1.0, 
     profileSessionSampleRate: 1.0,
 
+    tracePropagationTargets: ["localhost:3002", "mcp.shipbuilder.app"],
+
     _experiments: {
         enableLogs: true,
     },

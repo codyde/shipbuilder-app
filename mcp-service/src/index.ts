@@ -122,12 +122,14 @@ app.post('/register', (req: any, res: any) => {
       try {
         const parsedUri = new URL(uri);
         
-        // OAuth 2.1: HTTPS required except for localhost
-        if (parsedUri.protocol !== 'https:' && 
-            !parsedUri.hostname.match(/^(localhost|127\.0\.0\.1|\[::1\])$/)) {
+        // OAuth 2.1: HTTPS required except for localhost and custom app schemes
+        const isCustomAppScheme = parsedUri.protocol && !['http:', 'https:'].includes(parsedUri.protocol);
+        const isLocalhost = parsedUri.hostname && parsedUri.hostname.match(/^(localhost|127\.0\.0\.1|\[::1\])$/);
+        
+        if (parsedUri.protocol !== 'https:' && !isLocalhost && !isCustomAppScheme) {
           return res.status(400).json({
             error: 'invalid_redirect_uri',
-            error_description: `OAuth 2.1 requires HTTPS for redirect URIs (except localhost): ${uri}`
+            error_description: `OAuth 2.1 requires HTTPS for redirect URIs (except localhost and custom app schemes): ${uri}`
           });
         }
         

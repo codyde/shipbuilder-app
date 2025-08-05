@@ -12,6 +12,13 @@ const corsOptions = {
       'https://shipbuilder.app', // Production frontend
     ];
 
+    console.log('CORS Debug:', {
+      origin,
+      allowedOrigins,
+      frontendUrl: getFrontendUrl(),
+      nodeEnv: process.env.NODE_ENV
+    });
+
     // Allow requests with no origin (mobile apps, Postman, etc.)
     if (!origin) return callback(null, true);
 
@@ -22,6 +29,7 @@ const corsOptions = {
       if (process.env.NODE_ENV === 'development') {
         callback(null, true);
       } else {
+        console.error('CORS blocked origin:', origin, 'Allowed:', allowedOrigins);
         callback(new Error('Not allowed by CORS'), false);
       }
     }

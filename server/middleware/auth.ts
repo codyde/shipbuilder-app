@@ -90,18 +90,47 @@ export function generateJWT(user: { id: string; email: string; provider: string 
   });
 }
 
-// JWT token verification
+// JWT token verification - supports both main app and MCP tokens
 export function verifyJWT(token: string): JWTPayload {
   const secret = process.env.JWT_SECRET;
   if (!secret) {
     throw new Error('JWT_SECRET not configured');
   }
 
-  return jwt.verify(token, secret, {
-    algorithms: ['HS256'],
-    audience: 'project-management-app',
-    issuer: 'auth-service'
-  }) as JWTPayload;
+  // First, try without audience/issuer validation to decode the token
+  let payload: any;
+  try {
+    payload = jwt.verify(token, secret, {
+      algorithms: ['HS256']
+    });
+  } catch (error) {
+    throw error; // Re-throw if basic verification fails
+  }
+
+  // Check if it's an MCP token (has type: 'mcp')
+  if (payload.type === 'mcp') {
+    // MCP tokens are valid - convert to JWTPayload format
+    return {
+      userId: payload.userId,
+      email: payload.email,
+      provider: 'mcp-service',
+      iat: payload.iat,
+      exp: payload.exp,
+      aud: payload.aud || 'mcp-client',
+      iss: 'mcp-service'
+    } as JWTPayload;
+  }
+
+  // For main app tokens, verify with strict audience/issuer requirements
+  try {
+    return jwt.verify(token, secret, {
+      algorithms: ['HS256'],
+      audience: 'project-management-app',
+      issuer: 'auth-service'
+    }) as JWTPayload;
+  } catch (error) {
+    throw error;
+  }
 }
 
 // JWT authentication middleware

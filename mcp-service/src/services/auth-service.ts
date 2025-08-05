@@ -39,17 +39,30 @@ export class AuthService {
     try {
       const decoded = jwt.verify(token, this.jwtSecret) as any;
       
+      // Handle different token payload formats (userId vs id)
+      const userId = decoded.userId || decoded.id;
+      const email = decoded.email;
+      
+      if (!userId || !email) {
+        logger.warn('Token missing required fields', {
+          hasUserId: !!userId,
+          hasEmail: !!email,
+          tokenKeys: Object.keys(decoded)
+        });
+        return null;
+      }
+
       logger.info('Token validated', {
-        userId: decoded.userId,
-        email: decoded.email,
+        userId: userId,
+        email: email,
         type: decoded.type || 'main-app',
         aud: decoded.aud,
         iss: decoded.iss
       });
 
       return {
-        userId: decoded.userId,
-        email: decoded.email,
+        userId: userId,
+        email: email,
         name: decoded.name || decoded.email // Fallback to email if name is not present
       };
     } catch (error) {

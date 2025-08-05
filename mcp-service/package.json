@@ -9,6 +9,7 @@
     "start": "node dist/index.js",
     "lint": "eslint src --ext .ts",
     "test": "jest",
+    "postinstall": "node scripts/patch-sentry-mcp.cjs",
     "patch-sentry": "node scripts/patch-sentry-mcp.cjs",
     "verify-patches": "node scripts/verify-sentry-patches.cjs",
     "test-mcp-analytics": "node scripts/test-mcp-analytics.cjs",
@@ -16,8 +17,9 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.16.0",
-    "@sentry/node": "^10.0.0",
+    "@sentry/node": "^10.1.0",
     "@types/ioredis": "^4.28.10",
+    "@types/uuid": "^10.0.0",
     "compression": "^1.8.1",
     "cors": "^2.8.5",
     "dotenv": "^17.2.1",
@@ -25,6 +27,7 @@
     "helmet": "^7.2.0",
     "ioredis": "^5.7.0",
     "jsonwebtoken": "^9.0.2",
+    "uuid": "^11.1.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {
@@ -32,11 +35,11 @@
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.5",
-    "@typescript-eslint/eslint-plugin": "^6.19.1",
-    "@typescript-eslint/parser": "^6.19.1",
-    "eslint": "^8.56.0",
-    "tsx": "^4.7.0",
-    "typescript": "^5.3.3"
+    "@typescript-eslint/eslint-plugin": "^8.15.0",
+    "@typescript-eslint/parser": "^8.15.0",
+    "eslint": "^9.17.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
   },
   "keywords": [
     "mcp",

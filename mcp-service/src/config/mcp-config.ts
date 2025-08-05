@@ -109,6 +109,16 @@ export function getFrontendUrl(): string {
 }
 
 /**
+ * Get backend/API server URL for OAuth endpoints
+ */
+export function getBackendUrl(): string {
+  const backendUrl = process.env.BACKEND_BASE_URL || 
+    (process.env.NODE_ENV === 'production' ? 'https://api.shipbuilder.app' : 'http://localhost:3001');
+  
+  return backendUrl;
+}
+
+/**
  * Get MCP service base URL
  */
 export function getMCPServiceUrl(req: any): string {

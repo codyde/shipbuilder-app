@@ -10,7 +10,7 @@ Sentry.init({
     },
     
     sendDefaultPii: true,
-    debug: true,
+    debug: false,
     
     // Detailed MCP span logging for debugging
     beforeSendSpan: (span) => {

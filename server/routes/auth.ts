@@ -6,6 +6,52 @@ import { generateJWT, SecurityEvent, logSecurityEvent, authenticateUser } from '
 import { oauthCallbackRateLimit } from '../middleware/rate-limit.js';
 import * as Sentry from '@sentry/node';
 
+// MCP state validation and security
+interface MCPState {
+  type: string;
+  client_id: string;
+  redirect_uri: string;
+  scope: string;
+  state?: string;
+  code_challenge: string;
+  code_challenge_method: string;
+  mcp_service_url: string;
+  originalUrl: string;
+  timestamp?: number;
+}
+
+function validateMCPState(encodedState: string): MCPState | null {
+  try {
+    const decoded = JSON.parse(decodeURIComponent(encodedState));
+    
+    // Validate required fields
+    if (decoded.type !== 'mcp_authorization') {
+      return null;
+    }
+    
+    if (!decoded.client_id || !decoded.redirect_uri || !decoded.code_challenge || !decoded.code_challenge_method) {
+      return null;
+    }
+    
+    // Validate URLs
+    try {
+      new URL(decoded.redirect_uri);
+      new URL(decoded.mcp_service_url);
+    } catch {
+      return null;
+    }
+    
+    // Check for reasonable expiration (state should not be older than 1 hour)
+    if (decoded.timestamp && Date.now() - decoded.timestamp > 3600000) {
+      return null;
+    }
+    
+    return decoded as MCPState;
+  } catch {
+    return null;
+  }
+}
+
 const router = express.Router();
 
 // Service-to-service user lookup endpoint (for MCP service)
@@ -161,8 +207,18 @@ router.post('/developer', async (req: any, res: any) => {
 // Sentry OAuth initiation endpoint
 router.get('/sentry', (req, res) => {
   try {
+    // Check for MCP state parameter and preserve it
+    const mcpState = req.query.mcp_state as string;
     const state = req.query.state as string;
-    const authUrl = sentryOAuthService.getAuthorizationUrl(state);
+    
+    // If MCP state is present, we need to preserve it through the OAuth flow
+    let oauthState = state;
+    if (mcpState) {
+      // Combine original state with MCP state preservation marker
+      oauthState = mcpState;
+    }
+    
+    const authUrl = sentryOAuthService.getAuthorizationUrl(oauthState);
     res.redirect(authUrl);
   } catch (error) {
     console.error('Sentry OAuth initiation error:', error);
@@ -293,7 +349,10 @@ router.get('/sentry/callback', oauthCallbackRateLimit, async (req, res) => {
       provider: 'sentry' 
     }, 'low');
 
-    // Redirect to frontend with JWT token
+    // MCP flow is now handled directly by the MCP service
+    // No need for complex state management in OAuth callbacks
+
+    // Normal post-login redirect to dashboard
     const redirectUrl = `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/?success=true&token=${encodeURIComponent(token)}`;
     logger.info('OAuth flow completed successfully', { redirectUrl, userId: user.id });
     res.redirect(redirectUrl);
@@ -319,8 +378,18 @@ router.get('/sentry/callback', oauthCallbackRateLimit, async (req, res) => {
 // Google OAuth initiation endpoint
 router.get('/google', (req, res) => {
   try {
+    // Check for MCP state parameter and preserve it
+    const mcpState = req.query.mcp_state as string;
     const state = req.query.state as string;
-    const authUrl = googleOAuthService.getAuthorizationUrl(state);
+    
+    // If MCP state is present, we need to preserve it through the OAuth flow
+    let oauthState = state;
+    if (mcpState) {
+      // Combine original state with MCP state preservation marker
+      oauthState = mcpState;
+    }
+    
+    const authUrl = googleOAuthService.getAuthorizationUrl(oauthState);
     res.redirect(authUrl);
   } catch (error) {
     console.error('Google OAuth initiation error:', error);
@@ -452,7 +521,10 @@ router.get('/google/callback', oauthCallbackRateLimit, async (req, res) => {
       provider: 'google' 
     }, 'low');
 
-    // Redirect to frontend with JWT token
+    // MCP flow is now handled directly by the MCP service
+    // No need for complex state management in OAuth callbacks
+
+    // Normal post-login redirect to dashboard
     const redirectUrl = `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/?success=true&token=${encodeURIComponent(token)}`;
     logger.info('Google OAuth flow completed successfully', { redirectUrl, userId: user.id });
     res.redirect(redirectUrl);

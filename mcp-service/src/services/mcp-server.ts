@@ -31,7 +31,7 @@ export class ShipbuilderMCPServer {
     this.setupTools();
     this.setupErrorHandling();
     
-    logger.info('MCP server created with patched Sentry wrapper');
+    logger.info('MCP server created with simplified tools');
   }
 
   private setupErrorHandling() {
@@ -40,6 +40,36 @@ export class ShipbuilderMCPServer {
   }
 
   private setupTools() {
+    // Helper function for consistent error handling
+    const executeWithAuth = async <T>(toolName: string, operation: () => Promise<T>): Promise<T> => {
+      if (!this.authContext) {
+        throw new Error('Authentication required. Please provide valid API key or user context.');
+      }
+
+      try {
+        return await operation();
+      } catch (error) {
+        logger.error(`MCP ${toolName} error`, {
+          error: error instanceof Error ? error.message : String(error),
+          userId: this.authContext.userId,
+        });
+
+        if (process.env.SENTRY_DSN) {
+          Sentry.captureException(error instanceof Error ? error : new Error(String(error)), {
+            tags: {
+              component: 'mcp_server',
+              tool_name: toolName,
+            },
+            extra: {
+              userId: this.authContext.userId,
+            },
+          });
+        }
+
+        throw error;
+      }
+    };
+
     // Register query_projects tool
     this.server.tool(
       'query_projects',
@@ -49,34 +79,31 @@ export class ShipbuilderMCPServer {
         include_tasks: z.boolean().default(true).describe('Whether to include tasks in the response'),
       },
       async ({ status, include_tasks }: { status?: string; include_tasks?: boolean }) => {
-        if (!this.authContext) {
-          throw new Error('Authentication required. Please provide valid API key or user context.');
-        }
+        return executeWithAuth('query_projects', async () => {
+          const projects = await mcpAPIService.getProjects(this.authContext!.userId, this.authContext!.userToken);
+          let filteredProjects = projects;
 
-        try {
-          return await this.handleQueryProjects({ status, include_tasks });
-        } catch (error) {
-          logger.error('MCP query_projects error', {
-            args: { status, include_tasks },
-            error: error instanceof Error ? error.message : String(error),
-            userId: this.authContext.userId,
-          });
-
-          if (process.env.SENTRY_DSN) {
-            Sentry.captureException(error instanceof Error ? error : new Error(String(error)), {
-              tags: {
-                component: 'mcp_server',
-                tool_name: 'query_projects',
-              },
-              extra: {
-                args: { status, include_tasks },
-                userId: this.authContext.userId,
-              },
-            });
+          if (status) {
+            filteredProjects = projects.filter(p => p.status === status);
           }
 
-          throw error;
-        }
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify({
+                projects: filteredProjects.map(project => ({
+                  id: project.id,
+                  name: project.name,
+                  description: project.description,
+                  status: project.status,
+                  createdAt: project.createdAt,
+                  updatedAt: project.updatedAt,
+                  tasks: include_tasks ? project.tasks : undefined
+                }))
+              }, null, 2)
+            }]
+          };
+        });
       }
     );
 
@@ -90,321 +117,299 @@ export class ShipbuilderMCPServer {
         priority: z.enum(['low', 'medium', 'high']).optional().describe('Filter tasks by priority'),
       },
       async ({ project_id, status, priority }: { project_id: string; status?: string; priority?: string }) => {
-        if (!this.authContext) {
-          throw new Error('Authentication required. Please provide valid API key or user context.');
-        }
-
-        try {
-          return await this.handleQueryTasks({ project_id, status, priority });
-        } catch (error) {
-          logger.error('MCP query_tasks error', {
-            args: { project_id, status, priority },
-            error: error instanceof Error ? error.message : String(error),
-            userId: this.authContext.userId,
-          });
-
-          if (process.env.SENTRY_DSN) {
-            Sentry.captureException(error instanceof Error ? error : new Error(String(error)), {
-              tags: {
-                component: 'mcp_server',
-                tool_name: 'query_tasks',
-              },
-              extra: {
-                args: { project_id, status, priority },
-                userId: this.authContext.userId,
-              },
-            });
+        return executeWithAuth('query_tasks', async () => {
+          const project = await mcpAPIService.getProject(project_id, this.authContext!.userToken);
+          if (!project) {
+            throw new Error(`Project not found: ${project_id}`);
           }
 
-          throw error;
-        }
+          let tasks = project.tasks || [];
+
+          if (status) {
+            tasks = tasks.filter(t => t.status === status);
+          }
+
+          if (priority) {
+            tasks = tasks.filter(t => t.priority === priority);
+          }
+
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify({ tasks }, null, 2)
+            }]
+          };
+        });
       }
     );
-  }
 
-  private async handleQueryProjects(args: any) {
-    const validatedArgs = {
-      status: args.status,
-      include_tasks: args.include_tasks ?? true,
-    };
-
-    logger.info('MCP query_projects called', {
-      userId: this.authContext!.userId,
-      filters: validatedArgs,
-    });
-
-    // Get projects from API
-    const projects = await mcpAPIService.getProjects(this.authContext!.userId, this.authContext!.userToken);
-
-    // Filter by status if specified
-    let filteredProjects = projects;
-    if (validatedArgs.status) {
-      filteredProjects = projects.filter(p => p.status === validatedArgs.status);
-    }
-
-    // Transform for MCP response
-    const responseData = filteredProjects.map(project => ({
-      id: project.id,
-      name: project.name,
-      description: project.description,
-      status: project.status,
-      task_count: project.tasks.length,
-      tasks: validatedArgs.include_tasks ? project.tasks.map(task => ({
-        id: task.id,
-        title: task.title,
-        description: task.description,
-        status: task.status,
-        priority: task.priority,
-        created_at: task.createdAt,
-        updated_at: task.updatedAt,
-      })) : undefined,
-      created_at: project.createdAt,
-      updated_at: project.updatedAt,
-    }));
-
-    return {
-      content: [
-        {
-          type: 'text' as const,
-          text: JSON.stringify({
-            success: true,
-            data: responseData,
-            count: responseData.length,
-            user: {
-              id: this.authContext!.userId,
-              email: this.authContext!.email,
-              name: this.authContext!.name,
-            },
-          }, null, 2),
-        },
-      ],
-    };
-  }
-
-  private async handleQueryTasks(args: any) {
-    const validatedArgs = {
-      project_id: args.project_id,
-      status: args.status,
-      priority: args.priority,
-    };
-
-    // Validate project slug format
-    if (!this.validateProjectSlug(validatedArgs.project_id)) {
-      throw new Error(`Invalid project ID format: ${validatedArgs.project_id}. Must be alphanumeric with hyphens.`);
-    }
-
-    logger.info('MCP query_tasks called', {
-      userId: this.authContext!.userId,
-      projectId: validatedArgs.project_id,
-      filters: { status: validatedArgs.status, priority: validatedArgs.priority },
-    });
-
-    // Get project (which includes tasks) from API
-    const project = await mcpAPIService.getProject(validatedArgs.project_id, this.authContext!.userToken);
-
-    if (!project) {
-      throw new Error(`Project not found: ${validatedArgs.project_id}`);
-    }
-
-    // Filter tasks based on provided filters
-    let tasks = project.tasks || [];
-
-    if (validatedArgs.status) {
-      tasks = tasks.filter(task => task.status === validatedArgs.status);
-    }
-
-    if (validatedArgs.priority) {
-      tasks = tasks.filter(task => task.priority === validatedArgs.priority);
-    }
-
-
-    // Transform for MCP response
-    const responseData = {
-      project: {
-        id: project.id,
-        name: project.name,
-        description: project.description,
-        status: project.status,
+    // Register create_project tool
+    this.server.tool(
+      'create_project',
+      'Create a new project for the authenticated user',
+      {
+        name: z.string().min(1).max(100).describe('The name of the project'),
+        description: z.string().optional().describe('Optional description of the project'),
+        status: z.enum(['active', 'backlog', 'completed', 'archived']).default('active').describe('Initial status of the project'),
       },
-      tasks: tasks.map(task => ({
-        id: task.id,
-        title: task.title,
-        description: task.description,
-        details: task.details,
-        status: task.status,
-        priority: task.priority,
-        created_at: task.createdAt,
-        updated_at: task.updatedAt,
-      })),
-      count: tasks.length,
-    };
-
-    return {
-      content: [
-        {
-          type: 'text' as const,
-          text: JSON.stringify({
-            success: true,
-            data: responseData,
-            user: {
-              id: this.authContext!.userId,
-              email: this.authContext!.email,
-              name: this.authContext!.name,
-            },
-          }, null, 2),
-        },
-      ],
-    };
-  }
-
-  /**
-   * Set authentication context for the MCP session
-   */
-  setAuthContext(authContext: Omit<MCPAuthContext, 'userToken'>) {
-    // Generate an API-compatible JWT token for service calls
-    const userToken = this.authService.generateAPIToken(
-      authContext.userId,
-      authContext.email,
-      authContext.name
+      async ({ name, description, status }: { name: string; description?: string; status?: string }) => {
+        return executeWithAuth('create_project', async () => {
+          const project = await mcpAPIService.createProject(
+            { name, description, status },
+            this.authContext!.userToken
+          );
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify({ project }, null, 2)
+            }]
+          };
+        });
+      }
     );
 
-    this.authContext = {
-      ...authContext,
-      userToken
-    };
+    // Register create_task tool
+    this.server.tool(
+      'create_task',
+      'Create a new task within a project',
+      {
+        project_id: z.string().min(1).describe('Project slug (e.g., "photoshare")'),
+        title: z.string().min(1).describe('The title of the task'),
+        description: z.string().optional().describe('Optional description of the task'),
+        priority: z.enum(['low', 'medium', 'high']).default('medium').describe('Priority level of the task'),
+        status: z.enum(['backlog', 'in_progress', 'completed']).default('backlog').describe('Initial status of the task'),
+      },
+      async ({ project_id, title, description, priority, status }: { 
+        project_id: string; 
+        title: string; 
+        description?: string; 
+        priority?: string; 
+        status?: string 
+      }) => {
+        return executeWithAuth('create_task', async () => {
+          const task = await mcpAPIService.createTask(
+            project_id,
+            { title, description, priority, status },
+            this.authContext!.userToken
+          );
+          
+          if (!task) {
+            throw new Error(`Project not found: ${project_id}`);
+          }
 
-    logger.info('MCP authentication context set', {
-      userId: authContext.userId,
-      email: authContext.email,
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify({ task }, null, 2)
+            }]
+          };
+        });
+      }
+    );
+
+    // Register update_task_status tool
+    this.server.tool(
+      'update_task_status',
+      'Update the status of a task',
+      {
+        project_id: z.string().min(1).describe('Project slug (e.g., "photoshare")'),
+        task_id: z.string().min(1).describe('Task slug (e.g., "photoshare-1")'),
+        status: z.enum(['backlog', 'in_progress', 'completed']).describe('New status for the task'),
+      },
+      async ({ project_id, task_id, status }: { project_id: string; task_id: string; status: string }) => {
+        return executeWithAuth('update_task_status', async () => {
+          const task = await mcpAPIService.updateTask(
+            project_id,
+            task_id,
+            { status },
+            this.authContext!.userToken
+          );
+          
+          if (!task) {
+            throw new Error(`Task not found: ${task_id} in project ${project_id}`);
+          }
+
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify({ task }, null, 2)
+            }]
+          };
+        });
+      }
+    );
+
+    // Register generate_mvp_plan tool
+    this.server.tool(
+      'generate_mvp_plan',
+      'Generate an AI-powered MVP plan from a project idea without creating anything',
+      {
+        project_idea: z.string().min(10).max(500).describe('The project idea to analyze and plan'),
+      },
+      async ({ project_idea }: { project_idea: string }) => {
+        return executeWithAuth('generate_mvp_plan', async () => {
+          const mvpPlan = await mcpAPIService.generateMVPPlan(project_idea, this.authContext!.userToken);
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify({ mvpPlan }, null, 2)
+            }]
+          };
+        });
+      }
+    );
+
+    // Register create_mvp_project tool
+    this.server.tool(
+      'create_mvp_project',
+      'Create a complete MVP project with all tasks from an AI-generated plan',
+      {
+        mvp_plan: z.object({
+          projectName: z.string(),
+          description: z.string(),
+          tasks: z.array(z.object({
+            title: z.string(),
+            description: z.string(),
+            priority: z.enum(['low', 'medium', 'high'])
+          }))
+        }).describe('The MVP plan object from generate_mvp_plan'),
+      },
+      async ({ mvp_plan }: { mvp_plan: any }) => {
+        return executeWithAuth('create_mvp_project', async () => {
+          const result = await mcpAPIService.createMVPProject(mvp_plan, this.authContext!.userToken);
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify({ result }, null, 2)
+            }]
+          };
+        });
+      }
+    );
+
+    // Register delete_task tool
+    this.server.tool(
+      'delete_task',
+      'Delete a task from a project',
+      {
+        project_id: z.string().describe('Project slug (e.g., "photoshare")'),
+        task_id: z.string().describe('Task slug (e.g., "photoshare-1")'),
+      },
+      async ({ project_id, task_id }: { project_id: string; task_id: string }) => {
+        return executeWithAuth('delete_task', async () => {
+          const deleted = await mcpAPIService.deleteTask(project_id, task_id, this.authContext!.userToken);
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify({ 
+                success: deleted,
+                message: deleted ? 'Task deleted successfully' : 'Task not found or could not be deleted',
+                task_id,
+                project_id
+              }, null, 2)
+            }]
+          };
+        });
+      }
+    );
+
+    // Register delete_project tool
+    this.server.tool(
+      'delete_project',
+      'Delete a project and all its tasks',
+      {
+        project_id: z.string().describe('Project slug (e.g., "photoshare")'),
+      },
+      async ({ project_id }: { project_id: string }) => {
+        return executeWithAuth('delete_project', async () => {
+          const deleted = await mcpAPIService.deleteProject(project_id, this.authContext!.userToken);
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify({ 
+                success: deleted,
+                message: deleted ? 'Project deleted successfully' : 'Project not found or could not be deleted',
+                project_id
+              }, null, 2)
+            }]
+          };
+        });
+      }
+    );
+
+    // Register generate_task_details tool
+    this.server.tool(
+      'generate_task_details',
+      'Generate detailed implementation guidance for a task using AI',
+      {
+        project_id: z.string().describe('Project slug (e.g., "photoshare")'),
+        task_id: z.string().describe('Task slug (e.g., "photoshare-1")'),
+        prompt: z.string().min(1).describe('Additional context or specific guidance request'),
+      },
+      async ({ project_id, task_id, prompt }: { project_id: string; task_id: string; prompt: string }) => {
+        return executeWithAuth('generate_task_details', async () => {
+          // Get task context first
+          const task = await mcpAPIService.getTask(project_id, task_id, this.authContext!.userToken);
+          if (!task) {
+            return {
+              content: [{
+                type: "text",
+                text: JSON.stringify({ 
+                  error: 'Task not found',
+                  task_id,
+                  project_id
+                }, null, 2)
+              }]
+            };
+          }
+
+          const context = {
+            project_id,
+            task: {
+              id: task.id,
+              title: task.title,
+              description: task.description,
+              status: task.status,
+              priority: task.priority
+            }
+          };
+
+          const details = await mcpAPIService.generateTaskDetails(prompt, context, this.authContext!.userToken);
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify({ 
+                task_id,
+                project_id,
+                details
+              }, null, 2)
+            }]
+          };
+        });
+      }
+    );
+
+    logger.info('Registered 10 core MCP tools');
+  }
+
+  setAuthContext(context: MCPAuthContext) {
+    this.authContext = context;
+    logger.info('MCP auth context set', { 
+      userId: context.userId, 
+      email: context.email 
     });
   }
 
-  /**
-   * Clear authentication context
-   */
   clearAuthContext() {
     this.authContext = null;
-    logger.info('MCP authentication context cleared');
+    logger.info('MCP auth context cleared');
   }
 
-  /**
-   * Get current authentication context
-   */
   getAuthContext(): MCPAuthContext | null {
     return this.authContext;
   }
 
-  /**
-   * Get the underlying MCP server instance
-   */
   getServer(): McpServer {
     return this.server;
-  }
-
-  /**
-   * Public method to handle query_projects tool calls
-   */
-  async handleQueryProjectsPublic(args: any) {
-    return await this.handleQueryProjects(args);
-  }
-
-  /**
-   * Public method to handle query_tasks tool calls
-   */
-  async handleQueryTasksPublic(args: any) {
-    return await this.handleQueryTasks(args);
-  }
-
-  /**
-   * Handle create_project tool calls
-   */
-  private async handleCreateProject(args: any) {
-    if (!this.authContext) {
-      throw new Error('No authentication context available');
-    }
-
-    // Validate required fields
-    if (!args.name || typeof args.name !== 'string' || args.name.trim().length === 0) {
-      throw new Error('Project name is required and must be a non-empty string');
-    }
-
-    // Validate name length
-    if (args.name.length > 100) {
-      throw new Error('Project name must not exceed 100 characters');
-    }
-
-    // Prepare project data
-    const projectData: { name: string; description?: string; status?: string } = {
-      name: args.name.trim()
-    };
-
-    if (args.description && typeof args.description === 'string') {
-      projectData.description = args.description.trim();
-    }
-
-    if (args.status && ['active', 'backlog', 'completed', 'archived'].includes(args.status)) {
-      projectData.status = args.status;
-    }
-
-    logger.info('Creating project via MCP', {
-      userId: this.authContext.userId,
-      projectName: projectData.name,
-      hasDescription: !!projectData.description,
-      status: projectData.status || 'active'
-    });
-
-    // Create project using the API service
-    const project = await mcpAPIService.createProject(projectData, this.authContext.userToken);
-
-    logger.info('Project created successfully via MCP', {
-      userId: this.authContext.userId,
-      projectId: project.id,
-      projectName: project.name
-    });
-
-    // Transform for MCP response
-    return {
-      content: [
-        {
-          type: 'text' as const,
-          text: JSON.stringify({
-            success: true,
-            data: {
-              project: {
-                id: project.id,
-                name: project.name,
-                description: project.description,
-                status: project.status,
-                created_at: project.createdAt,
-                updated_at: project.updatedAt,
-                task_count: project.tasks?.length || 0
-              }
-            },
-            message: `Project "${project.name}" created successfully with ID: ${project.id}`,
-            user: {
-              id: this.authContext.userId,
-              email: this.authContext.email,
-              name: this.authContext.name,
-            },
-          }, null, 2),
-        },
-      ],
-    };
-  }
-
-  /**
-   * Public method to handle create_project tool calls
-   */
-  async handleCreateProjectPublic(args: any) {
-    return await this.handleCreateProject(args);
-  }
-
-  /**
-   * Validate if project slug is correctly formatted
-   */
-  private validateProjectSlug(slug: string): boolean {
-    // Project slug validation: alphanumeric and hyphens, max 20 chars
-    const slugRegex = /^[a-z0-9-]+$/;
-    return slug.length <= 20 && slugRegex.test(slug);
   }
 }

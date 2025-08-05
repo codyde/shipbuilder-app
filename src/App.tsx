@@ -17,6 +17,7 @@ import { LoadingAnimation } from '@/components/ui/loading-animation'
 import { ConnectionStatus } from '@/components/ConnectionStatus'
 import { SidebarInset } from '@/components/ui/sidebar'
 import { MCPConsentScreen } from '@/pages/MCPConsentScreen'
+import { MCPConsentPage } from '@/pages/MCPConsentPage'
 
 type View = 'all-issues' | 'active' | 'backlog' | 'archived' | 'project' | 'tasks' | 'all-tasks' | 'components' | 'settings'
 
@@ -31,7 +32,37 @@ function AppContent() {
 
   // Check if this is an MCP login flow
   const isMCPLogin = window.location.pathname === '/mcp-login' || 
-                     new URLSearchParams(window.location.search).has('oauth_params')
+                     new URLSearchParams(window.location.search).has('oauth_params') ||
+                     new URLSearchParams(window.location.search).has('mcp_state')
+  
+  // Check if this is the new MCP consent flow
+  const urlParams = new URLSearchParams(window.location.search);
+  const hasAuthIdInUrl = urlParams.has('auth_id');
+  const hasAuthIdInStorage = localStorage.getItem('mcpAuthId');
+  const isOAuthCallback = urlParams.has('success') && urlParams.has('token');
+  
+  const isMCPConsent = window.location.pathname === '/mcp-consent' || 
+                       hasAuthIdInUrl ||
+                       (isOAuthCallback && hasAuthIdInStorage)
+  
+  // Debug logging for MCP flow detection
+  useEffect(() => {
+    console.log('MCP Flow Debug:', {
+      pathname: window.location.pathname,
+      search: window.location.search,
+      isMCPLogin,
+      isMCPConsent,
+      hasAuthIdInUrl,
+      hasAuthIdInStorage: !!hasAuthIdInStorage,
+      isOAuthCallback,
+      hasOAuthParams: new URLSearchParams(window.location.search).has('oauth_params'),
+      hasMcpState: new URLSearchParams(window.location.search).has('mcp_state'),
+      hasAuthId: new URLSearchParams(window.location.search).has('auth_id'),
+      hasToken: new URLSearchParams(window.location.search).has('token'),
+      hasAuthCode: new URLSearchParams(window.location.search).has('authorization_code'),
+      wasMCPLogin: localStorage.getItem('mcpLoginFlow') === 'true'
+    });
+  }, [isMCPLogin, isMCPConsent]);
   
   // Store MCP login state in localStorage to persist through auth
   useEffect(() => {
@@ -41,6 +72,11 @@ function AppContent() {
       const oauthParams = new URLSearchParams(window.location.search).get('oauth_params')
       if (oauthParams) {
         localStorage.setItem('mcpOAuthParams', oauthParams)
+      }
+      // Store MCP state if present
+      const mcpState = new URLSearchParams(window.location.search).get('mcp_state')
+      if (mcpState) {
+        localStorage.setItem('mcpState', mcpState)
       }
     }
   }, [isMCPLogin])
@@ -112,7 +148,12 @@ function AppContent() {
   }
 
 
-  // Show MCP consent screen if this is an MCP OAuth flow
+  // Show new MCP consent page if this is the new MCP flow
+  if (isMCPConsent) {
+    return <MCPConsentPage />;
+  }
+
+  // Show old MCP consent screen if this is the old MCP OAuth flow
   if (shouldShowMCPConsent) {
     // For MCP login, user must be authenticated first
     if (!user) {

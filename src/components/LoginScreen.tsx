@@ -143,7 +143,7 @@ export function LoginScreen() {
   const handleSentryLogin = useCallback(() => {
     setIsRedirecting(true);
     const loginUrl = getApiUrl('auth/sentry');
-    console.log('Redirecting to login URL:', loginUrl);
+    console.log('Redirecting to Sentry login URL:', loginUrl);
     window.location.href = loginUrl;
   }, []);
 

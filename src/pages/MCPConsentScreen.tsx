@@ -27,7 +27,13 @@ export function MCPConsentScreen() {
     // Try to get OAuth params from URL parameters first, then localStorage
     const urlParams = new URLSearchParams(window.location.search);
     
-    // Check for individual parameters (from MCP authorization flow)
+    // Check if we have token and need to store it
+    const authToken = urlParams.get('token');
+    if (authToken) {
+      localStorage.setItem('authToken', authToken);
+    }
+    
+    // Check for individual parameters (from traditional MCP authorization flow)
     const authCode = urlParams.get('authorization_code');
     const clientId = urlParams.get('client_id');
     const scope = urlParams.get('scope');
@@ -52,6 +58,12 @@ export function MCPConsentScreen() {
       encodedParams = localStorage.getItem('mcpOAuthParams');
     }
     
+    // Also check for mcp_state parameter (when coming from login screen)
+    let mcpStateParam = urlParams.get('mcp_state');
+    if (!mcpStateParam) {
+      mcpStateParam = localStorage.getItem('mcpState');
+    }
+    
     if (encodedParams) {
       try {
         const params = JSON.parse(decodeURIComponent(encodedParams));
@@ -61,23 +73,54 @@ export function MCPConsentScreen() {
         // Clear MCP flow state and redirect
         localStorage.removeItem('mcpLoginFlow');
         localStorage.removeItem('mcpOAuthParams');
+        localStorage.removeItem('mcpState');
+        window.location.href = '/';
+      }
+    } else if (mcpStateParam) {
+      try {
+        // This is the initial MCP flow - decode the state to show user what's being authorized
+        const decoded = JSON.parse(decodeURIComponent(mcpStateParam));
+        console.log('MCP state decoded:', decoded);
+        
+        // We're still waiting for the user to complete OAuth and get an authorization code
+        // For now, just show a message that OAuth needs to be completed first
+        console.log('MCP flow detected but user needs to complete OAuth first');
+        // Don't set oauthParams yet - wait for OAuth completion
+      } catch (error) {
+        console.error('Invalid MCP state:', error);
+        // Clear MCP flow state and redirect
+        localStorage.removeItem('mcpLoginFlow');
+        localStorage.removeItem('mcpOAuthParams');
+        localStorage.removeItem('mcpState');
         window.location.href = '/';
       }
     } else {
-      // No OAuth params found, clear MCP flow state and redirect
+      // No OAuth params or MCP state found, clear MCP flow state and redirect
       localStorage.removeItem('mcpLoginFlow');
       localStorage.removeItem('mcpOAuthParams');
+      localStorage.removeItem('mcpState');
       window.location.href = '/';
     }
   }, []);
 
   const handleApprove = async () => {
-    if (!oauthParams || !token) return;
+    if (!oauthParams || !token) {
+      console.error('Missing oauthParams or token', { hasOauthParams: !!oauthParams, hasToken: !!token });
+      alert('Missing required parameters for authorization');
+      return;
+    }
     
     setLoading(true);
     try {
       // Submit consent approval to MCP service
       const mcpServiceUrl = new URLSearchParams(window.location.search).get('mcp_service') || 'http://localhost:3002';
+      console.log('Making consent request', {
+        mcpServiceUrl,
+        authCode: oauthParams.authorization_code?.substring(0, 8) + '...',
+        hasToken: !!token,
+        tokenLength: token?.length
+      });
+      
       const response = await fetch(`${mcpServiceUrl}/api/auth/consent`, {
         method: 'POST',
         headers: {
@@ -90,6 +133,12 @@ export function MCPConsentScreen() {
         }),
       });
       
+      console.log('Consent response received', {
+        status: response.status,
+        ok: response.ok,
+        statusText: response.statusText
+      });
+      
       const result = await response.json();
       
       if (response.ok && result.success) {
@@ -100,11 +149,16 @@ export function MCPConsentScreen() {
         // Redirect back to MCP client with authorization code
         window.location.href = result.redirect_uri;
       } else {
+        console.error('Consent request failed', { status: response.status, result });
         throw new Error(result.error_description || 'Failed to authorize');
       }
     } catch (error) {
       console.error('Authorization error:', error);
-      alert('Failed to authorize MCP access. Please try again.');
+      console.error('Full error details:', {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      alert(`Failed to authorize MCP access: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setLoading(false);
     }
