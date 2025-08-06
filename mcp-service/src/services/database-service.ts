@@ -374,48 +374,6 @@ class MCPAPIService {
     }
   }
 
-  /**
-   * Generate MVP plan using AI
-   */
-  async generateMVPPlan(projectIdea: string, userToken: string): Promise<any> {
-    try {
-      const baseUrl = this.apiBaseUrl.endsWith('/') ? this.apiBaseUrl.slice(0, -1) : this.apiBaseUrl;
-      const response = await fetch(`${baseUrl}/api/ai/generatemvp`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${userToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ projectIdea })
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`API request failed: ${response.status} ${response.statusText} - ${errorText}`);
-      }
-
-      // This endpoint streams text, so we need to read the full response
-      const responseText = await response.text();
-      
-      // Try to parse as JSON (the AI should return JSON)
-      try {
-        const mvpPlan = JSON.parse(responseText);
-        return mvpPlan;
-      } catch (parseError) {
-        // If it's not valid JSON, return the raw text
-        logger.warn('MVP plan response was not valid JSON', {
-          responseText: responseText.substring(0, 200) + '...'
-        });
-        throw new Error('Failed to parse MVP plan response');
-      }
-    } catch (error) {
-      logger.error('Failed to generate MVP plan via API', {
-        error: error instanceof Error ? error.message : String(error),
-        projectIdea
-      });
-      throw new Error('Failed to generate MVP plan');
-    }
-  }
 
   /**
    * Create MVP project with all tasks using streaming AI endpoint

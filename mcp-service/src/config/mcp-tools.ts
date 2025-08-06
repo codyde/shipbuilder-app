@@ -214,22 +214,6 @@ export const MCP_TOOLS: MCPToolDefinition[] = [
 
   // Core AI tools
   {
-    name: 'generate_mvp_plan',
-    description: 'Generate an AI-powered MVP plan from a project idea without creating anything',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        project_idea: {
-          type: 'string',
-          description: 'The project idea to analyze and plan',
-          minLength: 10,
-          maxLength: 500
-        }
-      },
-      required: ['project_idea']
-    }
-  },
-  {
     name: 'create_mvp_project',
     description: 'Create a complete MVP project with all tasks from an AI-generated plan',
     inputSchema: {

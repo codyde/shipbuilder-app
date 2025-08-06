@@ -207,14 +207,17 @@ router.post('/developer', async (req: any, res: any) => {
 // Sentry OAuth initiation endpoint
 router.get('/sentry', (req, res) => {
   try {
-    // Check for MCP state parameter and preserve it
+    // Check for MCP auth_id parameter and preserve it
+    const mcpAuthId = req.query.mcp_auth_id as string;
     const mcpState = req.query.mcp_state as string;
     const state = req.query.state as string;
     
-    // If MCP state is present, we need to preserve it through the OAuth flow
+    // Preserve MCP auth_id through OAuth state
     let oauthState = state;
-    if (mcpState) {
-      // Combine original state with MCP state preservation marker
+    if (mcpAuthId) {
+      oauthState = `mcp_auth_id=${mcpAuthId}`;
+    } else if (mcpState) {
+      // Legacy MCP state handling
       oauthState = mcpState;
     }
     
@@ -352,9 +355,27 @@ router.get('/sentry/callback', oauthCallbackRateLimit, async (req, res) => {
     // MCP flow is now handled directly by the MCP service
     // No need for complex state management in OAuth callbacks
 
-    // Normal post-login redirect to dashboard
-    const redirectUrl = `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/?success=true&token=${encodeURIComponent(token)}`;
-    logger.info('OAuth flow completed successfully', { redirectUrl, userId: user.id });
+    // Check if there's a preserved MCP auth_id that needs to be continued
+    // This happens when users need to authenticate during MCP consent flow
+    const stateParam = state as string;
+    let mcpAuthId = req.query.mcp_auth_id as string;
+    
+    // Extract mcp_auth_id from state parameter if present
+    if (!mcpAuthId && stateParam && stateParam.startsWith('mcp_auth_id=')) {
+      mcpAuthId = stateParam.replace('mcp_auth_id=', '');
+    }
+    
+    let redirectUrl: string;
+    if (mcpAuthId) {
+      // User was in MCP consent flow, redirect back to consent screen with token
+      redirectUrl = `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/mcp-consent?auth_id=${mcpAuthId}&success=true&token=${encodeURIComponent(token)}`;
+      logger.info('OAuth flow completed for MCP consent', { redirectUrl, userId: user.id, mcpAuthId });
+    } else {
+      // Normal post-login redirect to dashboard
+      redirectUrl = `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/?success=true&token=${encodeURIComponent(token)}`;
+      logger.info('OAuth flow completed successfully', { redirectUrl, userId: user.id });
+    }
+    
     res.redirect(redirectUrl);
   } catch (error) {
     logger.error('Unexpected error in OAuth callback', {
@@ -378,14 +399,17 @@ router.get('/sentry/callback', oauthCallbackRateLimit, async (req, res) => {
 // Google OAuth initiation endpoint
 router.get('/google', (req, res) => {
   try {
-    // Check for MCP state parameter and preserve it
+    // Check for MCP auth_id parameter and preserve it
+    const mcpAuthId = req.query.mcp_auth_id as string;
     const mcpState = req.query.mcp_state as string;
     const state = req.query.state as string;
     
-    // If MCP state is present, we need to preserve it through the OAuth flow
+    // Preserve MCP auth_id through OAuth state
     let oauthState = state;
-    if (mcpState) {
-      // Combine original state with MCP state preservation marker
+    if (mcpAuthId) {
+      oauthState = `mcp_auth_id=${mcpAuthId}`;
+    } else if (mcpState) {
+      // Legacy MCP state handling
       oauthState = mcpState;
     }
     
@@ -524,9 +548,27 @@ router.get('/google/callback', oauthCallbackRateLimit, async (req, res) => {
     // MCP flow is now handled directly by the MCP service
     // No need for complex state management in OAuth callbacks
 
-    // Normal post-login redirect to dashboard
-    const redirectUrl = `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/?success=true&token=${encodeURIComponent(token)}`;
-    logger.info('Google OAuth flow completed successfully', { redirectUrl, userId: user.id });
+    // Check if there's a preserved MCP auth_id that needs to be continued
+    // This happens when users need to authenticate during MCP consent flow
+    const stateParam = state as string;
+    let mcpAuthId = req.query.mcp_auth_id as string;
+    
+    // Extract mcp_auth_id from state parameter if present
+    if (!mcpAuthId && stateParam && stateParam.startsWith('mcp_auth_id=')) {
+      mcpAuthId = stateParam.replace('mcp_auth_id=', '');
+    }
+    
+    let redirectUrl: string;
+    if (mcpAuthId) {
+      // User was in MCP consent flow, redirect back to consent screen with token
+      redirectUrl = `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/mcp-consent?auth_id=${mcpAuthId}&success=true&token=${encodeURIComponent(token)}`;
+      logger.info('Google OAuth flow completed for MCP consent', { redirectUrl, userId: user.id, mcpAuthId });
+    } else {
+      // Normal post-login redirect to dashboard
+      redirectUrl = `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/?success=true&token=${encodeURIComponent(token)}`;
+      logger.info('Google OAuth flow completed successfully', { redirectUrl, userId: user.id });
+    }
+    
     res.redirect(redirectUrl);
   } catch (error) {
     logger.error('Unexpected error in Google OAuth callback', {

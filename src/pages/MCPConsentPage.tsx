@@ -32,6 +32,20 @@ export function MCPConsentPage() {
   const authId = authIdFromUrl || authIdFromStorage;
 
   useEffect(() => {
+    // Handle OAuth success callback - update token and clear URL parameters
+    const isOAuthCallback = urlParams.has('success') && urlParams.has('token');
+    if (isOAuthCallback) {
+      const newToken = urlParams.get('token');
+      if (newToken) {
+        localStorage.setItem('authToken', newToken);
+        // Clear the URL parameters to clean up the URL
+        const cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete('success');
+        cleanUrl.searchParams.delete('token');
+        window.history.replaceState({}, '', cleanUrl.toString());
+      }
+    }
+    
     if (!authId) {
       setError('Missing authorization ID');
       setLoading(false);
@@ -157,7 +171,8 @@ export function MCPConsentPage() {
                   onClick={() => {
                     // Preserve auth_id in localStorage before OAuth
                     if (authId) localStorage.setItem('mcpAuthId', authId);
-                    window.location.href = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001'}/api/auth/google`;
+                    // Pass auth_id as query parameter to OAuth callback
+                    window.location.href = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001'}/api/auth/google?mcp_auth_id=${authId}`;
                   }}
                   size="lg"
                   className="w-full bg-white text-black hover:bg-gray-200 border"
@@ -169,7 +184,8 @@ export function MCPConsentPage() {
                   onClick={() => {
                     // Preserve auth_id in localStorage before OAuth
                     if (authId) localStorage.setItem('mcpAuthId', authId);
-                    window.location.href = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001'}/api/auth/sentry`;
+                    // Pass auth_id as query parameter to OAuth callback
+                    window.location.href = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001'}/api/auth/sentry?mcp_auth_id=${authId}`;
                   }}
                   size="lg"
                   variant="outline"

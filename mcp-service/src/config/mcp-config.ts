@@ -35,7 +35,7 @@ export const MCP_SERVICE_CONFIG = {
   // Session Configuration
   SESSION_CONFIG: {
     cleanupInterval: 30 * 60 * 1000, // 30 minutes
-    maxAge: 2 * 60 * 60 * 1000 // 2 hours
+    maxAge: 8 * 60 * 60 * 1000 // 8 hours (extended for better development UX)
   },
 
   // Capabilities

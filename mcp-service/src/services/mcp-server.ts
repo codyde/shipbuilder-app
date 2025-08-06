@@ -239,25 +239,6 @@ export class ShipbuilderMCPServer {
       }
     );
 
-    // Register generate_mvp_plan tool
-    this.server.tool(
-      'generate_mvp_plan',
-      'Generate an AI-powered MVP plan from a project idea without creating anything',
-      {
-        project_idea: z.string().min(10).max(500).describe('The project idea to analyze and plan'),
-      },
-      async ({ project_idea }: { project_idea: string }) => {
-        return executeWithAuth('generate_mvp_plan', async () => {
-          const mvpPlan = await mcpAPIService.generateMVPPlan(project_idea, this.authContext!.userToken);
-          return {
-            content: [{
-              type: "text",
-              text: JSON.stringify({ mvpPlan }, null, 2)
-            }]
-          };
-        });
-      }
-    );
 
     // Register create_mvp_project tool
     this.server.tool(
@@ -389,7 +370,7 @@ export class ShipbuilderMCPServer {
       }
     );
 
-    logger.info('Registered 10 core MCP tools');
+    logger.info('Registered 9 core MCP tools');
   }
 
   setAuthContext(context: MCPAuthContext) {

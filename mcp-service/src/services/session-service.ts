@@ -37,7 +37,7 @@ export class MCPSessionService {
   private cleanupInterval: NodeJS.Timeout | null = null;
   
   // Configuration
-  private readonly SESSION_TIMEOUT = 2 * 60 * 60 * 1000; // 2 hours
+  private readonly SESSION_TIMEOUT = 8 * 60 * 60 * 1000; // 8 hours (extended for better development UX)
   private readonly CLEANUP_INTERVAL = 10 * 60 * 1000; // 10 minutes
   private readonly HEARTBEAT_TIMEOUT = 5 * 60 * 1000; // 5 minutes
   

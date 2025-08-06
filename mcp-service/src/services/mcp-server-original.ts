@@ -300,19 +300,7 @@ export class ShipbuilderMCPServer {
       }
     );
 
-    // Register generate_mvp_plan tool
-    this.server.tool(
-      'generate_mvp_plan',
-      'Generate an AI-powered MVP plan from a project idea without creating anything',
-      {
-        project_idea: z.string().min(10).max(500).describe('The project idea to analyze and plan'),
-      },
-      async ({ project_idea }: { project_idea: string }) => {
-        return await this.executeWithAuth('generate_mvp_plan', { project_idea }, () => 
-          this.handleGenerateMVPPlan({ project_idea })
-        );
-      }
-    );
+    // generate_mvp_plan tool removed - use create_mvp_project instead
 
     // Register create_mvp_project tool
     this.server.tool(
@@ -1278,25 +1266,8 @@ export class ShipbuilderMCPServer {
       projectIdea: project_idea.substring(0, 50) + '...',
     });
 
-    const mvpPlan = await mcpAPIService.generateMVPPlan(project_idea, this.authContext!.userToken);
-
-    return {
-      content: [
-        {
-          type: 'text' as const,
-          text: JSON.stringify({
-            success: true,
-            data: mvpPlan,
-            message: `Generated MVP plan for "${mvpPlan.projectName}" with ${mvpPlan.tasks.length} tasks`,
-            user: {
-              id: this.authContext!.userId,
-              email: this.authContext!.email,
-              name: this.authContext!.name,
-            },
-          }, null, 2),
-        },
-      ],
-    };
+    // Method removed - generateMVPPlan is no longer available
+    throw new Error('generateMVPPlan method has been removed. Use create_mvp_project instead.');
   }
 
   /**
