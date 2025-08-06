@@ -33,17 +33,20 @@ function AppContent() {
   // Check if this is an MCP login flow
   const isMCPLogin = window.location.pathname === '/mcp-login' || 
                      new URLSearchParams(window.location.search).has('oauth_params') ||
-                     new URLSearchParams(window.location.search).has('mcp_state')
+                     new URLSearchParams(window.location.search).has('mcp_state') ||
+                     new URLSearchParams(window.location.search).has('mcp_login')
   
   // Check if this is the new MCP consent flow
   const urlParams = new URLSearchParams(window.location.search);
   const hasAuthIdInUrl = urlParams.has('auth_id');
   const hasAuthIdInStorage = localStorage.getItem('mcpAuthId');
   const isOAuthCallback = urlParams.has('success') && urlParams.has('token');
+  const hasMcpAuthIdInUrl = urlParams.has('mcp_auth_id');
   
   const isMCPConsent = window.location.pathname === '/mcp-consent' || 
                        hasAuthIdInUrl ||
-                       (isOAuthCallback && hasAuthIdInStorage)
+                       (isOAuthCallback && hasAuthIdInStorage) ||
+                       (isOAuthCallback && hasMcpAuthIdInUrl)
   
   // Debug logging for MCP flow detection
   useEffect(() => {
@@ -80,6 +83,22 @@ function AppContent() {
       }
     }
   }, [isMCPLogin])
+
+  // Handle OAuth callback for MCP flow - redirect to consent screen
+  useEffect(() => {
+    if (isOAuthCallback && user) {
+      const mcpAuthIdFromUrl = urlParams.get('mcp_auth_id');
+      const mcpAuthIdFromStorage = localStorage.getItem('mcpAuthId');
+      const authId = mcpAuthIdFromUrl || mcpAuthIdFromStorage;
+      
+      if (authId) {
+        // Clear OAuth callback parameters and redirect to consent screen
+        const newUrl = `${window.location.origin}/mcp-consent?auth_id=${authId}`;
+        console.log('Redirecting from OAuth callback to MCP consent:', newUrl);
+        window.location.href = newUrl;
+      }
+    }
+  }, [isOAuthCallback, user, urlParams])
   
   // Check if we're returning from auth during MCP flow
   const wasMCPLogin = localStorage.getItem('mcpLoginFlow') === 'true'

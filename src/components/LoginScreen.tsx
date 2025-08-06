@@ -142,14 +142,32 @@ export function LoginScreen() {
 
   const handleSentryLogin = useCallback(() => {
     setIsRedirecting(true);
-    const loginUrl = getApiUrl('auth/sentry');
+    const urlParams = new URLSearchParams(window.location.search);
+    const mcpAuthId = urlParams.get('mcp_auth_id');
+    
+    let loginUrl = getApiUrl('auth/sentry');
+    if (mcpAuthId) {
+      loginUrl += `?mcp_auth_id=${mcpAuthId}`;
+      // Store in localStorage as backup
+      localStorage.setItem('mcpAuthId', mcpAuthId);
+    }
+    
     console.log('Redirecting to Sentry login URL:', loginUrl);
     window.location.href = loginUrl;
   }, []);
 
   const handleGoogleLogin = useCallback(() => {
     setIsRedirecting(true);
-    const loginUrl = getApiUrl('auth/google');
+    const urlParams = new URLSearchParams(window.location.search);
+    const mcpAuthId = urlParams.get('mcp_auth_id');
+    
+    let loginUrl = getApiUrl('auth/google');
+    if (mcpAuthId) {
+      loginUrl += `?mcp_auth_id=${mcpAuthId}`;
+      // Store in localStorage as backup
+      localStorage.setItem('mcpAuthId', mcpAuthId);
+    }
+    
     console.log('Redirecting to Google login URL:', loginUrl);
     window.location.href = loginUrl;
   }, []);

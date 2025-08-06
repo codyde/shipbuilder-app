@@ -87,9 +87,9 @@ router.get('/authorize', async (req: any, res: any) => {
           code_challenge_method
         });
 
-        // Redirect to frontend consent screen with simple auth ID
+        // Redirect to main app login with MCP context preserved
         const frontendUrl = getFrontendUrl();
-        const loginUrl = `${frontendUrl}/mcp-consent?auth_id=${authId}`;
+        const loginUrl = `${frontendUrl}/?mcp_auth_id=${authId}&mcp_login=true`;
         
         logger.info('Redirecting to consent screen for authentication', {
           client_id,
