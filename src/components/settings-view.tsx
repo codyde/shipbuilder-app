@@ -71,8 +71,8 @@ const aiProviderOptions = [
     value: 'openai',
     label: 'OpenAI Hybrid',
     icon: Sparkles,
-    description: 'o3-mini for reasoning + GPT-4o-mini for tool calling',
-    models: ['o3-mini (Detailed Reasoning)', 'GPT-4o-mini (Tool Calling)']
+    description: 'gpt-5 for reasoning + gpt-5 for tool calling',
+    models: ['gpt-5 (Detailed Reasoning)', 'gpt-5 (Tool Calling)']
   },
   {
     value: 'xai',
