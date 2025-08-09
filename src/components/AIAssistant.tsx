@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useChat } from 'ai/react';
+import { useChat } from '@ai-sdk/react';
 import { useProjects } from '@/context/ProjectContext';
 import { useAuth } from '@/context/AuthContext';
 import { ToolInvocation } from '@/types/types';
@@ -461,7 +461,7 @@ export function AIAssistant({ onClose, open = true, onOpenChange, initialTab = '
           tools: {
             suggestProjectName: {
               description: 'Generate a suggested project name based on a project description',
-              parameters: {
+              inputSchema: {
                 type: 'object',
                 properties: {
                   description: {
@@ -1089,7 +1089,7 @@ export function AIAssistant({ onClose, open = true, onOpenChange, initialTab = '
 
                   {isMobile ? (
                     // Simple summary for mobile
-                    <Card className="p-3">
+                    (<Card className="p-3">
                       <div className="text-sm space-y-2">
                         <div>
                           <span className="font-medium text-primary">Features:</span>
@@ -1100,10 +1100,10 @@ export function AIAssistant({ onClose, open = true, onOpenChange, initialTab = '
                           <span className="text-muted-foreground ml-1">{getSelectedTasksCount()}/{mvpPlan.tasks.length} tasks selected</span>
                         </div>
                       </div>
-                    </Card>
+                    </Card>)
                   ) : (
                     // Full accordions for desktop
-                    <>
+                    (<>
                       <Accordion 
                         title="Core Features" 
                         count={mvpPlan.features.length}
@@ -1119,7 +1119,6 @@ export function AIAssistant({ onClose, open = true, onOpenChange, initialTab = '
                           ))}
                         </ul>
                       </Accordion>
-
                       <Accordion 
                         title="Development Tasks" 
                         count={mvpPlan.tasks.length}
@@ -1236,7 +1235,7 @@ export function AIAssistant({ onClose, open = true, onOpenChange, initialTab = '
                           </div>
                         </div>
                       </Accordion>
-                    </>
+                    </>)
                   )}
 
                   {!isCreating ? (

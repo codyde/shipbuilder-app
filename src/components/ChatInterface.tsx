@@ -37,7 +37,7 @@ interface ChatMessageProps {
         state: 'partial-call' | 'call' | 'result';
         result?: unknown;
       };
-      reasoning?: string;
+      reasoningText?: string;
       source?: unknown;
       file?: unknown;
     }>;
@@ -107,7 +107,7 @@ function ChatMessage({ message }: ChatMessageProps) {
                       return (
                         <div key={index} className="mt-2 p-2 bg-muted/50 rounded text-xs">
                           <span className="font-medium">Reasoning: </span>
-                          {part.reasoning}
+                          {part.reasoningText}
                         </div>
                       );
                     case 'source':

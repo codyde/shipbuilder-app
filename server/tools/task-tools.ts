@@ -9,7 +9,7 @@ const { logger } = Sentry;
 export const createTaskTools = (userId: string) => ({
   createProject: {
     description: 'Create a new project',
-    parameters: {
+    inputSchema: {
       type: 'object',
       properties: {
         name: {
@@ -68,7 +68,7 @@ export const createTaskTools = (userId: string) => ({
 
   createTask: {
     description: 'Create a new task within a project',
-    parameters: {
+    inputSchema: {
       type: 'object',
       properties: {
         projectId: {
@@ -184,7 +184,7 @@ export const createTaskTools = (userId: string) => ({
 
   updateTaskStatus: {
     description: 'Update the status of a task',
-    parameters: {
+    inputSchema: {
       type: 'object',
       properties: {
         projectId: {
@@ -230,7 +230,7 @@ export const createTaskTools = (userId: string) => ({
 
   listProjects: {
     description: 'Get a list of all projects with their tasks',
-    parameters: {
+    inputSchema: {
       type: 'object',
       properties: {},
       required: []
@@ -255,7 +255,7 @@ export const createTaskTools = (userId: string) => ({
 
   getProject: {
     description: 'Get details of a specific project including all its tasks',
-    parameters: {
+    inputSchema: {
       type: 'object',
       properties: {
         projectId: {
@@ -292,7 +292,7 @@ export const createTaskTools = (userId: string) => ({
 
   deleteTask: {
     description: 'Delete a task from a project',
-    parameters: {
+    inputSchema: {
       type: 'object',
       properties: {
         projectId: {
@@ -344,7 +344,7 @@ export const createTaskTools = (userId: string) => ({
 
   generateMVPPlan: {
     description: 'Generate an MVP plan for a project idea without creating anything',
-    parameters: {
+    inputSchema: {
       type: 'object',
       properties: {
         projectIdea: {
@@ -421,7 +421,7 @@ CRITICAL: Your response must be ONLY the JSON object, with no markdown formattin
           },
           system: systemPrompt,
           prompt: `Create an MVP plan for: ${args.projectIdea}`,
-          maxTokens: 2000,
+          maxOutputTokens: 2000,
           ...(Object.keys(providerOptions).length > 0 && { providerOptions })
         });
 

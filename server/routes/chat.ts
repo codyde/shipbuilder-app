@@ -105,7 +105,7 @@ chatRoutes.post('/stream', async (req: any, res: any) => {
 
     const result = streamText({
       model,
-      maxTokens: 1000,
+      maxOutputTokens: 1000,
       experimental_telemetry: {
         isEnabled: true,
         functionId: "chat-tool-calling"
@@ -129,7 +129,7 @@ Be helpful and proactive in suggesting project management best practices.`,
       tools: {
         createProject: tool({
           description: wrappedTools.createProject.description,
-          parameters: z.object({
+          inputSchema: z.object({
             name: z.string().describe('The name of the project'),
             description: z.string().optional().describe('Optional description of the project')
           }),
@@ -137,7 +137,7 @@ Be helpful and proactive in suggesting project management best practices.`,
         }),
         createTask: tool({
           description: wrappedTools.createTask.description,
-          parameters: z.object({
+          inputSchema: z.object({
             projectId: z.string().describe('The ID of the project to add the task to'),
             title: z.string().describe('The title of the task'),
             description: z.string().optional().describe('Optional description of the task'),
@@ -148,7 +148,7 @@ Be helpful and proactive in suggesting project management best practices.`,
         }),
         updateTaskStatus: tool({
           description: wrappedTools.updateTaskStatus.description,
-          parameters: z.object({
+          inputSchema: z.object({
             projectId: z.string().describe('The ID of the project containing the task'),
             taskId: z.string().describe('The ID of the task to update'),
             status: z.enum(['backlog', 'in_progress', 'completed']).describe('The new status for the task')
@@ -157,12 +157,12 @@ Be helpful and proactive in suggesting project management best practices.`,
         }),
         listProjects: tool({
           description: wrappedTools.listProjects.description,
-          parameters: z.object({}),
+          inputSchema: z.object({}),
           execute: async () => wrappedTools.listProjects.execute()
         }),
         getProject: tool({
           description: wrappedTools.getProject.description,
-          parameters: z.object({
+          inputSchema: z.object({
             projectId: z.string().describe('The ID of the project to retrieve')
           }),
           execute: async (args) => wrappedTools.getProject.execute(args)
@@ -170,7 +170,7 @@ Be helpful and proactive in suggesting project management best practices.`,
         // MCP tools
         query_projects: tool({
           description: wrappedTools.query_projects.description,
-          parameters: z.object({
+          inputSchema: z.object({
             status: z.enum(['active', 'backlog', 'completed', 'archived']).optional().describe('Filter projects by status'),
             include_tasks: z.boolean().optional().default(true).describe('Whether to include tasks in the response')
           }),
@@ -178,7 +178,7 @@ Be helpful and proactive in suggesting project management best practices.`,
         }),
         query_tasks: tool({
           description: wrappedTools.query_tasks.description,
-          parameters: z.object({
+          inputSchema: z.object({
             project_id: z.string().describe('Project slug (e.g., "photoshare")'),
             status: z.enum(['backlog', 'in_progress', 'completed']).optional().describe('Filter tasks by status'),
             priority: z.enum(['low', 'medium', 'high']).optional().describe('Filter tasks by priority')
@@ -189,7 +189,7 @@ Be helpful and proactive in suggesting project management best practices.`,
       ...(Object.keys(providerOptions).length > 0 && { providerOptions })
     });
 
-    const response = result.toDataStreamResponse();
+    const response = result.toUIMessageStreamResponse();
     
     // Skip setting headers from AI SDK response since StatusStreamer has already set streaming headers
     

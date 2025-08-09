@@ -147,7 +147,7 @@ Format your response in markdown with clear sections and actionable steps. Be sp
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
-    const result = await streamText({
+    const result = streamText({
       model,
       experimental_telemetry: {
         isEnabled: true,
@@ -269,7 +269,7 @@ CRITICAL: Your response must be ONLY the JSON object, with no markdown formattin
     const provider = user?.aiProvider || 'anthropic';
     const providerOptions = AIProviderService.getProviderOptions(provider);
     
-    const result = await streamText({
+    const result = streamText({
       model,
       experimental_telemetry: {
         isEnabled: true,
@@ -459,28 +459,33 @@ aiRoutes.post('/create-mvp-project', async (req: any, res: any) => {
       messages: [
         {
           role: 'user',
-          content: `I need you to create a complete MVP project with all its tasks using the available tools.
 
-PROJECT DETAILS:
-- Name: ${mvpPlan.projectName}
-- Description: ${mvpPlan.description}
-- Tech Stack: ${mvpPlan.techStack.frontend}, ${mvpPlan.techStack.backend}, ${mvpPlan.techStack.database}${mvpPlan.techStack.hosting ? `, ${mvpPlan.techStack.hosting}` : ''}
-- Core Features: ${mvpPlan.features.join(', ')}
+          parts: [{
+            type: 'text',
 
-TASKS TO CREATE (${mvpPlan.tasks.length} total):
-${mvpPlan.tasks.map((task: any, index: number) => 
-`${index + 1}. "${task.title}" (${task.priority})
-   Description: ${task.description}`).join('\n')}
+            text: `I need you to create a complete MVP project with all its tasks using the available tools.
 
-CRITICAL SEQUENTIAL EXECUTION REQUIREMENTS:
-1. First, use createProject to create the project with a comprehensive description
-2. Wait for the project creation to complete before proceeding
-3. Then create tasks ONE BY ONE using createTask - DO NOT create multiple tasks simultaneously
-4. You MUST wait for each createTask call to complete before calling createTask again
-5. Create ALL ${mvpPlan.tasks.length} tasks sequentially - no parallel execution
-6. Use the project ID from step 1 for all createTask calls
+  PROJECT DETAILS:
+  - Name: ${mvpPlan.projectName}
+  - Description: ${mvpPlan.description}
+  - Tech Stack: ${mvpPlan.techStack.frontend}, ${mvpPlan.techStack.backend}, ${mvpPlan.techStack.database}${mvpPlan.techStack.hosting ? `, ${mvpPlan.techStack.hosting}` : ''}
+  - Core Features: ${mvpPlan.features.join(', ')}
 
-IMPORTANT: You must create tasks sequentially, not in parallel. Call createTask once, wait for it to complete, then call createTask again for the next task. Repeat until all ${mvpPlan.tasks.length} tasks are created.`
+  TASKS TO CREATE (${mvpPlan.tasks.length} total):
+  ${mvpPlan.tasks.map((task: any, index: number) => 
+  `${index + 1}. "${task.title}" (${task.priority})
+     Description: ${task.description}`).join('\n')}
+
+  CRITICAL SEQUENTIAL EXECUTION REQUIREMENTS:
+  1. First, use createProject to create the project with a comprehensive description
+  2. Wait for the project creation to complete before proceeding
+  3. Then create tasks ONE BY ONE using createTask - DO NOT create multiple tasks simultaneously
+  4. You MUST wait for each createTask call to complete before calling createTask again
+  5. Create ALL ${mvpPlan.tasks.length} tasks sequentially - no parallel execution
+  6. Use the project ID from step 1 for all createTask calls
+
+  IMPORTANT: You must create tasks sequentially, not in parallel. Call createTask once, wait for it to complete, then call createTask again for the next task. Repeat until all ${mvpPlan.tasks.length} tasks are created.`
+          }]
         }
       ],
       system: `You are creating an MVP project using the available tools. You must use both createProject and createTask tools to create a complete project.
@@ -498,7 +503,7 @@ The user will be very disappointed if you only create the project but not all th
       tools: {
         createProject: tool({
           description: wrappedTools.createProject.description,
-          parameters: z.object({
+          inputSchema: z.object({
             name: z.string().describe('The name of the project'),
             description: z.string().describe('Comprehensive description including tech stack and core features')
           }),
@@ -508,7 +513,7 @@ The user will be very disappointed if you only create the project but not all th
         }),
         createTask: tool({
           description: wrappedTools.createTask.description,
-          parameters: z.object({
+          inputSchema: z.object({
             projectId: z.string().describe('The ID of the project to add the task to'),
             title: z.string().describe('The title of the task'),
             description: z.string().describe('Detailed description of what needs to be done, structured as a prompt that an AI can use to generate code for that specific task. It should be a detailed description of the task, written from the perspective of a senior developer focused on that task space.'),
@@ -522,7 +527,7 @@ The user will be very disappointed if you only create the project but not all th
       ...(Object.keys(providerOptions).length > 0 && { providerOptions })
     });
 
-    const response = result.toDataStreamResponse();
+    const response = result.toUIMessageStreamResponse();
     
     // Send initial status update
     statusStreamer.sendProgressUpdate(`🚀 Starting MVP creation for "${mvpPlan.projectName}" with ${mvpPlan.tasks.length} tasks`);

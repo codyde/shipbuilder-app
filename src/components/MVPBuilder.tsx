@@ -382,7 +382,7 @@ export function MVPBuilder({ className = '', onClose, open = true, onOpenChange 
           tools: {
             suggestProjectName: {
               description: 'Generate a suggested project name based on a project description',
-              parameters: {
+              inputSchema: {
                 type: 'object',
                 properties: {
                   description: {
@@ -637,7 +637,7 @@ export function MVPBuilder({ className = '', onClose, open = true, onOpenChange 
               </>
             ) : (
               // MVP Plan Display (same content as desktop)
-              <div className="space-y-4">
+              (<div className="space-y-4">
                 {/* Project Name Editor */}
                 <Card className="p-3">
                   <label className="text-sm font-medium mb-2 block">Project Name</label>
@@ -686,7 +686,6 @@ export function MVPBuilder({ className = '', onClose, open = true, onOpenChange 
                     )}
                   </div>
                 </Card>
-
                 {/* Simple summary for mobile - no accordions */}
                 <Card className="p-3">
                   <div className="text-sm space-y-2">
@@ -700,7 +699,6 @@ export function MVPBuilder({ className = '', onClose, open = true, onOpenChange 
                     </div>
                   </div>
                 </Card>
-
                 {!isCreating ? (
                   <div className="flex gap-2">
                     <Button
@@ -784,7 +782,7 @@ export function MVPBuilder({ className = '', onClose, open = true, onOpenChange 
                     </div>
                   </div>
                 )}
-              </div>
+              </div>)
             )}
           </div>
         </DrawerContent>
