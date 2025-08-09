@@ -480,21 +480,27 @@ CRITICAL SEQUENTIAL EXECUTION REQUIREMENTS:
 5. Create ALL ${mvpPlan.tasks.length} tasks sequentially - no parallel execution
 6. Use the project ID from step 1 for all createTask calls
 
-IMPORTANT: You must create tasks sequentially, not in parallel. Call createTask once, wait for it to complete, then call createTask again for the next task. Repeat until all ${mvpPlan.tasks.length} tasks are created.`
+IMPORTANT: You must create tasks sequentially, not in parallel. Call createTask once, wait for it to complete, then call createTask again for the next task. Repeat until all ${mvpPlan.tasks.length} tasks are created.
+
+REMEMBER: After creating the project, you are only 1/${mvpPlan.tasks.length + 1} done. You still need to create ${mvpPlan.tasks.length} more tasks. Do not stop until you have made ${mvpPlan.tasks.length + 1} total tool calls.`
         }
       ],
-      system: `You are creating an MVP project using the available tools. You must use both createProject and createTask tools to create a complete project.
+      system: `You are creating an MVP project using the available tools. You MUST create the project AND ALL the tasks in a sequential manner.
 
-CRITICAL REQUIREMENTS:
-1. You must create the project AND all the tasks
-2. Do not stop after creating just the project
-3. SEQUENTIAL EXECUTION ONLY: Call createTask one at a time, wait for completion, then call the next one
-4. DO NOT use parallel function calling - create tasks sequentially
-5. Continue calling createTask until every single task is created
+MANDATORY WORKFLOW:
+1. First: Call createProject to create the project
+2. Then: Call createTask for each task, one at a time, until ALL tasks are created
+3. You MUST create every single task - do not stop early
+4. After each task creation, immediately proceed to the next task
+5. Continue until you have created ALL ${mvpPlan.tasks.length} tasks
 
-IMPORTANT: You are using the XAI provider which supports parallel function calling, but for this task you MUST execute functions sequentially. Call one createTask, wait for it to complete, then call the next createTask. Do not call multiple createTask functions simultaneously.
+CRITICAL: You are not done until you have:
+- Created 1 project (✓ use createProject)  
+- Created ALL ${mvpPlan.tasks.length} tasks (✓ use createTask ${mvpPlan.tasks.length} times)
 
-The user will be very disappointed if you only create the project but not all the tasks. Make sure you complete the entire job by creating every task sequentially.`,
+The user expects EXACTLY ${mvpPlan.tasks.length + 1} tool calls total (1 project + ${mvpPlan.tasks.length} tasks). Do not stop after creating only the project - you must continue and create every single task.
+
+SEQUENTIAL EXECUTION: Call tools one at a time, wait for response, then call the next tool. No parallel execution.`,
       tools: {
         createProject: tool({
           description: wrappedTools.createProject.description,

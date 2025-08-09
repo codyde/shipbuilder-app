@@ -46,7 +46,7 @@ export const createTaskTools = (userId: string) => ({
         return {
           success: true,
           data: project,
-          message: `Created project "${project.name}" with ID ${project.id}`
+          message: `Created project "${project.name}" with ID ${project.id}. IMPORTANT: Now you must create ALL the tasks for this project using createTask. Use project ID "${project.id}" for each createTask call.`
         };
       } catch (error) {
         console.error(`\n❌ \x1b[31m[PROJECT_CREATE]\x1b[0m Error creating project:`, error);
