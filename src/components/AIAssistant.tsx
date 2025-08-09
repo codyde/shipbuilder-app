@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useChat } from 'ai/react';
+import { useChat } from '@ai-sdk/react';
 import { useProjects } from '@/context/ProjectContext';
 import { useAuth } from '@/context/AuthContext';
 import { ToolInvocation } from '@/types/types';
@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Accordion } from '@/components/ui/accordion';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MarkdownRenderer } from '@/components/ui/markdown-renderer';
+import { useMVPStatusStream } from '@/hooks/useMVPStatusStream';
 import { X, Lightbulb, Loader2, Rocket, CheckCircle, MessageCircle, Send, Edit2, Trash2, Package, Search } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { getApiUrl } from '@/lib/api-config';
@@ -61,6 +62,51 @@ interface Component {
   name: string;
   description: string;
   tags: string[];
+}
+
+// Attempt to extract a balanced JSON object from arbitrary text
+function extractBalancedJson(text: string): string | null {
+  let working = text.trim();
+  if (working.startsWith('```json')) {
+    working = working.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+  } else if (working.startsWith('```')) {
+    working = working.replace(/^```\s*/, '').replace(/\s*```$/, '');
+  }
+  const firstBrace = working.indexOf('{');
+  const lastBrace = working.lastIndexOf('}');
+  if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+    return null;
+  }
+  let inString = false;
+  let escapeNext = false;
+  let depth = 0;
+  let start = -1;
+  for (let i = firstBrace; i <= lastBrace; i++) {
+    const ch = working[i];
+    if (escapeNext) { escapeNext = false; continue; }
+    if (ch === '\\') { if (inString) escapeNext = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === '{') { if (depth === 0) start = i; depth++; }
+    else if (ch === '}') { depth--; if (depth === 0 && start !== -1) { return working.substring(start, i + 1).trim(); } }
+  }
+  return null;
+}
+
+// Apply basic sanitizations commonly needed for AI-produced JSON
+function sanitizePossibleJson(text: string): string {
+  let s = text
+    .replace(/[\u201C\u201D\u201E\u201F\u2033\u2036]/g, '"')
+    .replace(/[\u2018\u2019\u201A\u201B\u2032\u2035]/g, '\'')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/[\u0000-\u0019]/g, (m) => (m === '\n' || m === '\t' ? m : ''))
+    .replace(/,\s*([}\]])/g, '$1');
+  const start = s.indexOf('{');
+  const end = s.lastIndexOf('}');
+  if (start !== -1 && end !== -1 && end > start) {
+    s = s.substring(start, end + 1).trim();
+  }
+  return s;
 }
 
 
@@ -151,6 +197,18 @@ export function AIAssistant({ onClose, open = true, onOpenChange, initialTab = '
   const [loadingComponents, setLoadingComponents] = useState(false);
   const [browseDialogOpen, setBrowseDialogOpen] = useState(false);
   const [dialogSearch, setDialogSearch] = useState('');
+  // MVP creation streaming (reuse unified hook used by MVPBuilder so we see live tool/status events)
+  const {
+    createMVPProject: createMVPProjectStream,
+    clearStatusMessages: clearMVPStatusMessages,
+  } = useMVPStatusStream({
+    onComplete: () => {
+      refreshProjects();
+      setIsComplete(true);
+      setSuccessMessage('MVP project created successfully!');
+    },
+    onError: (errMsg) => setError(errMsg),
+  });
 
   // Chat state
   const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
@@ -178,6 +236,44 @@ export function AIAssistant({ onClose, open = true, onOpenChange, initialTab = '
     onError: (error) => {
       console.error('Chat error:', error);
     },
+  });
+
+  // Adapt v5 UIMessage structure to the local ChatMessage shape for rendering
+  const displayMessages = (messages as any[]).map((m) => {
+    let content = '';
+    const toolInvocations: any[] = [];
+    if (Array.isArray(m.parts)) {
+      for (const p of m.parts as any[]) {
+        if (p.type === 'text' && typeof p.text === 'string') {
+          content += p.text;
+        }
+        // Static tool parts: type is `tool-<name>` in v5
+        if (typeof p.type === 'string' && p.type.startsWith('tool-')) {
+          if (p.state === 'output-available' && p.output) {
+            toolInvocations.push({
+              toolName: p.type.replace(/^tool-/, ''),
+              result: p.output,
+            });
+          } else if (p.state === 'output-error' && p.errorText) {
+            toolInvocations.push({
+              toolName: p.type.replace(/^tool-/, ''),
+              result: { success: false, message: p.errorText },
+            });
+          }
+        }
+        // Dynamic tool parts
+        if (p.type === 'dynamic-tool') {
+          if (p.state === 'output-available' && p.output) {
+            toolInvocations.push({ toolName: p.toolName, result: p.output });
+          } else if (p.state === 'output-error' && p.errorText) {
+            toolInvocations.push({ toolName: p.toolName, result: { success: false, message: p.errorText } });
+          }
+        }
+      }
+    } else if (typeof (m as any).content === 'string') {
+      content = (m as any).content;
+    }
+    return { id: m.id, role: m.role, content, toolInvocations };
   });
 
   // Fetch components on mount
@@ -343,6 +439,7 @@ export function AIAssistant({ onClose, open = true, onOpenChange, initialTab = '
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
+          'Accept': 'text/event-stream, application/json;q=0.5, */*;q=0.1',
         },
         body: JSON.stringify({
           projectIdea: trimmedIdea,
@@ -372,51 +469,130 @@ export function AIAssistant({ onClose, open = true, onOpenChange, initialTab = '
         }
       }
 
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      let fullText = '';
-
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          const chunk = decoder.decode(value, { stream: true });
-          fullText += chunk;
-          setGenerationText(fullText);
-        }
-      }
-
-      try {
-        let cleanedText = fullText.trim();
-        if (cleanedText.startsWith('```json')) {
-          cleanedText = cleanedText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-        } else if (cleanedText.startsWith('```')) {
-          cleanedText = cleanedText.replace(/^```\s*/, '').replace(/\s*```$/, '');
-        }
-        cleanedText = cleanedText.trim();
-        
-        const mvpPlan = JSON.parse(cleanedText);
-        
-        if (!mvpPlan.projectName || !mvpPlan.description || !Array.isArray(mvpPlan.features) || !mvpPlan.techStack || !Array.isArray(mvpPlan.tasks)) {
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const parsed = await response.json();
+        if (!parsed.projectName || !parsed.description || !Array.isArray(parsed.features) || !parsed.techStack || !Array.isArray(parsed.tasks)) {
           throw new Error('Generated MVP plan has invalid structure');
         }
-        
-        // Add IDs and mark all tasks as selected by default
         const planWithIds = {
-          ...mvpPlan,
-          tasks: mvpPlan.tasks.map((task, index) => ({
+          ...parsed,
+          tasks: parsed.tasks.map((task: any, index: number) => ({
             ...task,
             id: `task-${index}`,
             selected: true
           }))
         };
-        
         setMvpPlan(planWithIds);
-        setProjectName(mvpPlan.projectName);
+        setProjectName(parsed.projectName);
         setGenerationText('');
-      } catch {
-        throw new Error('Failed to parse MVP plan from AI response');
+      } else {
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        let fullText = '';
+        let sseBuffer = '';
+        let reasoningSoFar = '';
+        let finalPlan: any | null = null;
+        let sawAnyEvent = false;
+
+        if (reader) {
+          // Show the stream panel immediately
+          if (!generationText) setGenerationText('Analyzing…');
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value, { stream: true });
+            fullText += chunk;
+
+            // Incrementally parse SSE lines to surface reasoning immediately
+            sseBuffer += chunk;
+            const lines = sseBuffer.split('\n');
+            sseBuffer = lines.pop() ?? '';
+            for (const line of lines) {
+              if (!line.startsWith('data: ')) continue;
+              try {
+                const data = JSON.parse(line.slice(6));
+                const type: string | undefined = data?.type;
+                if (!sawAnyEvent) {
+                  sawAnyEvent = true;
+                  if (!reasoningSoFar) setGenerationText('Analyzing…');
+                }
+                // OpenAI reasoning events (AI SDK v5): response.reasoning.delta / done
+                if (type === 'response.reasoning.delta' && typeof data.delta === 'string') {
+                  reasoningSoFar += data.delta;
+                  setGenerationText(reasoningSoFar);
+                } else if (type === 'response.reasoning.done') {
+                  // no-op; keep showing final reasoning until object appears
+                } else if ((type === 'reasoning.delta' || type === 'reasoning') && typeof (data.delta ?? data.text) === 'string') {
+                  // Fallback for other providers/events
+                  reasoningSoFar += (data.delta ?? data.text);
+                  setGenerationText(reasoningSoFar);
+                } else if ((type === 'response.output_text.delta' || type === 'response.text.delta' || type === 'text.delta') && typeof data.delta === 'string') {
+                  // Fallback to showing output text if reasoning is unavailable
+                  setGenerationText(prev => (prev || '') + data.delta);
+                } else if ((type === 'object.delta' || type === 'response.object.delta')) {
+                  // Show parts of the object as they arrive to provide early feedback
+                  const delta = data.delta;
+                  if (typeof delta === 'string') {
+                    setGenerationText(prev => (prev || '') + delta);
+                  } else if (delta && typeof delta === 'object') {
+                    const maybeText = (delta.description as string) || (delta.projectName as string);
+                    if (typeof maybeText === 'string' && maybeText.trim()) {
+                      setGenerationText(prev => (prev ? prev + '\n' : '') + maybeText);
+                    }
+                  }
+                } else if ((type === 'response.object' || type === 'object' || type === 'response.object.done' || type === 'object.completed' || type === 'object.final') && (data.object || data.value)) {
+                  // Capture final object emitted by AI SDK streamObject
+                  finalPlan = data.object || data.value;
+                }
+              } catch {
+                // ignore malformed event lines
+              }
+            }
+          }
+        }
+
+        if (finalPlan) {
+          const parsed = finalPlan;
+          if (!parsed.projectName || !parsed.description || !Array.isArray(parsed.features) || !parsed.techStack || !Array.isArray(parsed.tasks)) {
+            throw new Error('Generated MVP plan has invalid structure');
+          }
+          const planWithIds = {
+            ...parsed,
+            tasks: parsed.tasks.map((task: any, index: number) => ({
+              ...task,
+              id: `task-${index}`,
+              selected: true
+            }))
+          };
+          setMvpPlan(planWithIds);
+          setProjectName(parsed.projectName);
+          setGenerationText('');
+          return;
+        }
+
+        let candidate = extractBalancedJson(fullText) || sanitizePossibleJson(fullText);
+        if (!candidate) candidate = extractBalancedJson(sanitizePossibleJson(fullText)) || sanitizePossibleJson(fullText);
+        if (!candidate) {
+          throw new Error('No JSON object found in response');
+        }
+
+        const parsed = JSON.parse(candidate);
+        if (!parsed.projectName || !parsed.description || !Array.isArray(parsed.features) || !parsed.techStack || !Array.isArray(parsed.tasks)) {
+          throw new Error('Generated MVP plan has invalid structure');
+        }
+        const planWithIds = {
+          ...parsed,
+          tasks: parsed.tasks.map((task: any, index: number) => ({
+            ...task,
+            id: `task-${index}`,
+            selected: true
+          }))
+        };
+        setMvpPlan(planWithIds);
+        setProjectName(parsed.projectName);
+        setGenerationText('');
       }
 
     } catch (err) {
@@ -525,83 +701,32 @@ export function AIAssistant({ onClose, open = true, onOpenChange, initialTab = '
       return;
     }
 
-    setIsCreating(true);
-    setError(null);
-    setSuccessMessage(null);
-    setIsComplete(false);
-
+    // Use shared streaming creator to get real-time tool/status events
     try {
-      const token = localStorage.getItem('authToken');
-      if (!token) {
-        throw new Error('Authentication token missing. Please log in again.');
-      }
+      setIsCreating(true);
+      setError(null);
+      setSuccessMessage(null);
+      setIsComplete(false);
+      clearMVPStatusMessages();
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000);
+      await createMVPProjectStream({
+        ...mvpPlan,
+        projectName: projectName.trim(),
+        tasks: mvpPlan.tasks.filter(t => t.selected),
+      } as any);
 
-      const response = await fetch(getApiUrl('ai/create-mvp-project'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          mvpPlan: {
-            ...mvpPlan,
-            projectName: projectName.trim(),
-            tasks: mvpPlan.tasks.filter(task => task.selected)
-          },
-        }),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        const errorMessage = errorData?.error || response.statusText;
-        
-        if (response.status === 401) {
-          throw new Error('Authentication failed. Please log in again.');
-        } else if (response.status === 429) {
-          throw new Error('Too many requests. Please wait a moment before trying again.');
-        } else if (response.status >= 500) {
-          throw new Error('Server error. Please try again later.');
-        } else {
-          throw new Error(`Failed to create MVP project: ${errorMessage}`);
-        }
-      }
-
-      const reader = response.body?.getReader();
-      if (reader) {
-        const decoder = new TextDecoder();
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          decoder.decode(value, { stream: true });
-        }
-      }
-      
-      refreshProjects();
-      setIsComplete(true);
-      
+      // Cleanup after completion is handled in onComplete; close UI after a short delay
       setTimeout(() => {
         setProjectIdea('');
         setMvpPlan(null);
         setProjectName('');
-        setSuccessMessage(null);
         setGenerationText('');
         setIsComplete(false);
         setIsCreating(false);
         onClose?.();
       }, 3000);
-      
     } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        setError('Request timed out. Please try again.');
-      } else {
-        setError(err instanceof Error ? err.message : 'Failed to create MVP project. Please try again.');
-      }
+      setError(err instanceof Error ? err.message : 'Failed to create MVP project. Please try again.');
       setIsCreating(false);
     }
   };
@@ -1312,7 +1437,7 @@ export function AIAssistant({ onClose, open = true, onOpenChange, initialTab = '
               {/* Chat Content */}
               <div className={`flex-1 overflow-y-auto overscroll-contain p-2 min-h-0 ${isMobile ? '' : 'max-h-[calc(100vh-180px)]'}`} style={isMobile ? { maxHeight: 'calc(85vh - 180px)' } : {}}>
                 <div className="flex flex-col gap-4 min-h-fit">
-                  {messages.length === 0 ? (
+                  {displayMessages.length === 0 ? (
                     <div className={`text-center ${isMobile ? 'py-8' : 'py-8 lg:py-12'}`}>
                       <div className={`bg-primary/10 rounded-full flex items-center justify-center mx-auto ${isMobile ? 'w-16 h-16 mb-4' : 'w-16 h-16 lg:w-20 lg:h-20 mb-4 lg:mb-6'}`}>
                         <MessageCircle className={`text-primary ${isMobile ? 'w-8 h-8' : 'w-8 h-8 lg:w-10 lg:h-10'}`} />
@@ -1337,10 +1462,10 @@ export function AIAssistant({ onClose, open = true, onOpenChange, initialTab = '
                     </div>
                   ) : (
                     <>
-                      {messages
+                      {displayMessages
                         .filter(message => message.role === 'user' || message.role === 'assistant')
                         .map((message) => (
-                          <ChatMessage key={message.id} message={message} />
+                          <ChatMessage key={message.id} message={message as any} />
                         ))}
                       {isLoading && (
                         <div className="flex items-center gap-3 text-muted-foreground text-base">
@@ -1368,7 +1493,7 @@ export function AIAssistant({ onClose, open = true, onOpenChange, initialTab = '
                   </Button>
                 </form>
                 
-                {messages.length === 0 && (
+                {displayMessages.length === 0 && (
                   <div className={`flex gap-2 ${isMobile ? 'mt-2' : 'mt-2 lg:mt-3'}`}>
                     {quickActions.slice(0, 2).map((action, index) => (
                       <Button

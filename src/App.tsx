@@ -14,7 +14,6 @@ import { AIAssistant } from '@/components/AIAssistant'
 import { CommandMenu } from '@/components/command-menu'
 import { LoginScreen } from '@/components/LoginScreen'
 import { LoadingAnimation } from '@/components/ui/loading-animation'
-import { ConnectionStatus } from '@/components/ConnectionStatus'
 import { SidebarInset } from '@/components/ui/sidebar'
 import { MCPConsentScreen } from '@/pages/MCPConsentScreen'
 import { MCPConsentPage } from '@/pages/MCPConsentPage'
@@ -234,7 +233,6 @@ function AppContent() {
           open={commandMenuOpen} 
           onOpenChange={setCommandMenuOpen} 
         />
-        <ConnectionStatus />
         </SidebarProvider>
       </TooltipProvider>
     </ProjectProvider>

@@ -45,6 +45,9 @@ export const createTaskTools = (userId: string) => ({
 
         return {
           success: true,
+          projectId: project.id,
+          name: project.name,
+          description: project.description,
           data: project,
           message: `Created project "${project.name}" with ID ${project.id}`
         };
@@ -160,6 +163,10 @@ export const createTaskTools = (userId: string) => ({
 
         return {
           success: true,
+          taskId: task.id,
+          projectId: args.projectId,
+          title: task.title,
+          priority: task.priority,
           data: task,
           message: `Created task "${task.title}" in project ${args.projectId}`
         };
@@ -438,6 +445,18 @@ CRITICAL: Your response must be ONLY the JSON object, with no markdown formattin
           
           mvpPlan = JSON.parse(cleanedText);
         } catch (parseError) {
+          // Enhanced logging for JSON parsing errors
+          console.error('[MVP_PLAN_PARSE_ERROR] Failed to parse AI response:', parseError, '\nRaw response preview:', result.text.slice(0, 500));
+          logger.error('Failed to parse AI response when generating MVP plan', {
+            userId,
+            projectIdea: args.projectIdea,
+            preview: result.text.slice(0, 500),
+            error: parseError instanceof Error ? parseError.message : parseError
+          });
+          Sentry.captureException(parseError instanceof Error ? parseError : new Error(String(parseError)), {
+            tags: { operation: 'parse_mvp_plan', userId },
+            extra: { responseText: result.text }
+          });
           return {
             success: false,
             error: 'Failed to parse AI response',

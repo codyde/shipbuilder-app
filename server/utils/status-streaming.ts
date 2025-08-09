@@ -31,11 +31,20 @@ export class StatusStreamer {
     
     // Set streaming headers only if requested
     if (setHeaders) {
-      this.res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      this.res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
       this.res.setHeader('Transfer-Encoding', 'chunked');
       this.res.setHeader('Cache-Control', 'no-cache');
       this.res.setHeader('Connection', 'keep-alive');
       this.res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
+      try {
+        // Flush headers and send an initial comment to open the SSE stream
+        if (typeof (this.res as any).flushHeaders === 'function') {
+          (this.res as any).flushHeaders();
+        }
+        this.res.write(': connected\n\n');
+      } catch {
+        // ignore
+      }
     }
   }
 

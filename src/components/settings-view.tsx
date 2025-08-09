@@ -65,28 +65,21 @@ const aiProviderOptions = [
     label: 'Anthropic Claude',
     icon: Brain,
     description: 'Advanced reasoning with robust tool calling',
-    models: ['Claude 4 Sonnet']
+    models: ['Claude Sonnet 4']
   },
   {
     value: 'openai',
-    label: 'OpenAI Hybrid',
+    label: 'OpenAI',
     icon: Sparkles,
-    description: 'o3-mini for reasoning + GPT-4o-mini for tool calling',
-    models: ['o3-mini (Detailed Reasoning)', 'GPT-4o-mini (Tool Calling)']
-  },
-  {
-    value: 'xai',
-    label: 'xAI Grok',
-    icon: Zap,
-    description: 'Fast reasoning with integrated tool support',
-    models: ['Grok-4']
+    description: 'GPT-5 for reasoning + GPT-5 Mini for tool calling',
+    models: ['GPT-5 (Detailed Reasoning)', 'GPT-5 Mini (Tool Calling)']
   }
 ] as const
 
 export function SettingsView() {
   const { theme, setTheme } = useTheme()
   const { user } = useAuth()
-  const [aiProvider, setAiProvider] = useState<'anthropic' | 'openai' | 'xai'>('anthropic')
+  const [aiProvider, setAiProvider] = useState<'anthropic' | 'openai'>('anthropic')
   const [availableProviders, setAvailableProviders] = useState<string[]>([])
   const [loadingProviders, setLoadingProviders] = useState(true)
   const [updatingProvider, setUpdatingProvider] = useState(false)
@@ -135,7 +128,7 @@ export function SettingsView() {
     setTheme(value as Theme)
   }
 
-  const handleAIProviderChange = async (provider: 'anthropic' | 'openai' | 'xai') => {
+  const handleAIProviderChange = async (provider: 'anthropic' | 'openai') => {
     const token = localStorage.getItem('authToken')
 
     if (!token) {
@@ -351,7 +344,7 @@ export function SettingsView() {
                       return (
                         <button
                           key={option.value}
-                          onClick={() => isAvailable && handleAIProviderChange(option.value as 'anthropic' | 'openai' | 'xai')}
+                          onClick={() => isAvailable && handleAIProviderChange(option.value as 'anthropic' | 'openai')}
                           disabled={!isAvailable || updatingProvider}
                           className={cn(
                             "relative group flex flex-col items-start p-4 rounded-lg border-2 text-left transition-all duration-200",

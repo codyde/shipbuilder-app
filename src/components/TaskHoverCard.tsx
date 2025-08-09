@@ -1,6 +1,5 @@
 import React from 'react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { Badge } from '@/components/ui/badge';
 import { Task, TaskStatus } from '@/types/types';
 import { cn } from '@/lib/utils';
 

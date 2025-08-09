@@ -626,15 +626,16 @@ class MCPAPIService {
         throw new Error(`API request failed: ${response.status} ${response.statusText} - ${errorText}`);
       }
 
-      // This endpoint streams text, so we need to read the full response
+      // Prefer JSON response; fallback to text parsing
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        return await response.json();
+      }
+
       const responseText = await response.text();
-      
-      // Try to parse as JSON (the AI should return JSON)
       try {
-        const mvpPlan = JSON.parse(responseText);
-        return mvpPlan;
+        return JSON.parse(responseText);
       } catch (parseError) {
-        // If it's not valid JSON, return the raw text
         logger.warn('MVP plan response was not valid JSON', {
           responseText: responseText.substring(0, 200) + '...'
         });

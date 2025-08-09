@@ -1,11 +1,11 @@
 import { anthropic } from '@ai-sdk/anthropic';
 import { openai } from '@ai-sdk/openai';
-import { xai } from '@ai-sdk/xai';
-import { LanguageModel } from 'ai';
+// Using a broad model type to support both v1 and v2 language model shapes
+type AnyLanguageModel = any;
 import { databaseService } from '../db/database-service.js';
 import * as Sentry from '@sentry/node';
 
-export type AIProvider = 'anthropic' | 'openai' | 'xai';
+export type AIProvider = 'anthropic' | 'openai';
 
 export interface AIModelConfig {
   provider: AIProvider;
@@ -15,22 +15,21 @@ export interface AIModelConfig {
 // Model configurations for each provider
 const MODEL_CONFIGS = {
   anthropic: 'claude-sonnet-4-20250514',
-  openai: 'o3-mini',
-  xai: 'grok-4',
+  openai: 'gpt-5', // gpt-5 is a reasoning model
 } as const;
 
-// Tool calling fallback models (for when primary model doesn't support tools)
-const TOOL_CALLING_FALLBACKS = {
-  anthropic: 'claude-sonnet-4-20250514', // Claude already supports tools
-  openai: 'gpt-4o-mini', // Use GPT-4o-mini for tool calling when primary is o3-mini
-  xai: 'grok-4', // Grok already supports tools
-} as const;
+// OpenAI responses-v2 models must use the Responses API in AI SDK 5
+function isOpenAIResponsesModel(modelName: string): boolean {
+  const id = (modelName || '').toLowerCase();
+  // o1 and gpt-5 models require responses API
+  return id === 'gpt-5' || id === 'gpt-5-mini' || id === 'o1-preview' || id === 'o1-mini';
+}
 
 export class AIProviderService {
   /**
    * Get the AI model based on user preferences
    */
-  static async getModel(userId: string): Promise<LanguageModel> {
+  static async getModel(userId: string): Promise<AnyLanguageModel> {
     // Get user preferences
     const user = await databaseService.getUserById(userId);
     const provider = user?.aiProvider || 'anthropic';
@@ -42,7 +41,7 @@ export class AIProviderService {
       // Try to find an available provider as fallback
       const availableProviders = this.getAvailableProviders();
       if (availableProviders.length === 0) {
-        throw new Error('No AI providers are available. Please configure at least one API key (ANTHROPIC_API_KEY, OPENAI_API_KEY, or XAI_API_KEY).');
+        throw new Error('No AI providers are available. Please configure at least one API key (ANTHROPIC_API_KEY or OPENAI_API_KEY).');
       }
       
       const fallbackProvider = availableProviders[0];
@@ -56,46 +55,59 @@ export class AIProviderService {
   }
 
   /**
-   * Get unified tool calling model (GPT-4o-mini with Claude fallback)
+   * Get unified tool calling model (gpt-5 with Claude fallback)
    */
-  static async getToolCallingModel(userId: string): Promise<{model: LanguageModel, providerOptions: Record<string, any>}> {
-    // Check if OpenAI is available first
-    if (this.isProviderAvailable('openai')) {
+  static async getToolCallingModel(userId: string): Promise<{model: AnyLanguageModel, providerOptions: Record<string, any>}> {
+    // Honor user preference first, fallback to any available
+    const user = await databaseService.getUserById(userId);
+    const preferred: AIProvider | undefined = user?.aiProvider as AIProvider | undefined;
+    const candidates: AIProvider[] = preferred
+      ? [preferred, ...(['anthropic','openai'] as AIProvider[]).filter(p => p !== preferred)]
+      : (['anthropic','openai'] as AIProvider[]);
+
+    for (const provider of candidates) {
+      if (!this.isProviderAvailable(provider)) continue;
       try {
-        const model = openai('gpt-4o-mini');
-        const providerOptions = this.getProviderOptions('openai', 'tool-calling');
-        return { model, providerOptions };
-      } catch (error) {
-        console.warn('Error creating OpenAI model, falling back to Claude:', error);
+        if (provider === 'openai') {
+          // Use gpt-5-mini for tool calling with responses API
+          const model = openai.responses('gpt-5-mini');
+          const providerOptions = this.getProviderOptions('openai', 'tool-calling');
+          return { model, providerOptions };
+        }
+        if (provider === 'anthropic') {
+          const model = anthropic('claude-sonnet-4-20250514');
+          const providerOptions = this.getProviderOptions('anthropic', 'tool-calling');
+          return { model, providerOptions };
+        }
+      } catch (err) {
+        console.warn(`Error creating ${provider} tool-calling model, trying next`, err);
       }
     }
-    
-    // Fallback to Claude if OpenAI is not available or failed
-    if (this.isProviderAvailable('anthropic')) {
-      console.warn('Using Claude Sonnet 4 for tool calling');
-      const model = anthropic('claude-sonnet-4-20250514');
-      const providerOptions = this.getProviderOptions('anthropic', 'tool-calling');
-      return { model, providerOptions };
-    }
-    
-    // If neither primary providers are available, check for XAI
-    if (this.isProviderAvailable('xai')) {
-      console.warn('Using XAI Grok for tool calling');
-      const model = xai('grok-4');
-      const providerOptions = this.getProviderOptions('xai', 'tool-calling');
-      return { model, providerOptions };
-    }
-    
+
     // No providers available
-    throw new Error('No AI providers are available for tool calling. Please configure at least one API key (ANTHROPIC_API_KEY, OPENAI_API_KEY, or XAI_API_KEY).');
+    throw new Error('No AI providers are available for tool calling. Please configure at least one API key (ANTHROPIC_API_KEY or OPENAI_API_KEY).');
   }
 
   /**
    * Get MVP generation model (user's selected provider)
    */
-  static async getMVPGenerationModel(userId: string): Promise<{model: LanguageModel, providerOptions: Record<string, any>}> {
+  static async getMVPGenerationModel(userId: string): Promise<{model: AnyLanguageModel, providerOptions: Record<string, any>}> {
     const user = await databaseService.getUserById(userId);
     const provider = user?.aiProvider || 'anthropic';
+
+    // Use gpt-5 for MVP generation with reasoning
+    if (provider === 'openai') {
+      const modelName = 'gpt-5'; // gpt-5 is a reasoning model
+      const model = openai.responses(modelName); // Use responses API for gpt-5
+      const providerOptions = this.getProviderOptions('openai', 'mvp-generation', modelName);
+      console.log('[AI_PROVIDER] OpenAI MVP generation config:', {
+        modelName,
+        providerOptions,
+        hasReasoningEffort: !!providerOptions?.openai?.reasoningEffort
+      });
+      return { model, providerOptions };
+    }
+
     const model = await this.getModel(userId);
     const providerOptions = this.getProviderOptions(provider, 'mvp-generation');
     return { model, providerOptions };
@@ -104,7 +116,7 @@ export class AIProviderService {
   /**
    * Get both model and provider options for user preferences
    */
-  static async getModelConfig(userId: string, context?: string): Promise<{model: LanguageModel, providerOptions: Record<string, any>}> {
+  static async getModelConfig(userId: string, context?: string): Promise<{model: AnyLanguageModel, providerOptions: Record<string, any>}> {
     try {
       // Log model configuration request
       Sentry.addBreadcrumb({
@@ -147,20 +159,6 @@ export class AIProviderService {
         throw error;
       }
       if (provider === 'openai' && !process.env.OPENAI_API_KEY) {
-        const error = new Error(`${provider} AI provider is not available. Please configure the required API key.`);
-        Sentry.captureException(error, {
-          tags: {
-            operation: 'ai.config',
-            provider: provider,
-            userId: userId
-          },
-          extra: {
-            reason: 'missing_api_key'
-          }
-        });
-        throw error;
-      }
-      if (provider === 'xai' && !process.env.XAI_API_KEY) {
         const error = new Error(`${provider} AI provider is not available. Please configure the required API key.`);
         Sentry.captureException(error, {
           tags: {
@@ -228,17 +226,16 @@ export class AIProviderService {
   /**
    * Get a specific model by provider and model name
    */
-  static getModelByName(provider: AIProvider, modelName: string): LanguageModel {
+  static getModelByName(provider: AIProvider, modelName: string): AnyLanguageModel {
     try {
       switch (provider) {
         case 'anthropic':
           return anthropic(modelName);
         
         case 'openai':
-          return openai(modelName);
-        
-        case 'xai':
-          return xai(modelName);
+          return isOpenAIResponsesModel(modelName)
+            ? openai.responses(modelName)
+            : openai(modelName);
         
         default:
           throw new Error(`Unknown AI provider: ${provider}`);
@@ -256,16 +253,33 @@ export class AIProviderService {
       case 'openai':
         const actualModel = modelName || MODEL_CONFIGS.openai;
         
-        // For tool calling contexts, don't use reasoningSummary as it may interfere
-        if (context === 'tool-calling' || context === 'mvp-generation') {
+        // For tool calling contexts, explicitly disable parallel tool calls to avoid race conditions
+        if (context === 'tool-calling') {
+          return {
+            openai: {
+              parallelToolCalls: false,
+              toolChoice: 'auto'
+            }
+          };
+        }
+
+        // For MVP generation, enable reasoning for o1 and gpt-5 models
+        if (context === 'mvp-generation') {
+          if (actualModel.startsWith('gpt-5') || actualModel.startsWith('o1-')) {
+            return {
+              openai: {
+                reasoningEffort: 'medium' // Enable reasoning for reasoning models
+              }
+            };
+          }
           return {};
         }
         
-        // For o3 models, use reasoning summaries
-        if (actualModel.startsWith('o3')) {
+        // For o1 and gpt-5 models, use reasoning effort
+        if (actualModel.startsWith('gpt-5') || actualModel.startsWith('o1-')) {
           return {
             openai: {
-              reasoningSummary: 'detailed' // Enable reasoning summaries for o3 models
+              reasoningEffort: 'medium' // Enable reasoning for reasoning models
             }
           };
         }
@@ -281,18 +295,17 @@ export class AIProviderService {
   /**
    * Get a specific model by provider
    */
-  static getModelByProvider(provider: AIProvider): LanguageModel {
+  static getModelByProvider(provider: AIProvider): AnyLanguageModel {
     try {
       switch (provider) {
         case 'anthropic':
           return anthropic(MODEL_CONFIGS.anthropic);
         
         case 'openai':
-          // Use standard API for o3-mini (responses API only needed for full o3)
-          return openai(MODEL_CONFIGS.openai);
-        
-        case 'xai':
-          return xai(MODEL_CONFIGS.xai);
+          // Use Responses API for v2 models like gpt-5 family
+          return isOpenAIResponsesModel(MODEL_CONFIGS.openai)
+            ? openai.responses(MODEL_CONFIGS.openai)
+            : openai(MODEL_CONFIGS.openai);
         
         default:
           throw new Error(`Unknown AI provider: ${provider}`);
@@ -308,13 +321,10 @@ export class AIProviderService {
   static getModelName(provider: AIProvider): string {
     switch (provider) {
       case 'anthropic':
-        return 'Claude 4 Sonnet';
+        return 'Claude Sonnet 4';
       
       case 'openai':
-        return 'o3-mini (Detailed Reasoning) + GPT-4o-mini (Tool Calling)';
-      
-      case 'xai':
-        return 'Grok-4';
+        return 'GPT-5';
       
       default:
         return 'Claude 4 Sonnet';
@@ -327,18 +337,19 @@ export class AIProviderService {
   static getModelDisplayName(provider: AIProvider, modelName: string): string {
     switch (provider) {
       case 'anthropic':
-        return 'Claude 4 Sonnet';
+        return 'Claude Sonnet 4';
       
       case 'openai':
-        if (modelName === 'o3-mini') {
-          return 'o3-mini (Detailed Reasoning)';
-        } else if (modelName === 'gpt-4o-mini') {
-          return 'GPT-4o-mini (Tool Calling)';
+        if (modelName === 'gpt-5') {
+          return 'GPT-5';
+        } else if (modelName === 'gpt-5-mini') {
+          return 'GPT-5 Mini';
+        } else if (modelName === 'o1-preview') {
+          return 'o1-preview';
+        } else if (modelName === 'o1-mini') {
+          return 'o1-mini';
         }
         return modelName;
-      
-      case 'xai':
-        return 'Grok-4';
       
       default:
         return modelName;
@@ -353,10 +364,8 @@ export class AIProviderService {
       case 'anthropic':
         return true; // Claude supports tool calling
       case 'openai':
-        // Primary model (o3-mini) has limited tool calling, but we have GPT-4o-mini fallback
-        return MODEL_CONFIGS.openai !== 'o3-mini';
-      case 'xai':
-        return true; // Grok supports tool calling
+        // gpt-5 models support tool calling via responses API
+        return true; // We have gpt-5-mini for tool calling
       default:
         return false;
     }
@@ -370,7 +379,6 @@ export class AIProviderService {
     switch (provider) {
       case 'anthropic':
       case 'openai':
-      case 'xai':
         return true;
       default:
         return false;
@@ -393,8 +401,6 @@ export class AIProviderService {
         return !!process.env.ANTHROPIC_API_KEY;
       case 'openai':
         return !!process.env.OPENAI_API_KEY;
-      case 'xai':
-        return !!process.env.XAI_API_KEY;
       default:
         return false;
     }
@@ -407,7 +413,6 @@ export class AIProviderService {
     const providers: AIProvider[] = [];
     if (this.isProviderAvailable('anthropic')) providers.push('anthropic');
     if (this.isProviderAvailable('openai')) providers.push('openai');
-    if (this.isProviderAvailable('xai')) providers.push('xai');
     return providers;
   }
 

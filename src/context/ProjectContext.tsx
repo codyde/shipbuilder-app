@@ -19,6 +19,8 @@ type ProjectAction =
   | { type: 'ADD_TASK'; payload: { projectId: string; task: Task } }
   | { type: 'UPDATE_TASK'; payload: { projectId: string; task: Task } }
   | { type: 'DELETE_TASK'; payload: { projectId: string; taskId: string } }
+  | { type: 'ADD_PROJECT_REALTIME'; payload: Project }
+  | { type: 'ADD_TASK_REALTIME'; payload: { projectId: string; task: Task } }
 
 const initialState: ProjectState = {
   projects: [],
@@ -80,6 +82,29 @@ function projectReducer(state: ProjectState, action: ProjectAction): ProjectStat
             : p
         )
       };
+    case 'ADD_PROJECT_REALTIME':
+      // Add project only if it doesn't exist (for real-time updates during MVP creation)
+      return {
+        ...state,
+        projects: state.projects.some(p => p.id === action.payload.id)
+          ? state.projects
+          : [...state.projects, action.payload]
+      };
+    case 'ADD_TASK_REALTIME':
+      // Add task only if it doesn't exist (for real-time updates during MVP creation)
+      return {
+        ...state,
+        projects: state.projects.map(p => 
+          p.id === action.payload.projectId 
+            ? { 
+                ...p, 
+                tasks: p.tasks.some(t => t.id === action.payload.task.id)
+                  ? p.tasks
+                  : [...p.tasks, action.payload.task]
+              }
+            : p
+        )
+      };
     default:
       return state;
   }
@@ -93,6 +118,8 @@ interface ProjectContextValue extends ProjectState {
   updateTask: (projectId: string, taskId: string, updates: Partial<Task>) => Promise<void>;
   deleteTask: (projectId: string, taskId: string) => Promise<void>;
   refreshProjects: () => Promise<void>;
+  addProjectRealtime: (project: Project) => void;
+  addTaskRealtime: (projectId: string, task: Task) => void;
 }
 
 const ProjectContext = createContext<ProjectContextValue | undefined>(undefined);
@@ -365,6 +392,14 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     refreshProjects();
   }, []);
 
+  // Real-time update functions for MVP creation progress
+  const addProjectRealtime = (project: Project) => {
+    dispatch({ type: 'ADD_PROJECT_REALTIME', payload: project });
+  };
+
+  const addTaskRealtime = (projectId: string, task: Task) => {
+    dispatch({ type: 'ADD_TASK_REALTIME', payload: { projectId, task } });
+  };
 
   const value: ProjectContextValue = {
     ...state,
@@ -375,6 +410,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     updateTask,
     deleteTask,
     refreshProjects,
+    addProjectRealtime,
+    addTaskRealtime,
   };
 
   return (

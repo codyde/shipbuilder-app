@@ -1,14 +1,15 @@
 import express from 'express';
-import { streamText, tool } from 'ai';
+import { streamText, streamObject, tool } from 'ai';
 import { z } from 'zod';
 import { databaseService } from '../db/database-service.js';
-import { StatusStreamer, wrapToolsWithStatus } from '../utils/status-streaming.js';
+// Status streamer not used for MVP creation in v5; rely on SDK events
+// import { StatusStreamer, wrapToolsWithStatus } from '../utils/status-streaming.js';
 import * as Sentry from '@sentry/node';
 import { AIProviderService } from '../services/ai-provider.js';
 
 const { logger } = Sentry;
 
-// Removed XAI bypass function - all tool calls now go through AI models
+// All tool calls now go through AI models
 
 export const aiRoutes = express.Router();
 
@@ -32,8 +33,6 @@ function detectAIError(error: any): { type: string; isRateLimit: boolean; provid
     provider = 'anthropic';
   } else if (errorMessage.includes('openai') || errorMessage.includes('gpt')) {
     provider = 'openai';
-  } else if (errorMessage.includes('xai') || errorMessage.includes('grok')) {
-    provider = 'xai';
   }
 
   // Error type categorization
@@ -158,7 +157,6 @@ Format your response in markdown with clear sections and actionable steps. Be sp
         console.error('AI generation error:', error);
       },
       prompt: prompt,
-      // Removed maxTokens - not supported by responses API
     });
 
     // Stream the text chunks to the client
@@ -180,7 +178,8 @@ Format your response in markdown with clear sections and actionable steps. Be sp
 
 aiRoutes.post('/generatemvp', async (req: any, res: any) => {
   try {
-    const { projectIdea, selectedComponents } = req.body;
+    const projectIdea = req.body?.projectIdea || req.body?.input?.projectIdea || req.body?.prompt;
+    const selectedComponents = req.body?.selectedComponents || req.body?.input?.selectedComponents;
     
     if (!projectIdea) {
       return res.status(400).json({ error: 'Project idea is required' });
@@ -193,10 +192,19 @@ aiRoutes.post('/generatemvp', async (req: any, res: any) => {
     }
 
     // Get the appropriate AI model for MVP generation
-    let model;
+    let model, providerOptions;
     try {
       const config = await AIProviderService.getMVPGenerationModel(userId);
       model = config.model;
+      providerOptions = config.providerOptions;
+      
+      // Debug logging
+      console.log('[MVP_GEN] Model configuration:', {
+        modelId: model?.modelId,
+        specVersion: model?.specificationVersion,
+        provider: model?.config?.provider,
+        providerOptions
+      });
     } catch (error) {
       return res.status(500).json({ 
         error: error instanceof Error ? error.message : 'Failed to get AI model' 
@@ -219,6 +227,29 @@ Task descriptions should be in the format of prompts that an AI can use to gener
 For UI related tasks, prefer to use Shadcn UI and Tailwind CSS as part of the build.
 
 For database related tasks, prefer to use PostgreSQL and use Drizzle ORM to manage it. Include these in the tasks.
+
+DEPLOYMENT TARGET PREFERENCES:
+When recommending hosting solutions, prioritize these modern deployment platforms based on the project type:
+
+- **Vercel**: Best for Next.js applications without persistent backend requirements and React frontends. Choose for:
+  * Next.js applications using serverless functions
+  * React SPAs with API routes (no persistent database)
+  * Static sites with dynamic features
+  * Projects needing edge computing/CDN but no persistent storage
+  
+- **Railway**: Best for full-stack applications requiring persistent databases and backend services. Choose for:
+  * Full-stack applications with PostgreSQL/MySQL databases
+  * Express/Node.js backends with persistent storage
+  * Applications requiring background jobs or workers
+  * Projects needing integrated database hosting and backend services
+  
+- **Netlify**: Best for static sites, JAMstack applications, and frontend-heavy projects. Choose for:
+  * Static site generators (Gatsby, Hugo, etc.)
+  * Frontend-only applications
+  * JAMstack architectures
+  * Sites with serverless functions but minimal backend needs
+
+Always recommend the most appropriate platform based on the Mvp's architecture and requirements, and briefly explain why that platform is the best choice for the specific project type.
 
 ${selectedComponents && selectedComponents.length > 0 ? `
 SELECTED COMPONENTS:
@@ -258,36 +289,222 @@ Respond with a JSON object in this exact format:
 
 CRITICAL: Your response must be ONLY the JSON object, with no markdown formatting, no code blocks, no additional text before or after. Start directly with { and end with }.`;
 
-    // Set headers for streaming
-    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    res.setHeader('Transfer-Encoding', 'chunked');
+    // Log provider and model configuration  
+    const provider = model?.config?.provider || 'unknown';
+    // Fix reasoning detection: provider shows as 'openai.responses', so check for 'openai'
+    const isReasoningModel = provider.includes('openai') && providerOptions?.openai?.reasoningEffort;
+    
+    console.log('[MVP_GEN] Starting generation:', {
+      provider,
+      modelId: model?.modelId,
+      providerOptions,
+      isReasoningModel,
+      hasReasoningEffort: providerOptions?.openai?.reasoningEffort,
+      projectIdea: projectIdea.substring(0, 100) + '...'
+    });
+    
+    // For reasoning models, add explicit instructions for reasoning
+    const enhancedSystemPrompt = isReasoningModel 
+      ? systemPrompt + '\n\nThink step-by-step about the project requirements before generating the JSON.'
+      : provider === 'anthropic' 
+        ? systemPrompt + '\n\nAnalyze the project requirements thoroughly before generating your response.'
+        : systemPrompt;
+
+    // Set up SSE headers
+    res.status(200);
+    res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
-
-    // Get provider options for o3 reasoning summaries
-    const user = await databaseService.getUserById(userId);
-    const provider = user?.aiProvider || 'anthropic';
-    const providerOptions = AIProviderService.getProviderOptions(provider);
+    res.setHeader('X-Accel-Buffering', 'no');
     
-    const result = await streamText({
-      model,
-      experimental_telemetry: {
-        isEnabled: true,
-        functionId: "mvp-plan-generation"
-      },
-      system: systemPrompt,
-      prompt: `Create an MVP plan for: ${projectIdea}`,
-      // Add provider options for reasoning summaries
-      ...(Object.keys(providerOptions).length > 0 && { providerOptions })
+    // Send initial event
+    const sendSSE = (data: any) => {
+      res.write(`data: ${JSON.stringify(data)}\n\n`);
+    };
+
+    // Send initial status to client
+    sendSSE({
+      type: 'generation.start',
+      provider,
+      supportsReasoning: isReasoningModel,
+      model: model?.modelId || 'unknown'
     });
 
-    // Stream the text chunks to the client
-    for await (const chunk of result.textStream) {
-      res.write(chunk);
+    try {
+      // For reasoning models, use streamText but focus on getting the content working first
+      if (isReasoningModel) {
+        console.log('[MVP_GEN] Using streamText for reasoning model');
+        
+        const result = await streamText({
+          model,
+          system: enhancedSystemPrompt,
+          prompt: `Create an MVP plan for: ${projectIdea}`,
+          experimental_telemetry: {
+            isEnabled: true,
+            functionId: 'mvp-plan-generation-with-reasoning',
+          },
+          ...(Object.keys(providerOptions || {}).length > 0 && { providerOptions }),
+        });
+
+        // Simplified approach: use textStream directly since fullStream isn't giving us the content
+        let fullText = '';
+        
+        try {
+          for await (const textChunk of result.textStream) {
+            if (textChunk && typeof textChunk === 'string') {
+              fullText += textChunk;
+              sendSSE({
+                type: 'text.delta',
+                delta: textChunk
+              });
+            }
+          }
+          
+          // Also check if there's reasoning available in the fullStream
+          let reasoningFound = false;
+          try {
+            for await (const chunk of result.fullStream) {
+              if (chunk.type === 'finish-step') {
+                const stepChunk = chunk as any;
+                if (stepChunk.response?.reasoning) {
+                  console.log('[MVP_GEN] Found reasoning in finish-step');
+                  sendSSE({
+                    type: 'reasoning.delta',
+                    delta: stepChunk.response.reasoning
+                  });
+                  sendSSE({
+                    type: 'reasoning.done',
+                    reasoning: stepChunk.response.reasoning
+                  });
+                  reasoningFound = true;
+                }
+              }
+            }
+          } catch (streamError) {
+            console.log('[MVP_GEN] Could not process fullStream for reasoning, continuing...');
+          }
+          
+          // Parse the final result
+          if (fullText && fullText.trim()) {
+            try {
+              const cleanedText = fullText.trim()
+                .replace(/^```json\s*/, '')
+                .replace(/\s*```$/, '');
+              
+              const parsedPlan = JSON.parse(cleanedText);
+              
+              sendSSE({
+                type: 'object.completed',
+                object: parsedPlan
+              });
+            } catch (parseError) {
+              console.error('[MVP_GEN] Failed to parse JSON:', parseError);
+              sendSSE({
+                type: 'error',
+                error: 'Failed to parse generated plan'
+              });
+            }
+          } else {
+            console.error('[MVP_GEN] No content received from textStream');
+            sendSSE({
+              type: 'error',
+              error: 'No content received from AI model'
+            });
+          }
+          
+        } catch (streamError) {
+          console.error('[MVP_GEN] Error in textStream:', streamError);
+          sendSSE({
+            type: 'error',
+            error: 'Streaming error occurred'
+          });
+        }
+      } else {
+        // For non-reasoning models, use streamObject
+        console.log('[MVP_GEN] Using streamObject for non-reasoning model');
+        
+        const schema = z.object({
+          projectName: z.string().min(1),
+          description: z.string().min(1),
+          features: z.array(z.string()).min(1),
+          techStack: z.object({
+            frontend: z.string().min(1),
+            backend: z.string().min(1),
+            database: z.string().min(1),
+            hosting: z.string().optional(),
+          }),
+          tasks: z.array(z.object({
+            title: z.string().min(1),
+            description: z.string().min(1),
+            priority: z.enum(['high', 'medium', 'low']).default('medium'),
+          })).min(1),
+        });
+        
+        const result = await streamObject({
+          model,
+          schema,
+          system: enhancedSystemPrompt,
+          prompt: `Create an MVP plan for: ${projectIdea}`,
+          experimental_telemetry: {
+            isEnabled: true,
+            functionId: 'mvp-plan-generation-structured',
+          },
+          ...(Object.keys(providerOptions || {}).length > 0 && { providerOptions }),
+        });
+
+        for await (const chunk of result.fullStream) {
+          switch (chunk.type) {
+            case 'text-delta':
+              sendSSE({
+                type: 'text.delta',
+                delta: chunk.textDelta
+              });
+              break;
+              
+            case 'object-delta':
+              if (chunk.partialObject) {
+                sendSSE({
+                  type: 'object.delta',
+                  object: chunk.partialObject
+                });
+              }
+              break;
+              
+            case 'object':
+              sendSSE({
+                type: 'object.completed',
+                object: chunk.object
+              });
+              break;
+              
+            case 'finish':
+              // Final object should be available
+              if (result.object) {
+                sendSSE({
+                  type: 'object.completed',
+                  object: await result.object
+                });
+              }
+              break;
+          }
+        }
+      }
+      
+      // Send completion event
+      sendSSE({ type: 'done' });
+      res.end();
+      
+    } catch (streamError) {
+      console.error('[MVP_GEN] Streaming error:', streamError);
+      sendSSE({
+        type: 'error',
+        error: streamError instanceof Error ? streamError.message : 'Streaming failed'
+      });
+      res.end();
     }
-    res.end();
+
   } catch (error) {
-    console.error('MVP generation error:', error);
+    console.error('[MVP_GEN] Fatal error:', error);
     if (!res.headersSent) {
       res.status(500).json({ error: 'Failed to generate MVP plan' });
     } else {
@@ -346,7 +563,15 @@ aiRoutes.post('/create-mvp-project', async (req: any, res: any) => {
       });
     }
 
-    console.log(`\n\n🎆 \x1b[35m[MVP_CREATE]\x1b[0m Starting MVP creation\n   📝 Project: \x1b[33m${mvpPlan.projectName}\x1b[0m\n   🗺️ Tasks: \x1b[36m${mvpPlan.tasks.length}\x1b[0m\n   🤖 Provider: \x1b[32m${userProvider}\x1b[0m\n`);
+    console.log(`\n\n🎆 \x1b[35m[MVP_CREATE]\x1b[0m Starting MVP creation\n   📝 Project: \x1b[33m${mvpPlan.projectName}\x1b[0m\n   🗺️ Tasks: \x1b[36m${mvpPlan.tasks.length}\x1b[0m\n   🤖 Provider: \x1b[32m${userProvider}\x1b[0m\n   🧾 Accept: ${req.headers['accept']}\n   🌐 UA: ${req.headers['user-agent']}\n`);
+    
+    // Log the exact plan being sent
+    console.log('[MVP_CREATE] Full MVP Plan:', JSON.stringify({
+      projectName: mvpPlan.projectName,
+      description: mvpPlan.description,
+      taskCount: mvpPlan.tasks.length,
+      tasks: mvpPlan.tasks
+    }, null, 2));
     logger.info('Starting MVP creation', {
       userId,
       provider: userProvider,
@@ -354,38 +579,77 @@ aiRoutes.post('/create-mvp-project', async (req: any, res: any) => {
       taskCount: mvpPlan.tasks.length
     });
 
-    // All tool calls now go through AI models - no XAI bypass
+    // All tool calls go through AI models – use SDK's native stream events
 
-    // Set headers before creating status streamer
-    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    res.setHeader('Transfer-Encoding', 'chunked');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
+    // Log what we're sending to the model
+    const systemPrompt = `You are an MVP project creation assistant. You have ONE tool: createMVPProject.
 
-    // Create status streamer for real-time updates
-    const statusStreamer = StatusStreamer.createWrapper(res, {
-      userId,
-      provider: userProvider || 'unknown',
-      operation: 'create_mvp_project',
-      projectName: mvpPlan.projectName,
-      taskCount: mvpPlan.tasks.length
-    }, false);
+This tool creates both the project AND all its tasks in a single atomic operation.
 
-    // Wrap tools with status updates for streaming providers
-    const wrappedTools = wrapToolsWithStatus({
-      createProject: taskTools.createProject,
-      createTask: taskTools.createTask
-    }, statusStreamer);
+You MUST call createMVPProject with:
+1. The project name and description
+2. ALL tasks from the MVP plan (do not filter or modify them)
 
+The tool will handle creating the project first, then all tasks automatically.`;
+    
+    const userMessage = `Create an MVP project with these details:
+
+PROJECT:
+Name: ${mvpPlan.projectName}
+Description: ${mvpPlan.description}
+Tech Stack: ${mvpPlan.techStack.frontend}, ${mvpPlan.techStack.backend}, ${mvpPlan.techStack.database}${mvpPlan.techStack.hosting ? `, ${mvpPlan.techStack.hosting}` : ''}
+Features: ${mvpPlan.features.join(', ')}
+
+TASKS (${mvpPlan.tasks.length} tasks):
+${JSON.stringify(mvpPlan.tasks, null, 2)}
+
+REQUIRED ACTION:
+Call the createMVPProject tool NOW with these exact parameters:
+{
+  "name": "${mvpPlan.projectName}",
+  "description": "${mvpPlan.description.replace(/"/g, '\\"')}",
+  "tasks": ${JSON.stringify(mvpPlan.tasks, null, 2)}
+}
+
+This is a TOOL CALL. Do not respond with text. Execute createMVPProject immediately.`;
+    
+    console.log('\n📋 [MVP_CREATE] System Prompt:', systemPrompt);
+    console.log('\n💬 [MVP_CREATE] User Message (first 500 chars):', userMessage.substring(0, 500) + '...');
+    
+    // Log the tools we're providing
+    console.log('\n🔧 [MVP_CREATE] Available tools:', ['createMVPProject']);
+    console.log('\n📊 [MVP_CREATE] Model configuration:', {
+      modelId: model?.modelId || 'unknown',
+      provider: userProvider,
+      providerOptions,
+      maxSteps: 10,
+      toolChoice: 'auto'
+    });
+    
     // Use streaming for other providers
     const result = streamText({
       model,
+      system: systemPrompt,
+      prompt: userMessage,
       experimental_telemetry: {
         isEnabled: true,
         functionId: "mvp-project-tool-calling"
       },
-      maxSteps: 30, // Allow enough steps for large MVPs
-      abortSignal: AbortSignal.timeout(120000), // 2-minute timeout
+      maxSteps: 10, // Allow some steps but not too many
+      // Ensure multi-step tool calling proceeds beyond first tool
+      abortSignal: AbortSignal.timeout(300000), // 5-minute timeout
+      // Enhanced debugging
+      onStepStart: (step) => {
+        console.log(`\n🔵 [MVP_STREAM] =============== STEP ${(step as any).stepIndex || 'N/A'} STARTING ===============`);
+        console.log(`   📌 Step Type: ${step.stepType}`);
+        console.log(`   ⏰ Timestamp: ${new Date().toISOString()}`);
+        console.log(`   🔍 Step details:`, {
+          hasToolCalls: !!(step as any).toolCalls,
+          toolCallCount: (step as any).toolCalls?.length || 0,
+          hasText: !!(step as any).text,
+          textPreview: (step as any).text?.substring(0, 100)
+        });
+      },
       onError: (error) => {
         console.error(`\n🚨 \x1b[31m[MVP_STREAM_ERROR]\x1b[0m Provider: \x1b[33m${userProvider}\x1b[0m`, error);
         logAIError(error, { 
@@ -402,24 +666,40 @@ aiRoutes.post('/create-mvp-project', async (req: any, res: any) => {
         });
       },
       onStepFinish: (step) => {
-        // Enhanced logging to detect parallel function calling
-        console.log(`   🔄 \x1b[36m[MVP_STEP]\x1b[0m Provider: \x1b[33m${userProvider}\x1b[0m, Step: \x1b[32m${step.stepType}\x1b[0m, ToolCalls: \x1b[35m${step.toolCalls?.length || 0}\x1b[0m`);
+        // Enhanced logging to understand what's happening
+        console.log(`\n🟢 [MVP_STREAM] Step Finished:`, {
+          provider: userProvider,
+          stepType: step.stepType,
+          toolCallCount: step.toolCalls?.length || 0,
+          finishReason: (step as any).finishReason,
+          isContinued: (step as any).isContinued,
+          usage: (step as any).usage,
+          text: (step as any).text?.substring(0, 200),
+          rawResponse: (step as any).rawResponse ? 'present' : 'absent',
+          allStepKeys: Object.keys(step)
+        });
         
-        // CRITICAL: Check for parallel tool calls (Grok's parallel execution)
+        // Log the actual tool calls made
+        if (step.toolCalls && step.toolCalls.length > 0) {
+          console.log(`   📞 Tool calls in this step:`);
+          step.toolCalls.forEach((tc, idx) => {
+            console.log(`      ${idx + 1}. ${tc.toolName}:`, {
+              argsPreview: tc.args ? JSON.stringify(tc.args).substring(0, 200) : 'no args',
+              hasResult: !!tc.result,
+              resultPreview: tc.result ? JSON.stringify(tc.result).substring(0, 200) : null
+            });
+          });
+        }
+        
+        // Detect parallel tool calls and log, but do not hard-fail. The model configuration already disables parallel calls for supported providers.
         if (step.toolCalls && step.toolCalls.length > 1) {
-          console.log(`   🚨 \x1b[31m[PARALLEL_DETECTED]\x1b[0m Grok is trying \x1b[35m${step.toolCalls.length}\x1b[0m parallel tool calls!`);
-          console.log(`   🔍 \x1b[33m[PARALLEL_TOOLS]\x1b[0m Tools: ${step.toolCalls.map(tc => tc.toolName).join(', ')}`);
-          logger.warn('Parallel tool calls detected from Grok', {
+          console.log(`   🚨 \x1b[31m[PARALLEL_DETECTED]\x1b[0m Provider attempted ${step.toolCalls.length} parallel tool calls.`);
+          logger.warn('Parallel tool calls detected', {
             userId,
             provider: userProvider,
             parallelCallCount: step.toolCalls.length,
             toolNames: step.toolCalls.map(tc => tc.toolName)
           });
-          
-          // Prevent race condition by throwing an error
-          const error = new Error(`Parallel tool calls detected (${step.toolCalls.length} calls). This can cause race conditions. Please retry the operation.`);
-          error.name = 'ParallelToolCallError';
-          throw error;
         }
         
         // Track task creation progress
@@ -432,6 +712,13 @@ aiRoutes.post('/create-mvp-project', async (req: any, res: any) => {
                 provider: userProvider,
                 projectName: toolCall.args?.name
               });
+              try {
+                const pid = toolCall?.result?.data?.id || toolCall?.result?.projectId || toolCall?.args?.projectId;
+                if (pid) {
+                  ;(global as any).__lastCreatedProjectId = pid;
+                }
+              } catch {}
+              console.log('   🧭 [MVP_HINT] Project created. Model should now call createAllTasks with the provided tasks.');
             } else if (toolCall.toolName === 'createTask') {
               console.log(`   📝 \x1b[32m[MVP_PROGRESS]\x1b[0m Task created: \x1b[33m${toolCall.args?.title}\x1b[0m`);
               logger.info('MVP task created in stream', {
@@ -454,153 +741,253 @@ aiRoutes.post('/create-mvp-project', async (req: any, res: any) => {
         
         // Check if we're getting close to completion
         const expectedTotal = mvpPlan.tasks.length + 1; // tasks + project
-        console.log(`   🎯 \x1b[36m[MVP_PROGRESS]\x1b[0m Expected total steps: \x1b[35m${expectedTotal}\x1b[0m`);
-      },
-      messages: [
-        {
-          role: 'user',
-          content: `I need you to create a complete MVP project with all its tasks using the available tools.
-
-PROJECT DETAILS:
-- Name: ${mvpPlan.projectName}
-- Description: ${mvpPlan.description}
-- Tech Stack: ${mvpPlan.techStack.frontend}, ${mvpPlan.techStack.backend}, ${mvpPlan.techStack.database}${mvpPlan.techStack.hosting ? `, ${mvpPlan.techStack.hosting}` : ''}
-- Core Features: ${mvpPlan.features.join(', ')}
-
-TASKS TO CREATE (${mvpPlan.tasks.length} total):
-${mvpPlan.tasks.map((task: any, index: number) => 
-`${index + 1}. "${task.title}" (${task.priority})
-   Description: ${task.description}`).join('\n')}
-
-CRITICAL SEQUENTIAL EXECUTION REQUIREMENTS:
-1. First, use createProject to create the project with a comprehensive description
-2. Wait for the project creation to complete before proceeding
-3. Then create tasks ONE BY ONE using createTask - DO NOT create multiple tasks simultaneously
-4. You MUST wait for each createTask call to complete before calling createTask again
-5. Create ALL ${mvpPlan.tasks.length} tasks sequentially - no parallel execution
-6. Use the project ID from step 1 for all createTask calls
-
-IMPORTANT: You must create tasks sequentially, not in parallel. Call createTask once, wait for it to complete, then call createTask again for the next task. Repeat until all ${mvpPlan.tasks.length} tasks are created.`
+        console.log(`   🎯 \x1b[36m[MVP_PROGRESS]\x1b[0m Expected total operations: \x1b[35m${expectedTotal}\x1b[0m`);
+        
+        // Log step completion reason
+        if ((step as any).finishReason) {
+          console.log(`   🏁 \x1b[33m[MVP_FINISH_REASON]\x1b[0m Step finished because: \x1b[35m${(step as any).finishReason}\x1b[0m`);
+          if ((step as any).finishReason === 'stop' || (step as any).finishReason === 'length') {
+            console.log(`   ⚠️  \x1b[31m[MVP_WARNING]\x1b[0m Model stopped (${(step as any).finishReason}). This may prevent task creation.`);
+          }
         }
-      ],
-      system: `You are creating an MVP project using the available tools. You must use both createProject and createTask tools to create a complete project.
-
-CRITICAL REQUIREMENTS:
-1. You must create the project AND all the tasks
-2. Do not stop after creating just the project
-3. SEQUENTIAL EXECUTION ONLY: Call createTask one at a time, wait for completion, then call the next one
-4. DO NOT use parallel function calling - create tasks sequentially
-5. Continue calling createTask until every single task is created
-
-IMPORTANT: You are using the XAI provider which supports parallel function calling, but for this task you MUST execute functions sequentially. Call one createTask, wait for it to complete, then call the next createTask. Do not call multiple createTask functions simultaneously.
-
-The user will be very disappointed if you only create the project but not all the tasks. Make sure you complete the entire job by creating every task sequentially.`,
+      },
+      // Log available tools
+      onChunk: (chunk: any) => {
+        if (chunk?.type === 'text-delta') {
+          console.log(`   💭 [MVP_REASONING] Text delta: "${chunk.textDelta?.substring(0, 100)}..."`);
+        } else if (chunk?.type === 'tool-call-delta') {
+          console.log(`   🔧 [MVP_TOOL_DELTA] Tool: ${chunk.toolName}, args chunk received`);
+        } else if (chunk?.type) {
+          console.log(`   📦 [MVP_CHUNK] Type: ${chunk.type}`);
+        }
+      },
       tools: {
-        createProject: tool({
-          description: wrappedTools.createProject.description,
-          parameters: z.object({
+        createMVPProject: tool({
+          description: 'Create a complete MVP project with all tasks in one atomic operation',
+          inputSchema: z.object({
+            name: z.string().describe('The name of the project'),
+            description: z.string().describe('Comprehensive project description including tech stack and core features'),
+            tasks: z.array(z.object({
+              title: z.string().describe('Task title'),
+              description: z.string().describe('Detailed task description'),
+              priority: z.enum(['low', 'medium', 'high']).optional().describe('Task priority (default: medium)')
+            })).describe('Array of ALL tasks to create for this project')
+          }),
+          execute: async (args) => {
+            console.log(`\n🚀 [MVP_CREATE_TOOL] ==================== TOOL EXECUTION START ====================`);
+            console.log(`📋 [MVP_CREATE_TOOL] Full arguments received:`);
+            console.log(JSON.stringify({
+              projectName: args.name,
+              description: args.description,
+              taskCount: args.tasks?.length || 0,
+              tasks: args.tasks
+            }, null, 2));
+            console.log(`⏰ [MVP_CREATE_TOOL] Execution timestamp: ${new Date().toISOString()}`);
+            
+            // Step 1: Create the project
+            let projectId: string;
+            try {
+              console.log('   📦 [MVP_CREATE_TOOL] Step 1: Creating project...');
+              const projectResult = await taskTools.createProject.execute({
+                name: args.name,
+                description: args.description
+              } as any);
+              
+              if (!projectResult?.success || !projectResult?.data?.id) {
+                console.error('[MVP_CREATE] Project creation failed:', projectResult);
+                return {
+                  success: false,
+                  error: 'Failed to create project',
+                  data: null
+                };
+              }
+              
+              projectId = projectResult.data.id;
+              console.log(`   ✅ [MVP_CREATE_TOOL] Project created successfully: ${projectId}`);
+            } catch (error) {
+              console.error('[MVP_CREATE] Error creating project:', error);
+              return {
+                success: false,
+                error: `Failed to create project: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                data: null
+              };
+            }
+            
+            // Step 2: Create all tasks
+            const createdTasks: string[] = [];
+            const taskErrors: string[] = [];
+            
+            for (let i = 0; i < (args.tasks?.length || 0); i++) {
+              const task = args.tasks![i];
+              try {
+                console.log(`   📝 [MVP_CREATE_TOOL] Creating task ${i + 1}/${args.tasks!.length}: "${task.title}"`);
+                const taskResult = await taskTools.createTask.execute({
+                  projectId,
+                  title: task.title,
+                  description: task.description,
+                  priority: task.priority || 'medium'
+                } as any);
+                
+                if (taskResult?.success && taskResult?.data?.id) {
+                  createdTasks.push(taskResult.data.id);
+                } else {
+                  taskErrors.push(`Task #${i + 1} "${task.title}": Creation failed`);
+                }
+              } catch (error) {
+                console.error(`[MVP_CREATE] Error creating task #${i + 1}:`, error);
+                taskErrors.push(`Task #${i + 1} "${task.title}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+              }
+            }
+            
+            const allTasksCreated = createdTasks.length === args.tasks?.length;
+            
+            console.log(`\n🏁 [MVP_CREATE_TOOL] ==================== TOOL EXECUTION END ====================`);
+            console.log(`📊 [MVP_CREATE_TOOL] Final Results:`, {
+              success: allTasksCreated,
+              projectId,
+              tasksCreated: createdTasks.length,
+              totalTasks: args.tasks?.length || 0,
+              hadErrors: taskErrors.length > 0,
+              errors: taskErrors
+            });
+            console.log(`⏰ [MVP_CREATE_TOOL] Completion timestamp: ${new Date().toISOString()}`);
+            
+            return {
+              success: allTasksCreated,
+              message: allTasksCreated 
+                ? `Successfully created project "${args.name}" with all ${createdTasks.length} tasks`
+                : `Created project "${args.name}" with ${createdTasks.length} of ${args.tasks?.length || 0} tasks. Some tasks failed.`,
+              data: {
+                projectId,
+                projectName: args.name,
+                tasksCreated: createdTasks.length,
+                totalTasks: args.tasks?.length || 0,
+                taskIds: createdTasks,
+                errors: taskErrors.length > 0 ? taskErrors : undefined
+              }
+            };
+          }
+        }),
+        // Keep the old tools as fallback but hide them from the model
+        __createProject: tool({
+          description: 'Create a new project with the given name and description',
+          inputSchema: z.object({
             name: z.string().describe('The name of the project'),
             description: z.string().describe('Comprehensive description including tech stack and core features')
           }),
           execute: async (args) => {
-            return await wrappedTools.createProject.execute(args);
+            console.log('[MVP_STREAM][server] createProject.execute called');
+            const res = await taskTools.createProject.execute(args as any);
+            console.log('[MVP_STREAM][server] createProject.execute result', !!res?.success, res?.data?.id);
+            return res;
           }
         }),
-        createTask: tool({
-          description: wrappedTools.createTask.description,
-          parameters: z.object({
-            projectId: z.string().describe('The ID of the project to add the task to'),
-            title: z.string().describe('The title of the task'),
-            description: z.string().describe('Detailed description of what needs to be done, structured as a prompt that an AI can use to generate code for that specific task. It should be a detailed description of the task, written from the perspective of a senior developer focused on that task space.'),
-            priority: z.enum(['low', 'medium', 'high']).optional().describe('Priority level of the task')
+        __createAllTasks: tool({
+          description: 'Create all tasks at once for the given project. This is the only way to create tasks.',
+          inputSchema: z.object({
+            projectId: z.string().describe('The ID of the project (obtained from createProject result)'),
+            tasks: z.array(z.object({
+              title: z.string().describe('Task title'),
+              description: z.string().describe('Detailed task description'),
+              priority: z.enum(['low', 'medium', 'high']).optional().describe('Task priority')
+            })).describe('Array of all tasks to create')
           }),
           execute: async (args) => {
-            return await wrappedTools.createTask.execute(args);
+            const created: string[] = [];
+            const errors: string[] = [];
+            console.log(`[MVP_STREAM][server] createAllTasks called with ${(args as any).tasks?.length || 0} tasks`);
+            
+            for (const t of (args as any).tasks || []) {
+              try {
+                console.log('[MVP_STREAM][server] createAllTasks → createTask', t?.title);
+                const result = await taskTools.createTask.execute({
+                  projectId: (args as any).projectId,
+                  title: t.title,
+                  description: t.description,
+                  priority: t.priority || 'medium'
+                } as any);
+                
+                if (result?.success && result?.data?.id) {
+                  created.push(result.data.id);
+                } else {
+                  errors.push(`Failed to create task: ${t.title}`);
+                }
+              } catch (error) {
+                console.error('[MVP_STREAM][server] Error creating task:', error);
+                errors.push(`Error creating task "${t.title}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+              }
+            }
+            
+            console.log(`[MVP_STREAM][server] createAllTasks completed: ${created.length} tasks created, ${errors.length} errors`);
+            
+            if (errors.length > 0) {
+              return { 
+                success: false, 
+                error: `Created ${created.length} tasks but encountered ${errors.length} errors: ${errors.join(', ')}`,
+                data: { count: created.length, taskIds: created, errors }
+              };
+            }
+            
+            return { success: true, data: { count: created.length, taskIds: created } };
           }
         })
       },
-      ...(Object.keys(providerOptions).length > 0 && { providerOptions })
+      providerOptions,
     });
 
-    const response = result.toDataStreamResponse();
+
     
-    // Send initial status update
-    statusStreamer.sendProgressUpdate(`🚀 Starting MVP creation for "${mvpPlan.projectName}" with ${mvpPlan.tasks.length} tasks`);
-    
-    // Skip setting headers from AI SDK response since StatusStreamer has already set streaming headers
-    
-    // Stream the response body with status updates integration
-    if (response.body) {
-      let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
-      
+    // Fallback implementation: emit SSE from the SDK's fullStream
+    res.status(200);
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    try {
+      (res as any).flushHeaders?.();
+    } catch {}
+
+    const sendEvent = (obj: any) => {
       try {
-        reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) {
-            break;
-          }
-          
-          const chunk = decoder.decode(value, { stream: true });
-          
-          // Parse chunk to detect tool calls and send status updates
-          try {
-            const lines = chunk.split('\n');
-            for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                const data = JSON.parse(line.slice(6));
-                
-                // Send status updates for tool calls
-                if (data.type === 'tool-call') {
-                  statusStreamer.sendToolStart(data.toolName, data.args);
-                } else if (data.type === 'tool-result') {
-                  const result = JSON.parse(data.result);
-                  if (result.success !== false) {
-                    statusStreamer.sendToolSuccess(data.toolName, result);
-                  } else {
-                    statusStreamer.sendToolError(data.toolName, result);
-                  }
-                }
-              }
-            }
-          } catch (parseError) {
-            // Log specific parsing errors for debugging
-            console.warn(`JSON parsing error in chunk: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`);
-            logger.warn('JSON parsing error in streaming chunk', {
-              userId,
-              provider: userProvider,
-              error: parseError instanceof Error ? parseError.message : 'Unknown error',
-              chunkPreview: chunk.substring(0, 100)
-            });
-          }
-          
-          res.write(chunk);
-        }
-        
-        statusStreamer.sendCompletion(`🎉 MVP "${mvpPlan.projectName}" created successfully with ${mvpPlan.tasks.length} tasks!`);
-        
-        console.log(`\n✨ \x1b[32m[MVP_CREATE]\x1b[0m Stream completed for project: \x1b[33m${mvpPlan.projectName}\x1b[0m\n${'='.repeat(60)}\n`);
-        logger.info('MVP creation stream completed', {
-          userId,
-          provider: userProvider,
-          projectName: mvpPlan.projectName,
-          taskCount: mvpPlan.tasks.length
-        });
-      } finally {
-        // Safe cleanup - only release lock if reader exists
-        if (reader) {
-          try {
-            reader.releaseLock();
-          } catch (releaseError) {
-            console.warn('Error releasing reader lock:', releaseError);
-          }
-        }
-        statusStreamer.close();
+        res.write(`data: ${JSON.stringify(obj)}\n\n`);
+      } catch (e) {
+        console.error('[MVP_STREAM][server] Failed to write SSE event:', e);
       }
-    } else {
-      statusStreamer.close();
+    };
+
+    let sawFirst = false;
+    const startedAt = Date.now();
+    try {
+      for await (const part of result.fullStream) {
+        if (!sawFirst) {
+          sawFirst = true;
+          console.log(`[MVP_STREAM][server] first chunk after ${Date.now() - startedAt}ms`);
+        }
+        switch (part.type) {
+          case 'text-delta':
+            sendEvent({ type: 'text.delta', delta: part.textDelta });
+            break;
+          case 'tool-call':
+            sendEvent({ type: 'tool-call', toolName: (part as any).toolName, args: (part as any).args });
+            break;
+          case 'tool-result':
+            sendEvent({ type: 'tool-result', toolName: (part as any).toolName, result: (part as any).result });
+            break;
+          case 'finish':
+            sendEvent({ type: 'response.finish', finishReason: (part as any).finishReason, usage: (part as any).usage });
+            break;
+          default:
+            // Forward other event types for debugging/compatibility
+            sendEvent({ type: (part as any).type, ...part });
+            break;
+        }
+      }
+    } catch (streamErr) {
+      console.error('[MVP_STREAM][server] Error while streaming:', streamErr);
+      // Inform client of stream error
+      sendEvent({ type: 'tool-error', status: 'error', message: 'Stream error', data: { error: String(streamErr) } });
+    } finally {
+      try { res.end(); } catch {}
     }
   } catch (error) {
     console.error(`\n🚨 \x1b[31m[MVP_CREATE]\x1b[0m Fatal error during MVP creation:`, error);

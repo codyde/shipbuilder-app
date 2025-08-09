@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+// Removed useObject (not exported in current @ai-sdk/react)
 import { useProjects } from '@/context/ProjectContext';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -8,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Accordion } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
 import { ToolStatusDisplay } from '@/components/ui/tool-status-display';
+import { MVPProgressBar } from '@/components/ui/mvp-progress-bar';
 import { useMVPStatusStream } from '@/hooks/useMVPStatusStream';
 import { X, Lightbulb, GripHorizontal, Loader2, Rocket, CheckCircle, Package } from 'lucide-react';
 import { useDraggable } from '@/hooks/useDraggable';
@@ -67,6 +69,8 @@ export function MVPBuilder({ className = '', onClose, open = true, onOpenChange 
   const [generationText, setGenerationText] = useState('');
   const [currentStatusIndex, setCurrentStatusIndex] = useState(0);
   const streamingTextRef = useRef<HTMLDivElement>(null);
+  // Note: MVP plan generation now uses manual SSE parsing (see handleGenerateMVP)
+
   
   // Component-related state
   const [components, setComponents] = useState<Component[]>([]);
@@ -79,9 +83,8 @@ export function MVPBuilder({ className = '', onClose, open = true, onOpenChange 
     statusMessages,
     isCreating,
     isComplete,
-    createdTasksCount,
-    totalTasksCount,
-    progress,
+    progressSteps,
+    currentStepIndex,
     createMVPProject,
     clearStatusMessages
   } = useMVPStatusStream({
@@ -235,11 +238,11 @@ export function MVPBuilder({ className = '', onClose, open = true, onOpenChange 
       return;
     }
 
-    setIsGenerating(true);
     setError(null);
     setSuccessMessage(null);
     setMvpPlan(null);
     setGenerationText('');
+    setIsGenerating(true);
 
     try {
       const token = localStorage.getItem('authToken');
@@ -248,13 +251,14 @@ export function MVPBuilder({ className = '', onClose, open = true, onOpenChange 
       }
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 60000);
 
       const response = await fetch(getApiUrl('ai/generatemvp'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
+          'Accept': 'text/event-stream, application/json;q=0.5, */*;q=0.1',
         },
         body: JSON.stringify({
           projectIdea: trimmedIdea,
@@ -272,7 +276,6 @@ export function MVPBuilder({ className = '', onClose, open = true, onOpenChange 
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
         const errorMessage = errorData?.error || response.statusText;
-        
         if (response.status === 401) {
           throw new Error('Authentication failed. Please log in again.');
         } else if (response.status === 429) {
@@ -284,62 +287,210 @@ export function MVPBuilder({ className = '', onClose, open = true, onOpenChange 
         }
       }
 
-      // Handle streaming response
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      let fullText = '';
-
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          const chunk = decoder.decode(value, { stream: true });
-          fullText += chunk;
-          setGenerationText(fullText);
-        }
-      }
-
-      // Parse the complete JSON response
-      try {
-        console.log('[MVP_BUILDER] Raw response:', fullText);
-        console.log('[MVP_BUILDER] Response length:', fullText.length);
-        
-        let cleanedText = fullText.trim();
-        
-        // Remove markdown code blocks
-        if (cleanedText.startsWith('```json')) {
-          cleanedText = cleanedText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-        } else if (cleanedText.startsWith('```')) {
-          cleanedText = cleanedText.replace(/^```\s*/, '').replace(/\s*```$/, '');
-        }
-        
-        // Try to extract JSON from the response if it contains extra text
-        const jsonStart = cleanedText.indexOf('{');
-        const jsonEnd = cleanedText.lastIndexOf('}');
-        
-        if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
-          cleanedText = cleanedText.substring(jsonStart, jsonEnd + 1);
-        }
-        
-        cleanedText = cleanedText.trim();
-        
-        console.log('[MVP_BUILDER] Cleaned text to parse:', cleanedText);
-        
-        const mvpPlan = JSON.parse(cleanedText);
-        
-        // Validate the MVP plan structure
-        if (!mvpPlan.projectName || !mvpPlan.description || !Array.isArray(mvpPlan.features) || !mvpPlan.techStack || !Array.isArray(mvpPlan.tasks)) {
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const parsed = await response.json();
+        if (!parsed.projectName || !parsed.description || !Array.isArray(parsed.features) || !parsed.techStack || !Array.isArray(parsed.tasks)) {
           throw new Error('Generated MVP plan has invalid structure');
         }
-        
-        setMvpPlan(mvpPlan);
-        setProjectName(mvpPlan.projectName); // Initialize editable name
-        setGenerationText(''); // Clear the raw text once parsed
-      } catch (parseError) {
-        throw new Error('Failed to parse MVP plan from AI response');
-      }
+        const planWithIds = {
+          ...parsed,
+          tasks: parsed.tasks.map((task: any, index: number) => ({
+            ...task,
+            id: `task-${index}`,
+            selected: true
+          }))
+        };
+        setMvpPlan(planWithIds);
+        setProjectName(parsed.projectName);
+        setGenerationText('');
+      } else {
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        let sseBuffer = '';
+        let reasoningSoFar = '';
+        let resultingSoFar = '';
+        let finalPlan: any | null = null;
 
+        if (reader) {
+          // Initialize with empty text, will be filled by reasoning events
+          setGenerationText('🤔 AI is thinking...');
+          
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            
+            const chunk = decoder.decode(value, { stream: true });
+            sseBuffer += chunk;
+            const lines = sseBuffer.split('\n');
+            sseBuffer = lines.pop() ?? '';
+            
+            for (const line of lines) {
+              if (!line.startsWith('data: ')) continue;
+              try {
+                const data = JSON.parse(line.slice(6));
+                const type: string | undefined = data?.type;
+                
+                // Log all event types for debugging
+                if (type) {
+                  console.log('[MVP_BUILDER] SSE Event:', {
+                    type,
+                    hasData: !!data,
+                    hasDelta: !!(data?.delta || data?.textDelta),
+                    hasObject: !!data?.object
+                  });
+                }
+                
+                // Handle different event types from the new streaming implementation
+                switch (type) {
+                  case 'generation.start':
+                    // Initial generation info
+                    console.log('[MVP_BUILDER] Generation started:', data);
+                    const reasoningCapable = data.supportsReasoning;
+                    setGenerationText(reasoningCapable 
+                      ? `🧠 Starting AI reasoning with ${data.provider} (${data.model})...\n\nReasoning will appear below:`
+                      : `🤖 Starting generation with ${data.provider} (${data.model})...\n\nNote: Switch to OpenAI in Settings to see reasoning.`
+                    );
+                    break;
+                    
+                  case 'reasoning.delta':
+                    // Reasoning text from OpenAI models
+                    if (typeof data.delta === 'string') {
+                      reasoningSoFar += data.delta;
+                      setGenerationText(`🧠 AI Reasoning:\n${reasoningSoFar}`);
+                      console.log('[MVP_BUILDER] Reasoning delta:', data.delta.substring(0, 50));
+                    }
+                    break;
+                    
+                  case 'reasoning.done':
+                    // Reasoning phase complete
+                    console.log('[MVP_BUILDER] Reasoning phase completed');
+                    setGenerationText(`${reasoningSoFar ? `🧠 AI Reasoning:\n${reasoningSoFar}\n\n` : ''}📋 Generating MVP plan structure...`);
+                    break;
+                    
+                  case 'text.delta':
+                    // Result text for the JSON plan
+                    if (typeof data.delta === 'string') {
+                      resultingSoFar += data.delta;
+                      // Show reasoning + current result generation
+                      const displayText = reasoningSoFar 
+                        ? `🧠 AI Reasoning:\n${reasoningSoFar}\n\n📋 Generated Plan:\n${resultingSoFar}`
+                        : `📋 Generating plan:\n${resultingSoFar}`;
+                      setGenerationText(displayText);
+                    }
+                    break;
+                    
+                  case 'object.delta':
+                    // Partial object updates for streamObject
+                    if (data.object) {
+                      console.log('[MVP_BUILDER] Partial object received');
+                      setGenerationText(`${reasoningSoFar ? `🧠 AI Reasoning:\n${reasoningSoFar}\n\n` : ''}📋 Building plan structure...`);
+                    }
+                    break;
+                    
+                  case 'object.completed':
+                    // Final completed object
+                    if (data.object) {
+                      finalPlan = data.object;
+                      console.log('[MVP_BUILDER] Final plan completed:', Object.keys(data.object));
+                    }
+                    break;
+                    
+                  case 'done':
+                    // Stream completion
+                    console.log('[MVP_BUILDER] Stream completed');
+                    setGenerationText(`${reasoningSoFar ? `🧠 AI Reasoning:\n${reasoningSoFar}\n\n` : ''}✅ MVP plan generated successfully!`);
+                    break;
+                    
+                  case 'error':
+                    // Handle streaming errors
+                    console.error('[MVP_BUILDER] Stream error:', data.error);
+                    throw new Error(data.error || 'Streaming error occurred');
+                    
+                  default:
+                    // Log unknown event types for debugging
+                    console.log('[MVP_BUILDER] Unknown event type:', type, data);
+                    break;
+                }
+              } catch (parseError) {
+                // Ignore malformed JSON lines but log them for debugging
+                if (line.trim()) {
+                  console.warn('[MVP_BUILDER] Failed to parse SSE line:', line.substring(0, 100));
+                }
+              }
+            }
+          }
+        }
+
+        if (finalPlan) {
+          const parsed = finalPlan;
+          if (!parsed.projectName || !parsed.description || !Array.isArray(parsed.features) || !parsed.techStack || !Array.isArray(parsed.tasks)) {
+            throw new Error('Generated MVP plan has invalid structure');
+          }
+          const planWithIds = {
+            ...parsed,
+            tasks: parsed.tasks.map((task: any, index: number) => ({
+              ...task,
+              id: `task-${index}`,
+              selected: true
+            }))
+          };
+          setMvpPlan(planWithIds);
+          setProjectName(parsed.projectName);
+          setGenerationText('');
+          return;
+        }
+
+        // Attempt to salvage JSON from accumulated text
+        const extractBalancedJson = (text: string): string | null => {
+          let working = text.trim();
+          if (working.startsWith('```json')) working = working.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+          else if (working.startsWith('```')) working = working.replace(/^```\s*/, '').replace(/\s*```$/, '');
+          const first = working.indexOf('{');
+          const last = working.lastIndexOf('}');
+          if (first === -1 || last === -1 || last <= first) return null;
+          let inStr = false, esc = false, depth = 0, start = -1;
+          for (let i = first; i <= last; i++) {
+            const ch = working[i];
+            if (esc) { esc = false; continue; }
+            if (ch === '\\') { if (inStr) esc = true; continue; }
+            if (ch === '"') { inStr = !inStr; continue; }
+            if (inStr) continue;
+            if (ch === '{') { if (depth === 0) start = i; depth++; }
+            else if (ch === '}') { depth--; if (depth === 0 && start !== -1) return working.substring(start, i + 1).trim(); }
+          }
+          return null;
+        };
+        const sanitizePossibleJson = (text: string): string => {
+          let s = text.replace(/[\u201C\u201D\u201E\u201F\u2033\u2036]/g, '"')
+            .replace(/[\u2018\u2019\u201A\u201B\u2032\u2035]/g, '\'')
+            .replace(/[\u200B-\u200D\uFEFF]/g, '')
+            .replace(/[\u0000-\u0019]/g, (m) => (m === '\n' || m === '\t' ? m : ''))
+            .replace(/,\s*([}\]])/g, '$1');
+          const start = s.indexOf('{');
+          const end = s.lastIndexOf('}');
+          if (start !== -1 && end !== -1 && end > start) s = s.substring(start, end + 1).trim();
+          return s;
+        };
+        let candidate = extractBalancedJson(fullText) || sanitizePossibleJson(fullText);
+        if (!candidate) candidate = extractBalancedJson(sanitizePossibleJson(fullText)) || sanitizePossibleJson(fullText);
+        if (!candidate) throw new Error('No JSON object found in response');
+        const parsed = JSON.parse(candidate);
+        if (!parsed.projectName || !parsed.description || !Array.isArray(parsed.features) || !parsed.techStack || !Array.isArray(parsed.tasks)) {
+          throw new Error('Generated MVP plan has invalid structure');
+        }
+        const planWithIds = {
+          ...parsed,
+          tasks: parsed.tasks.map((task: any, index: number) => ({
+            ...task,
+            id: `task-${index}`,
+            selected: true
+          }))
+        };
+        setMvpPlan(planWithIds);
+        setProjectName(parsed.projectName);
+        setGenerationText('');
+      }
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
         setError('Request timed out. Please try again with a shorter description.');
@@ -621,14 +772,45 @@ export function MVPBuilder({ className = '', onClose, open = true, onOpenChange 
                   {/* Streaming text display for mobile */}
                   {isGenerating && (
                     <div className="space-y-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Loader2 className="w-3 h-3 animate-spin text-blue-600" />
+                        <span className="text-xs font-medium text-muted-foreground">AI is thinking...</span>
+                      </div>
                       {generationText ? (
-                        <div ref={streamingTextRef} className="bg-muted/30 rounded-lg p-3 max-h-20 overflow-y-auto">
-                          <p className="text-xs text-foreground whitespace-pre-wrap leading-relaxed">{generationText}</p>
+                        <div ref={streamingTextRef} className="bg-gradient-to-br from-blue-50/50 to-purple-50/50 dark:from-blue-950/20 dark:to-purple-950/20 rounded-lg p-3 max-h-32 overflow-y-auto border border-blue-200/50 dark:border-blue-800/50">
+                          <div className="text-xs text-foreground/80 whitespace-pre-wrap leading-relaxed">
+                            {generationText.split('\n\n').map((section, index) => {
+                              if (section.startsWith('🧠 AI Reasoning:')) {
+                                return (
+                                  <div key={index} className="mb-2">
+                                    <div className="font-semibold text-blue-700 dark:text-blue-300 mb-1 text-xs">🧠 AI Reasoning:</div>
+                                    <div className="font-mono text-xs bg-blue-50/50 dark:bg-blue-950/30 p-2 rounded border-l-2 border-blue-300 dark:border-blue-600 text-blue-900 dark:text-blue-100">
+                                      {section.replace('🧠 AI Reasoning:\n', '')}
+                                    </div>
+                                  </div>
+                                );
+                              } else if (section.startsWith('📋 Generated Plan:') || section.startsWith('📋 Generating plan:')) {
+                                return (
+                                  <div key={index} className="mb-2">
+                                    <div className="font-semibold text-purple-700 dark:text-purple-300 mb-1 text-xs">📋 Generated Plan:</div>
+                                    <div className="font-mono text-xs bg-purple-50/50 dark:bg-purple-950/30 p-2 rounded border-l-2 border-purple-300 dark:border-purple-600 text-purple-900 dark:text-purple-100">
+                                      {section.replace(/📋 Generated Plan:\n?|📋 Generating plan:\n?/, '')}
+                                    </div>
+                                  </div>
+                                );
+                              } else {
+                                return (
+                                  <div key={index} className="text-foreground/80 font-mono text-xs">
+                                    {section}
+                                  </div>
+                                );
+                              }
+                            })}
+                          </div>
                         </div>
                       ) : (
-                        <div className="flex items-center justify-center gap-2 py-4">
-                          <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-                          <p className="text-sm text-muted-foreground">Starting AI analysis...</p>
+                        <div className="bg-muted/30 rounded-lg p-4 flex items-center justify-center">
+                          <p className="text-xs text-muted-foreground">Initializing analysis...</p>
                         </div>
                       )}
                     </div>
@@ -753,18 +935,13 @@ export function MVPBuilder({ className = '', onClose, open = true, onOpenChange 
                               <span className="text-sm font-medium block">
                                 Creating project with {mvpPlan.tasks.length} tasks...
                               </span>
-                              {totalTasksCount > 0 && (
-                                <div className="flex items-center gap-2 mt-1">
-                                  <div className="flex-1 bg-gray-200 rounded-full h-1.5">
-                                    <div 
-                                      className="bg-blue-600 h-1.5 rounded-full transition-all duration-500" 
-                                      style={{ width: `${progress}%` }}
-                                    ></div>
-                                  </div>
-                                  <span className="text-xs text-muted-foreground">
-                                    {createdTasksCount}/{totalTasksCount}
-                                  </span>
-                                </div>
+                              {progressSteps.length > 0 && (
+                                <MVPProgressBar
+                                  steps={progressSteps}
+                                  currentStepIndex={currentStepIndex}
+                                  compact={true}
+                                  className="mt-2"
+                                />
                               )}
                             </div>
                           </div>
@@ -980,14 +1157,53 @@ export function MVPBuilder({ className = '', onClose, open = true, onOpenChange 
                 </div>
               ) : (
                 <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                    <span className="text-sm font-medium text-muted-foreground">AI is analyzing your project idea...</span>
+                  </div>
                   {generationText ? (
-                    <div ref={streamingTextRef} className="bg-muted/30 rounded-lg p-3 max-h-20 overflow-y-auto">
-                      <p className="text-xs text-foreground whitespace-pre-wrap leading-relaxed">{generationText}</p>
+                    <div ref={streamingTextRef} className="bg-gradient-to-br from-blue-50/50 to-purple-50/50 dark:from-blue-950/20 dark:to-purple-950/20 rounded-lg p-4 max-h-64 overflow-y-auto border border-blue-200/50 dark:border-blue-800/50 shadow-sm">
+                      <div className="text-sm text-foreground/80 whitespace-pre-wrap leading-relaxed">
+                        {generationText.split('\n\n').map((section, index) => {
+                          if (section.startsWith('🧠 AI Reasoning:')) {
+                            return (
+                              <div key={index} className="mb-3">
+                                <div className="font-semibold text-blue-700 dark:text-blue-300 mb-2">🧠 AI Reasoning:</div>
+                                <div className="font-mono text-xs bg-blue-50/50 dark:bg-blue-950/30 p-2 rounded border-l-2 border-blue-300 dark:border-blue-600 text-blue-900 dark:text-blue-100">
+                                  {section.replace('🧠 AI Reasoning:\n', '')}
+                                </div>
+                              </div>
+                            );
+                          } else if (section.startsWith('📋 Generated Plan:') || section.startsWith('📋 Generating plan:')) {
+                            return (
+                              <div key={index} className="mb-3">
+                                <div className="font-semibold text-purple-700 dark:text-purple-300 mb-2">📋 Generated Plan:</div>
+                                <div className="font-mono text-xs bg-purple-50/50 dark:bg-purple-950/30 p-2 rounded border-l-2 border-purple-300 dark:border-purple-600 text-purple-900 dark:text-purple-100">
+                                  {section.replace(/📋 Generated Plan:\n?|📋 Generating plan:\n?/, '')}
+                                </div>
+                              </div>
+                            );
+                          } else {
+                            return (
+                              <div key={index} className="text-foreground/80 font-mono text-xs">
+                                {section}
+                              </div>
+                            );
+                          }
+                        })}
+                      </div>
                     </div>
                   ) : (
-                    <div className="flex items-center justify-center gap-2 py-4">
-                      <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-                      <p className="text-sm text-muted-foreground">Starting AI analysis...</p>
+                    <div className="bg-muted/30 rounded-lg p-8 flex items-center justify-center">
+                      <div className="text-center space-y-2">
+                        <div className="flex justify-center">
+                          <div className="relative">
+                            <div className="w-12 h-12 rounded-full border-4 border-blue-200 dark:border-blue-800"></div>
+                            <div className="absolute top-0 left-0 w-12 h-12 rounded-full border-4 border-t-blue-600 dark:border-t-blue-400 animate-spin"></div>
+                          </div>
+                        </div>
+                        <p className="text-sm text-muted-foreground">Initializing AI reasoning engine...</p>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1136,18 +1352,13 @@ export function MVPBuilder({ className = '', onClose, open = true, onOpenChange 
                               <span className="text-sm font-medium block">
                                 Creating project with {mvpPlan.tasks.length} tasks...
                               </span>
-                              {totalTasksCount > 0 && (
-                                <div className="flex items-center gap-2 mt-1">
-                                  <div className="flex-1 bg-gray-200 rounded-full h-1.5">
-                                    <div 
-                                      className="bg-blue-600 h-1.5 rounded-full transition-all duration-500" 
-                                      style={{ width: `${progress}%` }}
-                                    ></div>
-                                  </div>
-                                  <span className="text-xs text-muted-foreground">
-                                    {createdTasksCount}/{totalTasksCount}
-                                  </span>
-                                </div>
+                              {progressSteps.length > 0 && (
+                                <MVPProgressBar
+                                  steps={progressSteps}
+                                  currentStepIndex={currentStepIndex}
+                                  compact={true}
+                                  className="mt-2"
+                                />
                               )}
                             </div>
                           </div>

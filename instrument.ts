@@ -6,7 +6,7 @@ Sentry.init({
   sendDefaultPii: true,
 
   integrations: [
-    
+
     Sentry.browserTracingIntegration(),
     Sentry.replayIntegration(),
     Sentry.feedbackIntegration({
@@ -27,7 +27,7 @@ Sentry.init({
   tracePropagationTargets: ["localhost:3001", "api.shipbuilder.app"],
 
 
-  replaysSessionSampleRate: 0.1,
+  replaysSessionSampleRate: 1.0,
   replaysOnErrorSampleRate: 1.0,
   debug: false,
 });
