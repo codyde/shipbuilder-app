@@ -385,6 +385,7 @@ aiRoutes.post('/create-mvp-project', async (req: any, res: any) => {
         functionId: "mvp-project-tool-calling"
       },
       maxSteps: 30, // Allow enough steps for large MVPs
+      toolChoice: 'auto', // Encourage tool usage
       abortSignal: AbortSignal.timeout(120000), // 2-minute timeout
       onError: (error) => {
         console.error(`\n🚨 \x1b[31m[MVP_STREAM_ERROR]\x1b[0m Provider: \x1b[33m${userProvider}\x1b[0m`, error);
@@ -482,7 +483,17 @@ CRITICAL SEQUENTIAL EXECUTION REQUIREMENTS:
 
 IMPORTANT: You must create tasks sequentially, not in parallel. Call createTask once, wait for it to complete, then call createTask again for the next task. Repeat until all ${mvpPlan.tasks.length} tasks are created.
 
-REMEMBER: After creating the project, you are only 1/${mvpPlan.tasks.length + 1} done. You still need to create ${mvpPlan.tasks.length} more tasks. Do not stop until you have made ${mvpPlan.tasks.length + 1} total tool calls.`
+REMEMBER: After creating the project, you are only 1/${mvpPlan.tasks.length + 1} done. You still need to create ${mvpPlan.tasks.length} more tasks. Do not stop until you have made ${mvpPlan.tasks.length + 1} total tool calls.
+
+START NOW: Begin by calling createProject, then immediately proceed to call createTask for each task.`
+        },
+        {
+          role: 'assistant',
+          content: "I understand. I need to create the project first, then create all ${mvpPlan.tasks.length} tasks sequentially. I will start with createProject and then continue with createTask calls until all tasks are created. Let me begin now."
+        },
+        {
+          role: 'user', 
+          content: "Perfect! Please start by calling createProject, then immediately continue with all the createTask calls. Do not stop until you've created all ${mvpPlan.tasks.length} tasks."
         }
       ],
       system: `You are creating an MVP project using the available tools. You MUST create the project AND ALL the tasks in a sequential manner.
