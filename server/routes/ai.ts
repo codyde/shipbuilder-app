@@ -459,33 +459,28 @@ aiRoutes.post('/create-mvp-project', async (req: any, res: any) => {
       messages: [
         {
           role: 'user',
+          content: `I need you to create a complete MVP project with all its tasks using the available tools.
 
-          parts: [{
-            type: 'text',
+PROJECT DETAILS:
+- Name: ${mvpPlan.projectName}
+- Description: ${mvpPlan.description}
+- Tech Stack: ${mvpPlan.techStack.frontend}, ${mvpPlan.techStack.backend}, ${mvpPlan.techStack.database}${mvpPlan.techStack.hosting ? `, ${mvpPlan.techStack.hosting}` : ''}
+- Core Features: ${mvpPlan.features.join(', ')}
 
-            text: `I need you to create a complete MVP project with all its tasks using the available tools.
+TASKS TO CREATE (${mvpPlan.tasks.length} total):
+${mvpPlan.tasks.map((task: any, index: number) => 
+`${index + 1}. "${task.title}" (${task.priority})
+   Description: ${task.description}`).join('\n')}
 
-  PROJECT DETAILS:
-  - Name: ${mvpPlan.projectName}
-  - Description: ${mvpPlan.description}
-  - Tech Stack: ${mvpPlan.techStack.frontend}, ${mvpPlan.techStack.backend}, ${mvpPlan.techStack.database}${mvpPlan.techStack.hosting ? `, ${mvpPlan.techStack.hosting}` : ''}
-  - Core Features: ${mvpPlan.features.join(', ')}
+CRITICAL SEQUENTIAL EXECUTION REQUIREMENTS:
+1. First, use createProject to create the project with a comprehensive description
+2. Wait for the project creation to complete before proceeding
+3. Then create tasks ONE BY ONE using createTask - DO NOT create multiple tasks simultaneously
+4. You MUST wait for each createTask call to complete before calling createTask again
+5. Create ALL ${mvpPlan.tasks.length} tasks sequentially - no parallel execution
+6. Use the project ID from step 1 for all createTask calls
 
-  TASKS TO CREATE (${mvpPlan.tasks.length} total):
-  ${mvpPlan.tasks.map((task: any, index: number) => 
-  `${index + 1}. "${task.title}" (${task.priority})
-     Description: ${task.description}`).join('\n')}
-
-  CRITICAL SEQUENTIAL EXECUTION REQUIREMENTS:
-  1. First, use createProject to create the project with a comprehensive description
-  2. Wait for the project creation to complete before proceeding
-  3. Then create tasks ONE BY ONE using createTask - DO NOT create multiple tasks simultaneously
-  4. You MUST wait for each createTask call to complete before calling createTask again
-  5. Create ALL ${mvpPlan.tasks.length} tasks sequentially - no parallel execution
-  6. Use the project ID from step 1 for all createTask calls
-
-  IMPORTANT: You must create tasks sequentially, not in parallel. Call createTask once, wait for it to complete, then call createTask again for the next task. Repeat until all ${mvpPlan.tasks.length} tasks are created.`
-          }]
+IMPORTANT: You must create tasks sequentially, not in parallel. Call createTask once, wait for it to complete, then call createTask again for the next task. Repeat until all ${mvpPlan.tasks.length} tasks are created.`
         }
       ],
       system: `You are creating an MVP project using the available tools. You must use both createProject and createTask tools to create a complete project.
