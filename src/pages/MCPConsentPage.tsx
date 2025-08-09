@@ -32,6 +32,20 @@ export function MCPConsentPage() {
   const authId = authIdFromUrl || authIdFromStorage;
 
   useEffect(() => {
+    // Handle OAuth success callback - update token and clear URL parameters
+    const isOAuthCallback = urlParams.has('success') && urlParams.has('token');
+    if (isOAuthCallback) {
+      const newToken = urlParams.get('token');
+      if (newToken) {
+        localStorage.setItem('authToken', newToken);
+        // Clear the URL parameters to clean up the URL
+        const cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete('success');
+        cleanUrl.searchParams.delete('token');
+        window.history.replaceState({}, '', cleanUrl.toString());
+      }
+    }
+    
     if (!authId) {
       setError('Missing authorization ID');
       setLoading(false);
@@ -129,61 +143,40 @@ export function MCPConsentPage() {
   };
 
   // Show login screen if user is not authenticated, but preserve MCP context
+  // This should actually not happen since we redirect unauthenticated users to main app
   if (!user) {
+    // Redirect to main app with MCP context
+    if (authId) {
+      window.location.href = `${window.location.origin}/?mcp_auth_id=${authId}&mcp_login=true`;
+      return (
+        <div className="min-h-screen flex items-center justify-center">
+          <Loader2 className="w-12 h-12 animate-spin text-primary" />
+        </div>
+      );
+    }
+    
     return (
       <div className="min-h-screen flex items-center justify-center relative overflow-hidden py-4 px-4 sm:px-6 lg:px-8">
         <div className="max-w-md w-full relative z-20">
           <Card className="border-2 bg-background/95 backdrop-blur-sm">
             <CardHeader className="text-center px-6 py-6">
-              <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-primary/10 mb-4">
-                <Shield className="h-8 w-8 text-primary" />
+              <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-destructive/10 mb-4">
+                <AlertTriangle className="h-8 w-8 text-destructive" />
               </div>
-              <CardTitle className="text-2xl">Sign in to Continue</CardTitle>
+              <CardTitle className="text-2xl">Authorization Error</CardTitle>
               <CardDescription className="text-base">
-                Please sign in to authorize MCP access to your Shipbuilder projects
+                Missing authorization context. Please restart the MCP authorization flow.
               </CardDescription>
             </CardHeader>
             
             <CardContent className="space-y-4 px-6 pb-6">
-              {pendingAuth && (
-                <div className="text-center p-3 bg-muted/30 rounded-lg mb-4">
-                  <p className="text-sm font-medium text-foreground">{pendingAuth.client_id}</p>
-                  <p className="text-xs text-muted-foreground">wants to {pendingAuth.scope}</p>
-                </div>
-              )}
-              
-              <div className="space-y-3">
-                <Button
-                  onClick={() => {
-                    // Preserve auth_id in localStorage before OAuth
-                    if (authId) localStorage.setItem('mcpAuthId', authId);
-                    window.location.href = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001'}/api/auth/google`;
-                  }}
-                  size="lg"
-                  className="w-full bg-white text-black hover:bg-gray-200 border"
-                >
-                  Continue with Google
-                </Button>
-                
-                <Button
-                  onClick={() => {
-                    // Preserve auth_id in localStorage before OAuth
-                    if (authId) localStorage.setItem('mcpAuthId', authId);
-                    window.location.href = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001'}/api/auth/sentry`;
-                  }}
-                  size="lg"
-                  variant="outline"
-                  className="w-full"
-                >
-                  Continue with Sentry
-                </Button>
-              </div>
-              
-              <div className="pt-2">
-                <p className="text-xs text-muted-foreground text-center">
-                  You'll be redirected back here after signing in
-                </p>
-              </div>
+              <Button
+                onClick={() => window.location.href = '/'}
+                size="lg"
+                className="w-full"
+              >
+                Return to Dashboard
+              </Button>
             </CardContent>
           </Card>
         </div>

@@ -62,9 +62,6 @@ app.use('/api/ai', apiRateLimit, authenticateUser, aiRoutes);
 app.use('/api/components', apiRateLimit, authenticateUser, componentsRoutes);
 app.use('/api/api-keys', authenticateUser, apiKeyRoutes); // Note: API key routes have their own rate limiting
 
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
 
 // Add error logging middleware (should be last)
 app.use(errorLoggingMiddleware);

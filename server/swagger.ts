@@ -269,21 +269,6 @@ const options = {
             }
           }
         },
-        HealthResponse: {
-          type: 'object',
-          required: ['status', 'timestamp'],
-          properties: {
-            status: {
-              type: 'string',
-              description: 'Health status'
-            },
-            timestamp: {
-              type: 'string',
-              format: 'date-time',
-              description: 'Current timestamp'
-            }
-          }
-        },
         ApiKey: {
           type: 'object',
           required: ['id', 'name', 'prefix', 'displayKey', 'createdAt', 'isActive'],
@@ -1065,23 +1050,6 @@ const options = {
               content: {
                 'application/json': {
                   schema: { $ref: '#/components/schemas/Error' }
-                }
-              }
-            }
-          }
-        }
-      },
-      '/health': {
-        get: {
-          summary: 'Health check',
-          description: 'Check the health status of the API',
-          tags: ['Health'],
-          responses: {
-            '200': {
-              description: 'API is healthy',
-              content: {
-                'application/json': {
-                  schema: { $ref: '#/components/schemas/HealthResponse' }
                 }
               }
             }
