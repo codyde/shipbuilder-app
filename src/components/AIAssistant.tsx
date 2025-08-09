@@ -389,12 +389,23 @@ export function AIAssistant({ onClose, open = true, onOpenChange, initialTab = '
 
       try {
         let cleanedText = fullText.trim();
+        
+        // Remove markdown code blocks
         if (cleanedText.startsWith('```json')) {
           cleanedText = cleanedText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
         } else if (cleanedText.startsWith('```')) {
           cleanedText = cleanedText.replace(/^```\s*/, '').replace(/\s*```$/, '');
         }
+        
+        // Try to extract JSON from text that might have additional content
+        const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          cleanedText = jsonMatch[0];
+        }
+        
         cleanedText = cleanedText.trim();
+        
+        console.log('Attempting to parse MVP plan:', cleanedText.substring(0, 200) + '...');
         
         const mvpPlan = JSON.parse(cleanedText);
         
@@ -415,8 +426,10 @@ export function AIAssistant({ onClose, open = true, onOpenChange, initialTab = '
         setMvpPlan(planWithIds);
         setProjectName(mvpPlan.projectName);
         setGenerationText('');
-      } catch {
-        throw new Error('Failed to parse MVP plan from AI response');
+      } catch (parseError) {
+        console.error('Failed to parse MVP plan:', parseError);
+        console.error('Raw response:', fullText);
+        throw new Error(`Failed to parse MVP plan from AI response: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`);
       }
 
     } catch (err) {
