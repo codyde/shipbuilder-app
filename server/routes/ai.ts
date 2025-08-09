@@ -335,6 +335,9 @@ aiRoutes.post('/create-mvp-project', async (req: any, res: any) => {
     // Import task tools (same as chat.ts)
     const { createTaskTools } = await import('../tools/task-tools.js');
     const taskTools = createTaskTools(userId);
+    
+    // Set task count for tool response messages
+    global.mvpTaskCount = mvpPlan.tasks.length;
 
     // Check if the current provider supports tool calling (including fallbacks)
     const supportsToolCalling = AIProviderService.supportsToolCallingWithFallback(userProvider as any);
@@ -496,22 +499,21 @@ START NOW: Begin by calling createProject, then immediately proceed to call crea
           content: "Perfect! Please start by calling createProject, then immediately continue with all the createTask calls. Do not stop until you've created all ${mvpPlan.tasks.length} tasks."
         }
       ],
-      system: `You are creating an MVP project using the available tools. You MUST create the project AND ALL the tasks in a sequential manner.
+      system: `You are a project setup assistant. Your job is to execute ALL the required tool calls to fully set up an MVP project.
 
-MANDATORY WORKFLOW:
-1. First: Call createProject to create the project
-2. Then: Call createTask for each task, one at a time, until ALL tasks are created
-3. You MUST create every single task - do not stop early
-4. After each task creation, immediately proceed to the next task
-5. Continue until you have created ALL ${mvpPlan.tasks.length} tasks
+EXECUTION CHECKLIST - You MUST complete ALL items:
+□ Call createProject (1 time)
+□ Call createTask (${mvpPlan.tasks.length} times - once for each task)
+□ TOTAL REQUIRED: ${mvpPlan.tasks.length + 1} tool calls
 
-CRITICAL: You are not done until you have:
-- Created 1 project (✓ use createProject)  
-- Created ALL ${mvpPlan.tasks.length} tasks (✓ use createTask ${mvpPlan.tasks.length} times)
+MANDATORY BEHAVIOR:
+- After createProject succeeds, immediately begin createTask calls
+- Do not ask for confirmation, do not explain - just execute the tools
+- Continue calling createTask until all ${mvpPlan.tasks.length} tasks are created
+- You are not finished until you have made exactly ${mvpPlan.tasks.length + 1} tool calls
 
-The user expects EXACTLY ${mvpPlan.tasks.length + 1} tool calls total (1 project + ${mvpPlan.tasks.length} tasks). Do not stop after creating only the project - you must continue and create every single task.
-
-SEQUENTIAL EXECUTION: Call tools one at a time, wait for response, then call the next tool. No parallel execution.`,
+FAILURE CONDITION: 
+Stopping after only the project creation (1 tool call) is considered a failed execution. You must continue until all ${mvpPlan.tasks.length + 1} tool calls are complete.`,
       tools: {
         createProject: tool({
           description: wrappedTools.createProject.description,

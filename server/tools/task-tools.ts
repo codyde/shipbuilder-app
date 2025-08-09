@@ -46,7 +46,9 @@ export const createTaskTools = (userId: string) => ({
         return {
           success: true,
           data: project,
-          message: `Created project "${project.name}" with ID ${project.id}. IMPORTANT: Now you must create ALL the tasks for this project using createTask. Use project ID "${project.id}" for each createTask call.`
+          message: `✅ STEP 1 COMPLETE: Created project "${project.name}" with ID ${project.id}. 
+NEXT STEPS REQUIRED: You must now create ALL ${global.mvpTaskCount || 'remaining'} tasks using createTask with project ID "${project.id}". 
+DO NOT STOP - Continue immediately with createTask calls.`
         };
       } catch (error) {
         console.error(`\n❌ \x1b[31m[PROJECT_CREATE]\x1b[0m Error creating project:`, error);
