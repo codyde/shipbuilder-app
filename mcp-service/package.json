@@ -9,9 +9,6 @@
     "start": "node dist/index.js",
     "lint": "eslint src --ext .ts",
     "test": "jest",
-    "postinstall": "node scripts/patch-sentry-mcp.cjs",
-    "patch-sentry": "node scripts/patch-sentry-mcp.cjs",
-    "verify-patches": "node scripts/verify-sentry-patches.cjs",
     "test-mcp-analytics": "node scripts/test-mcp-analytics.cjs",
     "test-session-flow": "node scripts/test-session-flow.cjs"
   },

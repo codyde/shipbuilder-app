@@ -337,7 +337,7 @@ aiRoutes.post('/create-mvp-project', async (req: any, res: any) => {
     const taskTools = createTaskTools(userId);
     
     // Set task count for tool response messages
-    global.mvpTaskCount = mvpPlan.tasks.length;
+    (globalThis as any).mvpTaskCount = mvpPlan.tasks.length;
 
     // Check if the current provider supports tool calling (including fallbacks)
     const supportsToolCalling = AIProviderService.supportsToolCallingWithFallback(userProvider as any);
@@ -387,11 +387,20 @@ aiRoutes.post('/create-mvp-project', async (req: any, res: any) => {
         isEnabled: true,
         functionId: "mvp-project-tool-calling"
       },
-      maxSteps: 30, // Allow enough steps for large MVPs
+      maxSteps: 30, // CRITICAL: Enable multi-step tool calling
       toolChoice: 'auto', // Encourage tool usage
-      abortSignal: AbortSignal.timeout(120000), // 2-minute timeout
+      temperature: 0.3, // Lower temperature for more consistent tool calling behavior
+      abortSignal: AbortSignal.timeout(300000), // 5-minute timeout for large MVPs with many tasks
       onError: (error) => {
-        console.error(`\n🚨 \x1b[31m[MVP_STREAM_ERROR]\x1b[0m Provider: \x1b[33m${userProvider}\x1b[0m`, error);
+        const isTimeout = error instanceof Error && error.message.includes('timeout');
+        const isAfterCompletion = error instanceof Error && error.message.includes('aborted');
+        
+        if (isTimeout || isAfterCompletion) {
+          console.warn(`\n⚠️ \x1b[33m[MVP_TIMEOUT]\x1b[0m Provider: \x1b[33m${userProvider}\x1b[0m - Stream timeout after tool calls completed`);
+        } else {
+          console.error(`\n🚨 \x1b[31m[MVP_STREAM_ERROR]\x1b[0m Provider: \x1b[33m${userProvider}\x1b[0m`, error);
+        }
+        
         logAIError(error, { 
           userId: userId || 'unknown', 
           operation: 'mvp_stream_error', 
@@ -402,7 +411,8 @@ aiRoutes.post('/create-mvp-project', async (req: any, res: any) => {
           provider: userProvider,
           projectName: mvpPlan.projectName,
           taskCount: mvpPlan.tasks.length,
-          error: error instanceof Error ? error.message : 'Unknown error'
+          error: error instanceof Error ? error.message : 'Unknown error',
+          isTimeout: isTimeout || isAfterCompletion
         });
       },
       onStepFinish: (step) => {
@@ -517,7 +527,7 @@ Stopping after only the project creation (1 tool call) is considered a failed ex
       tools: {
         createProject: tool({
           description: wrappedTools.createProject.description,
-          inputSchema: z.object({
+          parameters: z.object({
             name: z.string().describe('The name of the project'),
             description: z.string().describe('Comprehensive description including tech stack and core features')
           }),
@@ -527,7 +537,7 @@ Stopping after only the project creation (1 tool call) is considered a failed ex
         }),
         createTask: tool({
           description: wrappedTools.createTask.description,
-          inputSchema: z.object({
+          parameters: z.object({
             projectId: z.string().describe('The ID of the project to add the task to'),
             title: z.string().describe('The title of the task'),
             description: z.string().describe('Detailed description of what needs to be done, structured as a prompt that an AI can use to generate code for that specific task. It should be a detailed description of the task, written from the perspective of a senior developer focused on that task space.'),
@@ -541,7 +551,7 @@ Stopping after only the project creation (1 tool call) is considered a failed ex
       ...(Object.keys(providerOptions).length > 0 && { providerOptions })
     });
 
-    const response = result.toUIMessageStreamResponse();
+    const response = result.toDataStreamResponse();
     
     // Send initial status update
     statusStreamer.sendProgressUpdate(`🚀 Starting MVP creation for "${mvpPlan.projectName}" with ${mvpPlan.tasks.length} tasks`);
@@ -557,7 +567,7 @@ Stopping after only the project creation (1 tool call) is considered a failed ex
         const decoder = new TextDecoder();
         
         while (true) {
-          const { done, value } = await reader.read();
+          const { done, value } = await reader!.read();
           if (done) {
             break;
           }

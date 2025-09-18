@@ -22,21 +22,13 @@ export class ShipbuilderMCPServer {
   private authService: AuthService;
 
   constructor() {
-    // Sentry wrapper re-enabled with patched SDK
     this.server = Sentry.wrapMcpServerWithSentry(new McpServer(MCP_SERVER_INFO, {
       capabilities: MCP_DETAILED_CAPABILITIES,
     }));
 
     this.authService = new AuthService();
-    this.setupTools();
-    this.setupErrorHandling();
-    
-    logger.info('MCP server created with simplified tools');
-  }
-
-  private setupErrorHandling() {
-    // MCP server error handling is handled through the transport layer
-    // and try/catch blocks in tool implementations
+    this.setupTools(); 
+    logger.info('MCP server created successfully');
   }
 
   private setupTools() {
@@ -389,7 +381,71 @@ export class ShipbuilderMCPServer {
       }
     );
 
+    this.setupPrompts();
     logger.info('Registered 10 core MCP tools');
+  }
+
+  private setupPrompts() {
+    // Register basic prompts for better MCP client compatibility
+    this.server.prompt(
+      'project-summary',
+      'Generate a summary of a project and its tasks',
+      {
+        project_id: z.string().describe('Project ID to summarize')
+      },
+      async ({ project_id }: { project_id: string }) => {
+        if (!this.authContext) {
+          throw new Error('Authentication required');
+        }
+
+        try {
+          const project = await mcpAPIService.getProject(project_id, this.authContext.userToken);
+          if (!project) {
+            throw new Error(`Project not found: ${project_id}`);
+          }
+
+          const taskCount = project.tasks?.length || 0;
+          const completedTasks = project.tasks?.filter(t => t.status === 'completed').length || 0;
+          const inProgressTasks = project.tasks?.filter(t => t.status === 'in_progress').length || 0;
+
+          return {
+            messages: [{
+              role: "user",
+              content: {
+                type: "text",
+                text: `# Project Summary: ${project.name}
+
+**Description**: ${project.description || 'No description provided'}
+**Status**: ${project.status}
+**Created**: ${project.createdAt}
+
+## Task Overview
+- **Total Tasks**: ${taskCount}
+- **Completed**: ${completedTasks}
+- **In Progress**: ${inProgressTasks}
+- **Backlog**: ${taskCount - completedTasks - inProgressTasks}
+
+## Recent Tasks
+${project.tasks?.slice(0, 5).map(task =>
+  `- **${task.title}** (${task.status}) - ${task.description || 'No description'}`
+).join('\n') || 'No tasks found'}
+
+*Use tools like query_tasks to get detailed task information.*`
+              }
+            }]
+          };
+        } catch (error) {
+          logger.error('Project summary prompt error', {
+            error: error instanceof Error ? error.message : String(error),
+            project_id,
+            userId: this.authContext.userId
+          });
+          throw error;
+        }
+      }
+    );
+
+    logger.info('Registered MCP prompts');
   }
 
   setAuthContext(context: MCPAuthContext) {

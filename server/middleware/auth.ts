@@ -60,9 +60,9 @@ interface AuditLogEntry {
 
 function logSecurityEvent(event: SecurityEvent, req: Request, _metadata: Record<string, unknown> = {}, severity: 'low' | 'medium' | 'high' | 'critical' = 'medium') {
   
-  // Capture high/critical events in Sentry
+  // Log high/critical events
   if (severity === 'high' || severity === 'critical') {
-    Sentry.captureMessage(`Security Event: ${event}`, severity === 'critical' ? 'error' : 'warning');
+    console.warn(`Security Event: ${event}`, { severity, timestamp: new Date().toISOString() });
     Sentry.setTag('security_event', event);
   }
 }

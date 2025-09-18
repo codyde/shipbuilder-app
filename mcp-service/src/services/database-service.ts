@@ -394,17 +394,42 @@ class MCPAPIService {
         throw new Error(`API request failed: ${response.status} ${response.statusText} - ${errorText}`);
       }
 
-      // This endpoint streams text, so we need to read the full response
-      const responseText = await response.text();
-      
+      // This endpoint streams text, so we need to read the streaming response
+      if (!response.body) {
+        throw new Error('No response body received');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let responseText = '';
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          responseText += decoder.decode(value, { stream: true });
+        }
+      } finally {
+        reader.releaseLock();
+      }
+
       // Try to parse as JSON (the AI should return JSON)
       try {
-        const mvpPlan = JSON.parse(responseText);
+        // Clean up any potential markdown formatting
+        let cleanedText = responseText.trim();
+        if (cleanedText.startsWith('```json')) {
+          cleanedText = cleanedText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+        } else if (cleanedText.startsWith('```')) {
+          cleanedText = cleanedText.replace(/^```\s*/, '').replace(/\s*```$/, '');
+        }
+        cleanedText = cleanedText.trim();
+
+        const mvpPlan = JSON.parse(cleanedText);
         return mvpPlan;
       } catch (parseError) {
-        // If it's not valid JSON, return the raw text
         logger.warn('MVP plan response was not valid JSON', {
-          responseText: responseText.substring(0, 200) + '...'
+          responseText: responseText.substring(0, 200) + '...',
+          parseError: parseError instanceof Error ? parseError.message : String(parseError)
         });
         throw new Error('Failed to parse MVP plan response');
       }

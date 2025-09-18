@@ -5,9 +5,8 @@ Sentry.init({
 
     tracesSampleRate: 1.0,
     
-    _experiments: {
-        enableLogs: true,
-    },
+    enableLogs: true,
+
     
     sendDefaultPii: true,
     debug: false,

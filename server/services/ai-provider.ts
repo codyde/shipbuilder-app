@@ -63,7 +63,8 @@ export class AIProviderService {
     if (this.isProviderAvailable('openai')) {
       try {
         const model = openai('gpt-5');
-        const providerOptions = this.getProviderOptions('openai', 'tool-calling');
+        const providerOptions = this.getProviderOptions('openai', 'tool-calling', 'gpt-5');
+        console.log(`🔧 [TOOL_CONFIG] Using gpt-5 with provider options:`, JSON.stringify(providerOptions, null, 2));
         return { model, providerOptions };
       } catch (error) {
         console.warn('Error creating OpenAI model, falling back to Claude:', error);
@@ -74,7 +75,7 @@ export class AIProviderService {
     if (this.isProviderAvailable('anthropic')) {
       console.warn('Using Claude Sonnet 4 for tool calling');
       const model = anthropic('claude-sonnet-4-20250514');
-      const providerOptions = this.getProviderOptions('anthropic', 'tool-calling');
+      const providerOptions = this.getProviderOptions('anthropic', 'tool-calling', 'claude-sonnet-4-20250514');
       return { model, providerOptions };
     }
     
@@ -82,7 +83,7 @@ export class AIProviderService {
     if (this.isProviderAvailable('xai')) {
       console.warn('Using XAI Grok for tool calling');
       const model = xai('grok-4');
-      const providerOptions = this.getProviderOptions('xai', 'tool-calling');
+      const providerOptions = this.getProviderOptions('xai', 'tool-calling', 'grok-4');
       return { model, providerOptions };
     }
     
@@ -107,12 +108,7 @@ export class AIProviderService {
   static async getModelConfig(userId: string, context?: string): Promise<{model: LanguageModel, providerOptions: Record<string, any>}> {
     try {
       // Log model configuration request
-      Sentry.addBreadcrumb({
-        message: 'Getting AI model configuration',
-        category: 'ai.model.config',
-        data: { userIdHash: this.hashUserId(userId) },
-        level: 'info'
-      });
+      console.debug('Getting AI model configuration', { userIdHash: this.hashUserId(userId) });
 
       // Get user preferences
       const user = await databaseService.getUserById(userId);
@@ -120,15 +116,10 @@ export class AIProviderService {
 
 
       // Log provider selection
-      Sentry.addBreadcrumb({
-        message: 'AI provider selected',
-        category: 'ai.provider.select',
-        data: {
-          userIdHash: this.hashUserId(userId),
-          provider,
-          isUserDefined: !!user?.aiProvider
-        },
-        level: 'info'
+      console.debug('AI provider selected', {
+        userIdHash: this.hashUserId(userId),
+        provider,
+        isUserDefined: !!user?.aiProvider
       });
 
       // Check if appropriate API key is set
@@ -190,18 +181,13 @@ export class AIProviderService {
       const providerOptions = this.getProviderOptions(provider, context, actualModelName);
 
       // Log successful configuration
-      Sentry.addBreadcrumb({
-        message: 'AI model configuration successful',
-        category: 'ai.model.config.success',
-        data: {
-          userIdHash: this.hashUserId(userId),
-          provider,
-          modelName: actualModelName,
-          displayName: this.getModelDisplayName(provider, actualModelName),
-          hasProviderOptions: Object.keys(providerOptions).length > 0,
-          isToolCallingFallback: context === 'tool-calling' && actualModelName !== MODEL_CONFIGS[provider]
-        },
-        level: 'info'
+      console.debug('AI model configuration successful', {
+        userIdHash: this.hashUserId(userId),
+        provider,
+        modelName: actualModelName,
+        displayName: this.getModelDisplayName(provider, actualModelName),
+        hasProviderOptions: Object.keys(providerOptions).length > 0,
+        isToolCallingFallback: context === 'tool-calling' && actualModelName !== MODEL_CONFIGS[provider]
       });
 
 
@@ -256,9 +242,24 @@ export class AIProviderService {
       case 'openai':
         const actualModel = modelName || MODEL_CONFIGS.openai;
         
-        // For tool calling contexts, don't use reasoningSummary as it may interfere
-        if (context === 'tool-calling' || context === 'mvp-generation') {
-          return {};
+        // For tool calling contexts, provide specific configuration for better continuation
+        if (context === 'tool-calling') {
+          return {
+            openai: {
+              // Encourage tool calling continuation in AI SDK v5
+              parallelToolCalls: false, // Ensure sequential execution
+              toolChoice: 'auto', // Override any default restrictions
+            }
+          };
+        }
+        
+        // For MVP generation, also disable parallel tool calls
+        if (context === 'mvp-generation') {
+          return {
+            openai: {
+              parallelToolCalls: false
+            }
+          };
         }
         
         // For o3 models, use reasoning summaries

@@ -151,26 +151,17 @@ class ServerLogger {
       }
     }
 
-    // Send to Sentry based on level
+    // Send to Sentry based on level (only exceptions, not messages)
     switch (level) {
       case LogLevel.ERROR:
         if (error) {
           Sentry.captureException(error)
-        } else {
-          Sentry.captureMessage(message, 'error')
         }
         break
       case LogLevel.WARN:
-        Sentry.captureMessage(message, 'warning')
-        break
       case LogLevel.INFO:
-        // Only send important info messages to Sentry
-        if (context?.important) {
-          Sentry.captureMessage(message, 'info')
-        }
-        break
       case LogLevel.DEBUG:
-        // Debug messages are not sent to Sentry
+        // Only capture exceptions, not messages
         break
     }
   }

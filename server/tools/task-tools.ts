@@ -47,7 +47,7 @@ export const createTaskTools = (userId: string) => ({
           success: true,
           data: project,
           message: `✅ STEP 1 COMPLETE: Created project "${project.name}" with ID ${project.id}. 
-NEXT STEPS REQUIRED: You must now create ALL ${global.mvpTaskCount || 'remaining'} tasks using createTask with project ID "${project.id}". 
+NEXT STEPS REQUIRED: You must now create ALL ${(globalThis as any).mvpTaskCount || 'remaining'} tasks using createTask with project ID "${project.id}". 
 DO NOT STOP - Continue immediately with createTask calls.`
         };
       } catch (error) {
@@ -423,7 +423,7 @@ CRITICAL: Your response must be ONLY the JSON object, with no markdown formattin
           },
           system: systemPrompt,
           prompt: `Create an MVP plan for: ${args.projectIdea}`,
-          maxOutputTokens: 2000,
+          maxTokens: 2000,
           ...(Object.keys(providerOptions).length > 0 && { providerOptions })
         });
 
