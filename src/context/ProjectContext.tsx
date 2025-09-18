@@ -1,4 +1,4 @@
-import { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useReducer, useEffect, ReactNode, memo } from 'react';
 import { Project, Task, CreateProjectInput, CreateTaskInput } from '@/types/types';
 import { logger } from '@/lib/logger';
 import { getApiUrl } from '@/lib/api-config';
@@ -97,7 +97,7 @@ interface ProjectContextValue extends ProjectState {
 
 const ProjectContext = createContext<ProjectContextValue | undefined>(undefined);
 
-export function ProjectProvider({ children }: { children: ReactNode }) {
+export const ProjectProvider = memo(function ProjectProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(projectReducer, initialState);
 
   const apiCall = async (url: string, options: RequestInit = {}, retries = 3) => {
@@ -382,7 +382,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       {children}
     </ProjectContext.Provider>
   );
-}
+});
 
 export function useProjects() {
   const context = useContext(ProjectContext);

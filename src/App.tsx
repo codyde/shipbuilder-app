@@ -1,22 +1,24 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { ProjectProvider } from '@/context/ProjectContext'
 import { ThemeProvider } from '@/context/ThemeContext'
 import { AuthProvider, useAuth } from '@/context/AuthContext'
 import { SidebarProvider } from '@/components/ui/sidebar'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { AppSidebar } from '@/components/app-sidebar'
-import { ProjectView } from '@/components/project-view'
-import { TaskView } from '@/components/task-view'
-import { AllTasksView } from '@/components/all-tasks-view'
-import { ComponentsView } from '@/components/components-view'
-import { SettingsView } from '@/components/settings-view'
-import { AIAssistant } from '@/components/AIAssistant'
-import { CommandMenu } from '@/components/command-menu'
 import { LoginScreen } from '@/components/LoginScreen'
 import { LoadingAnimation } from '@/components/ui/loading-animation'
 import { SidebarInset } from '@/components/ui/sidebar'
-import { MCPConsentScreen } from '@/pages/MCPConsentScreen'
-import { MCPConsentPage } from '@/pages/MCPConsentPage'
+
+// Lazy load non-critical components
+const ProjectView = lazy(() => import('@/components/project-view').then(module => ({ default: module.ProjectView })))
+const TaskView = lazy(() => import('@/components/task-view').then(module => ({ default: module.TaskView })))
+const AllTasksView = lazy(() => import('@/components/all-tasks-view').then(module => ({ default: module.AllTasksView })))
+const ComponentsView = lazy(() => import('@/components/components-view').then(module => ({ default: module.ComponentsView })))
+const SettingsView = lazy(() => import('@/components/settings-view').then(module => ({ default: module.SettingsView })))
+const AIAssistant = lazy(() => import('@/components/AIAssistant').then(module => ({ default: module.AIAssistant })))
+const CommandMenu = lazy(() => import('@/components/command-menu').then(module => ({ default: module.CommandMenu })))
+const MCPConsentScreen = lazy(() => import('@/pages/MCPConsentScreen').then(module => ({ default: module.MCPConsentScreen })))
+const MCPConsentPage = lazy(() => import('@/pages/MCPConsentPage').then(module => ({ default: module.MCPConsentPage })))
 
 type View = 'all-issues' | 'active' | 'backlog' | 'archived' | 'project' | 'tasks' | 'all-tasks' | 'components' | 'settings'
 
@@ -168,7 +170,11 @@ function AppContent() {
 
   // Show new MCP consent page if this is the new MCP flow
   if (isMCPConsent) {
-    return <MCPConsentPage />;
+    return (
+      <Suspense fallback={<LoadingAnimation />}>
+        <MCPConsentPage />
+      </Suspense>
+    );
   }
 
   // Show old MCP consent screen if this is the old MCP OAuth flow
@@ -177,7 +183,11 @@ function AppContent() {
     if (!user) {
       return <LoginScreen />;
     }
-    return <MCPConsentScreen />;
+    return (
+      <Suspense fallback={<LoadingAnimation />}>
+        <MCPConsentScreen />
+      </Suspense>
+    );
   }
 
   // Show login screen if not authenticated
@@ -202,37 +212,43 @@ function AppContent() {
             onNewProject={handleNewProject}
           />
           <SidebarInset>
-            {currentView === 'tasks' && selectedProjectId ? (
-              <TaskView 
-                projectId={selectedProjectId} 
-                onBack={() => handleViewChange('all-issues')} 
-              />
-            ) : currentView === 'all-tasks' ? (
-              <AllTasksView onProjectSelect={handleProjectSelect} />
-            ) : currentView === 'components' ? (
-              <ComponentsView />
-            ) : currentView === 'settings' ? (
-              <SettingsView />
-            ) : (
-              <ProjectView 
-                view={currentView} 
-                onProjectSelect={handleProjectSelect}
-                newProjectDialogOpen={newProjectDialogOpen}
-                onNewProjectDialogChange={setNewProjectDialogOpen}
-              />
-            )}
+            <Suspense fallback={<LoadingAnimation />}>
+              {currentView === 'tasks' && selectedProjectId ? (
+                <TaskView 
+                  projectId={selectedProjectId} 
+                  onBack={() => handleViewChange('all-issues')} 
+                />
+              ) : currentView === 'all-tasks' ? (
+                <AllTasksView onProjectSelect={handleProjectSelect} />
+              ) : currentView === 'components' ? (
+                <ComponentsView />
+              ) : currentView === 'settings' ? (
+                <SettingsView />
+              ) : (
+                <ProjectView 
+                  view={currentView} 
+                  onProjectSelect={handleProjectSelect}
+                  newProjectDialogOpen={newProjectDialogOpen}
+                  onNewProjectDialogChange={setNewProjectDialogOpen}
+                />
+              )}
+            </Suspense>
           </SidebarInset>
         </div>
-        <AIAssistant
-          open={aiAssistantOpen}
-          onOpenChange={setAiAssistantOpen}
-          onClose={() => setAiAssistantOpen(false)}
-          initialTab={initialTab}
-        />
-        <CommandMenu 
-          open={commandMenuOpen} 
-          onOpenChange={setCommandMenuOpen} 
-        />
+        <Suspense fallback={null}>
+          <AIAssistant
+            open={aiAssistantOpen}
+            onOpenChange={setAiAssistantOpen}
+            onClose={() => setAiAssistantOpen(false)}
+            initialTab={initialTab}
+          />
+        </Suspense>
+        <Suspense fallback={null}>
+          <CommandMenu 
+            open={commandMenuOpen} 
+            onOpenChange={setCommandMenuOpen} 
+          />
+        </Suspense>
         </SidebarProvider>
       </TooltipProvider>
     </ProjectProvider>

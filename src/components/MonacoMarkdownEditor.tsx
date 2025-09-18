@@ -1,8 +1,11 @@
-import { useRef } from 'react'
-import Editor from '@monaco-editor/react'
+import { useRef, lazy, Suspense } from 'react'
 import { Button } from '@/components/ui/button'
 import { ExternalLink } from 'lucide-react'
 import { useTheme } from '@/context/ThemeContext'
+import { LoadingAnimation } from '@/components/ui/loading-animation'
+
+// Lazy load Monaco Editor to reduce initial bundle size
+const Editor = lazy(() => import('@monaco-editor/react'))
 
 interface MonacoMarkdownEditorProps {
   value: string
@@ -58,23 +61,24 @@ export function MonacoMarkdownEditor({
           </Button>
         </div>
       )}
-      <Editor
-        height={height}
-        language="plaintext"
-        theme={getMonacoTheme()}
-        value={value}
-        onChange={handleEditorChange}
-        onMount={handleEditorDidMount}
-        loading={<div className="flex items-center justify-center h-full text-sm text-muted-foreground">Loading editor...</div>}
-        options={{
-          readOnly,
-          wordWrap: 'on',
-          minimap: { enabled: false },
-          lineNumbers: 'off',
-          scrollBeyondLastLine: false,
-          automaticLayout: true,
-          fontSize: 14,
-          fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      <Suspense fallback={<LoadingAnimation />}>
+        <Editor
+          height={height}
+          language="plaintext"
+          theme={getMonacoTheme()}
+          value={value}
+          onChange={handleEditorChange}
+          onMount={handleEditorDidMount}
+          loading={<div className="flex items-center justify-center h-full text-sm text-muted-foreground">Loading editor...</div>}
+          options={{
+            readOnly,
+            wordWrap: 'on',
+            minimap: { enabled: false },
+            lineNumbers: 'off',
+            scrollBeyondLastLine: false,
+            automaticLayout: true,
+            fontSize: 14,
+            fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
           padding: { top: 12, bottom: 12 },
           scrollbar: {
             vertical: 'auto',
@@ -86,8 +90,9 @@ export function MonacoMarkdownEditor({
           hideCursorInOverviewRuler: true,
           overviewRulerBorder: false,
           overviewRulerLanes: 0
-        }}
-      />
+          }}
+        />
+      </Suspense>
     </div>
   )
 }

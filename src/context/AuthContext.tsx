@@ -1,4 +1,4 @@
-import { createContext, useContext, useReducer, useEffect, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useReducer, useEffect, useCallback, ReactNode, memo } from 'react';
 import { User } from '@/types/types';
 import * as Sentry from '@sentry/react';
 import { getApiUrl } from '@/lib/api-config';
@@ -45,7 +45,7 @@ interface AuthContextValue extends AuthState {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+export const AuthProvider = memo(function AuthProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(authReducer, initialState);
 
   const apiCall = async (url: string, options: RequestInit = {}) => {
@@ -336,7 +336,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       {children}
     </AuthContext.Provider>
   );
-}
+});
 
 export function useAuth() {
   const context = useContext(AuthContext);

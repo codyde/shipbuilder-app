@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import { createContext, useContext, useEffect, useState, ReactNode, memo } from 'react'
 
 export type Theme = 'dark' | 'light' | 'ocean' | 'sunset' | 'midnight' | 'sentry'
 
@@ -21,7 +21,7 @@ interface ThemeProviderProps {
   children: ReactNode
 }
 
-export function ThemeProvider({ children }: ThemeProviderProps) {
+export const ThemeProvider = memo(function ThemeProvider({ children }: ThemeProviderProps) {
   const [theme, setTheme] = useState<Theme>(() => {
     const stored = localStorage.getItem('theme')
     return (stored as Theme) || 'dark'
@@ -44,4 +44,4 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       {children}
     </ThemeContext.Provider>
   )
-}
+});

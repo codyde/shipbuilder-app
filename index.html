@@ -5,6 +5,14 @@
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>ShipBuilder</title>
+    <!-- Preload critical resources -->
+    <link rel="preload" href="/src/main.tsx" as="script" />
+    <link rel="preload" href="/src/App.tsx" as="script" />
+    <link rel="preload" href="/src/index.css" as="style" />
+    <!-- DNS prefetch for API calls -->
+    <link rel="dns-prefetch" href="//api.shipbuilder.app" />
+    <!-- Preconnect to critical domains -->
+    <link rel="preconnect" href="https://api.shipbuilder.app" crossorigin />
   </head>
   <body>
     <div id="root"></div>

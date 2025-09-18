@@ -25,17 +25,36 @@ export default defineConfig({
       },
     },
   },
-  // Remove or comment out these warning suppressions and fix the underlying issues:
-  // esbuild: {
-  //   logOverride: { 'this-is-undefined-in-esm': 'silent' }
-  // },
-  // build: {
-  //   rollupOptions: {
-  //     onwarn(warning, warn) {
-  //       if (warning.code === 'UNUSED_EXTERNAL_IMPORT') return
-  //       warn(warning)
-  //     }
-  //   }
-  // }
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Vendor chunks for better caching
+          'react-vendor': ['react', 'react-dom'],
+          'ui-vendor': ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-select', '@radix-ui/react-tabs'],
+          'editor-vendor': ['@monaco-editor/react'],
+          'utility-vendor': ['clsx', 'tailwind-merge', 'class-variance-authority'],
+          'icons-vendor': ['lucide-react'],
+          'sentry-vendor': ['@sentry/react'],
+          'markdown-vendor': ['react-markdown', 'remark-gfm', 'rehype-highlight']
+        }
+      }
+    },
+    // Enable compression and minification
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true,
+        drop_debugger: true
+      }
+    },
+    // Optimize chunk size warnings
+    chunkSizeWarningLimit: 1000
+  },
+  // Performance optimizations
+  optimizeDeps: {
+    include: ['react', 'react-dom'],
+    exclude: ['@monaco-editor/react']
+  }
   }
 )
