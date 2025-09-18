@@ -458,7 +458,7 @@ const options = {
           summary: 'Get project by ID',
           description: 'Retrieve a specific project by its ID',
           tags: ['Projects'],
-          parameters: [
+          inputSchema: [
             {
               name: 'id',
               in: 'path',
@@ -493,7 +493,7 @@ const options = {
           summary: 'Update project',
           description: 'Update an existing project',
           tags: ['Projects'],
-          parameters: [
+          inputSchema: [
             {
               name: 'id',
               in: 'path',
@@ -554,7 +554,7 @@ const options = {
           summary: 'Delete project',
           description: 'Delete a project and all its tasks and subtasks',
           tags: ['Projects'],
-          parameters: [
+          inputSchema: [
             {
               name: 'id',
               in: 'path',
@@ -594,7 +594,7 @@ const options = {
           summary: 'Create a new task',
           description: 'Create a new task within a project',
           tags: ['Tasks'],
-          parameters: [
+          inputSchema: [
             {
               name: 'projectId',
               in: 'path',
@@ -655,7 +655,7 @@ const options = {
           summary: 'Get task by ID',
           description: 'Retrieve a specific task by its ID',
           tags: ['Tasks'],
-          parameters: [
+          inputSchema: [
             {
               name: 'projectId',
               in: 'path',
@@ -700,7 +700,7 @@ const options = {
           summary: 'Update task',
           description: 'Update an existing task',
           tags: ['Tasks'],
-          parameters: [
+          inputSchema: [
             {
               name: 'projectId',
               in: 'path',
@@ -779,7 +779,7 @@ const options = {
           summary: 'Delete task',
           description: 'Delete a task and all its subtasks',
           tags: ['Tasks'],
-          parameters: [
+          inputSchema: [
             {
               name: 'projectId',
               in: 'path',
@@ -829,7 +829,7 @@ const options = {
           summary: 'Create a new subtask',
           description: 'Create a new subtask within a task',
           tags: ['Subtasks'],
-          parameters: [
+          inputSchema: [
             {
               name: 'projectId',
               in: 'path',
@@ -900,7 +900,7 @@ const options = {
           summary: 'Update subtask',
           description: 'Update an existing subtask',
           tags: ['Subtasks'],
-          parameters: [
+          inputSchema: [
             {
               name: 'taskId',
               in: 'path',
@@ -975,7 +975,7 @@ const options = {
           summary: 'Delete subtask',
           description: 'Delete a subtask',
           tags: ['Subtasks'],
-          parameters: [
+          inputSchema: [
             {
               name: 'taskId',
               in: 'path',
@@ -1160,7 +1160,7 @@ const options = {
           security: [
             { BearerAuth: [] }
           ],
-          parameters: [
+          inputSchema: [
             {
               name: 'keyId',
               in: 'path',
@@ -1214,7 +1214,7 @@ const options = {
           security: [
             { BearerAuth: [] }
           ],
-          parameters: [
+          inputSchema: [
             {
               name: 'keyId',
               in: 'path',

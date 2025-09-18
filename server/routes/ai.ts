@@ -147,7 +147,7 @@ Format your response in markdown with clear sections and actionable steps. Be sp
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
-    const result = await streamText({
+    const result = streamText({
       model,
       experimental_telemetry: {
         isEnabled: true,
@@ -269,7 +269,7 @@ CRITICAL: Your response must be ONLY the JSON object, with no markdown formattin
     const provider = user?.aiProvider || 'anthropic';
     const providerOptions = AIProviderService.getProviderOptions(provider);
     
-    const result = await streamText({
+    const result = streamText({
       model,
       experimental_telemetry: {
         isEnabled: true,
@@ -335,6 +335,9 @@ aiRoutes.post('/create-mvp-project', async (req: any, res: any) => {
     // Import task tools (same as chat.ts)
     const { createTaskTools } = await import('../tools/task-tools.js');
     const taskTools = createTaskTools(userId);
+    
+    // Set task count for tool response messages
+    (globalThis as any).mvpTaskCount = mvpPlan.tasks.length;
 
     // Check if the current provider supports tool calling (including fallbacks)
     const supportsToolCalling = AIProviderService.supportsToolCallingWithFallback(userProvider as any);
@@ -384,10 +387,20 @@ aiRoutes.post('/create-mvp-project', async (req: any, res: any) => {
         isEnabled: true,
         functionId: "mvp-project-tool-calling"
       },
-      maxSteps: 30, // Allow enough steps for large MVPs
-      abortSignal: AbortSignal.timeout(120000), // 2-minute timeout
+      maxSteps: 30, // CRITICAL: Enable multi-step tool calling
+      toolChoice: 'auto', // Encourage tool usage
+      temperature: 0.3, // Lower temperature for more consistent tool calling behavior
+      abortSignal: AbortSignal.timeout(300000), // 5-minute timeout for large MVPs with many tasks
       onError: (error) => {
-        console.error(`\n🚨 \x1b[31m[MVP_STREAM_ERROR]\x1b[0m Provider: \x1b[33m${userProvider}\x1b[0m`, error);
+        const isTimeout = error instanceof Error && error.message.includes('timeout');
+        const isAfterCompletion = error instanceof Error && error.message.includes('aborted');
+        
+        if (isTimeout || isAfterCompletion) {
+          console.warn(`\n⚠️ \x1b[33m[MVP_TIMEOUT]\x1b[0m Provider: \x1b[33m${userProvider}\x1b[0m - Stream timeout after tool calls completed`);
+        } else {
+          console.error(`\n🚨 \x1b[31m[MVP_STREAM_ERROR]\x1b[0m Provider: \x1b[33m${userProvider}\x1b[0m`, error);
+        }
+        
         logAIError(error, { 
           userId: userId || 'unknown', 
           operation: 'mvp_stream_error', 
@@ -398,7 +411,8 @@ aiRoutes.post('/create-mvp-project', async (req: any, res: any) => {
           provider: userProvider,
           projectName: mvpPlan.projectName,
           taskCount: mvpPlan.tasks.length,
-          error: error instanceof Error ? error.message : 'Unknown error'
+          error: error instanceof Error ? error.message : 'Unknown error',
+          isTimeout: isTimeout || isAfterCompletion
         });
       },
       onStepFinish: (step) => {
@@ -480,21 +494,36 @@ CRITICAL SEQUENTIAL EXECUTION REQUIREMENTS:
 5. Create ALL ${mvpPlan.tasks.length} tasks sequentially - no parallel execution
 6. Use the project ID from step 1 for all createTask calls
 
-IMPORTANT: You must create tasks sequentially, not in parallel. Call createTask once, wait for it to complete, then call createTask again for the next task. Repeat until all ${mvpPlan.tasks.length} tasks are created.`
+IMPORTANT: You must create tasks sequentially, not in parallel. Call createTask once, wait for it to complete, then call createTask again for the next task. Repeat until all ${mvpPlan.tasks.length} tasks are created.
+
+REMEMBER: After creating the project, you are only 1/${mvpPlan.tasks.length + 1} done. You still need to create ${mvpPlan.tasks.length} more tasks. Do not stop until you have made ${mvpPlan.tasks.length + 1} total tool calls.
+
+START NOW: Begin by calling createProject, then immediately proceed to call createTask for each task.`
+        },
+        {
+          role: 'assistant',
+          content: "I understand. I need to create the project first, then create all ${mvpPlan.tasks.length} tasks sequentially. I will start with createProject and then continue with createTask calls until all tasks are created. Let me begin now."
+        },
+        {
+          role: 'user', 
+          content: "Perfect! Please start by calling createProject, then immediately continue with all the createTask calls. Do not stop until you've created all ${mvpPlan.tasks.length} tasks."
         }
       ],
-      system: `You are creating an MVP project using the available tools. You must use both createProject and createTask tools to create a complete project.
+      system: `You are a project setup assistant. Your job is to execute ALL the required tool calls to fully set up an MVP project.
 
-CRITICAL REQUIREMENTS:
-1. You must create the project AND all the tasks
-2. Do not stop after creating just the project
-3. SEQUENTIAL EXECUTION ONLY: Call createTask one at a time, wait for completion, then call the next one
-4. DO NOT use parallel function calling - create tasks sequentially
-5. Continue calling createTask until every single task is created
+EXECUTION CHECKLIST - You MUST complete ALL items:
+□ Call createProject (1 time)
+□ Call createTask (${mvpPlan.tasks.length} times - once for each task)
+□ TOTAL REQUIRED: ${mvpPlan.tasks.length + 1} tool calls
 
-IMPORTANT: You are using the XAI provider which supports parallel function calling, but for this task you MUST execute functions sequentially. Call one createTask, wait for it to complete, then call the next createTask. Do not call multiple createTask functions simultaneously.
+MANDATORY BEHAVIOR:
+- After createProject succeeds, immediately begin createTask calls
+- Do not ask for confirmation, do not explain - just execute the tools
+- Continue calling createTask until all ${mvpPlan.tasks.length} tasks are created
+- You are not finished until you have made exactly ${mvpPlan.tasks.length + 1} tool calls
 
-The user will be very disappointed if you only create the project but not all the tasks. Make sure you complete the entire job by creating every task sequentially.`,
+FAILURE CONDITION: 
+Stopping after only the project creation (1 tool call) is considered a failed execution. You must continue until all ${mvpPlan.tasks.length + 1} tool calls are complete.`,
       tools: {
         createProject: tool({
           description: wrappedTools.createProject.description,
@@ -538,7 +567,7 @@ The user will be very disappointed if you only create the project but not all th
         const decoder = new TextDecoder();
         
         while (true) {
-          const { done, value } = await reader.read();
+          const { done, value } = await reader!.read();
           if (done) {
             break;
           }

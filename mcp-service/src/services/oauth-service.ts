@@ -128,6 +128,15 @@ export class OAuthService {
     
     // Validate client and redirect URI
     if (entry.client_id !== params.client_id || entry.redirect_uri !== params.redirect_uri) {
+      logger.warn('Client ID or redirect URI validation failed', {
+        stored_client_id: entry.client_id,
+        provided_client_id: params.client_id,
+        client_id_match: entry.client_id === params.client_id,
+        stored_redirect_uri: entry.redirect_uri,
+        provided_redirect_uri: params.redirect_uri,
+        redirect_uri_match: entry.redirect_uri === params.redirect_uri,
+        authorization_code: params.authorization_code.substring(0, 8) + '...'
+      });
       return { valid: false, error: 'Client ID or redirect URI mismatch' };
     }
     
@@ -144,13 +153,30 @@ export class OAuthService {
       const computedChallenge = createHash('sha256')
         .update(params.code_verifier)
         .digest('base64url');
-      
+
+      // Log for debugging
+      logger.info('PKCE validation debug', {
+        expected_challenge: entry.code_challenge,
+        computed_challenge: computedChallenge,
+        expected_length: entry.code_challenge.length,
+        computed_length: computedChallenge.length,
+        code_verifier_length: params.code_verifier.length,
+        authorization_code: params.authorization_code.substring(0, 8) + '...'
+      });
+
       // Use timing-safe comparison to prevent timing attacks
-      const expectedBuffer = Buffer.from(entry.code_challenge);
-      const computedBuffer = Buffer.from(computedChallenge);
-      
-      if (expectedBuffer.length !== computedBuffer.length || 
+      // Both strings should be base64url encoded, so we can compare them directly as strings
+      const expectedBuffer = Buffer.from(entry.code_challenge, 'utf8');
+      const computedBuffer = Buffer.from(computedChallenge, 'utf8');
+
+      if (expectedBuffer.length !== computedBuffer.length ||
           !timingSafeEqual(expectedBuffer, computedBuffer)) {
+        logger.warn('PKCE validation failed', {
+          expected_challenge: entry.code_challenge,
+          computed_challenge: computedChallenge,
+          buffers_match: expectedBuffer.equals(computedBuffer),
+          authorization_code: params.authorization_code.substring(0, 8) + '...'
+        });
         return { valid: false, error: 'Invalid code verifier' };
       }
     }

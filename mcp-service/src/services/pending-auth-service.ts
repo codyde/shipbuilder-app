@@ -23,7 +23,7 @@ export class PendingAuthService {
   private redis: Redis | null = null;
   private memoryStore = new Map<string, PendingAuthRequest>();
   private readonly prefix = 'mcp_auth:';
-  private readonly defaultTTL = 300; // 5 minutes
+  private readonly defaultTTL = 600; // 10 minutes - sufficient with Redis persistence
 
   constructor() {
     this.initializeRedis();
@@ -32,24 +32,47 @@ export class PendingAuthService {
   private async initializeRedis() {
     try {
       if (process.env.REDIS_URL) {
+        logger.info('Attempting to connect to Redis', {
+          redisUrl: process.env.REDIS_URL.substring(0, 20) + '...',
+          nodeEnv: process.env.NODE_ENV
+        });
+
         this.redis = new Redis(process.env.REDIS_URL, {
           maxRetriesPerRequest: 3,
-          lazyConnect: true
+          lazyConnect: true,
+          connectTimeout: 10000,
+          commandTimeout: 5000
         });
-        
+
         this.redis.on('error', (error) => {
-          logger.error('Redis connection error in PendingAuthService', { error });
+          logger.error('Redis connection error in PendingAuthService', {
+            error: error.message,
+            code: (error as any).code,
+            errno: (error as any).errno
+          });
           // Fall back to memory storage
           this.redis = null;
         });
 
+        this.redis.on('connect', () => {
+          logger.info('Redis connected successfully for PendingAuthService');
+        });
+
+        this.redis.on('ready', () => {
+          logger.info('Redis ready for PendingAuthService');
+        });
+
         await this.redis.connect();
-        logger.info('PendingAuthService connected to Redis');
+        logger.info('PendingAuthService connected to Redis successfully');
       } else {
-        logger.info('PendingAuthService using memory storage (no REDIS_URL)');
+        logger.warn('PendingAuthService using memory storage (no REDIS_URL configured)');
       }
     } catch (error) {
-      logger.error('Failed to initialize Redis for PendingAuthService', { error });
+      logger.error('Failed to initialize Redis for PendingAuthService', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        redisUrl: process.env.REDIS_URL ? 'configured' : 'not configured'
+      });
       this.redis = null;
     }
   }
@@ -81,14 +104,19 @@ export class PendingAuthService {
     };
 
     try {
-      if (this.redis) {
+      if (this.redis && this.redis.status === 'ready') {
         await this.redis.setex(
           `${this.prefix}${authId}`,
           this.defaultTTL,
           JSON.stringify(request)
         );
+        logger.debug('Stored pending auth in Redis', { authId });
       } else {
         // Fallback to memory storage
+        logger.warn('Using memory storage for pending auth - Redis not available', {
+          authId,
+          redisStatus: this.redis?.status || 'null'
+        });
         this.memoryStore.set(authId, request);
         // Auto-cleanup after TTL
         setTimeout(() => {
@@ -121,13 +149,18 @@ export class PendingAuthService {
     try {
       let request: PendingAuthRequest | null = null;
 
-      if (this.redis) {
+      if (this.redis && this.redis.status === 'ready') {
         const data = await this.redis.get(`${this.prefix}${authId}`);
         if (data) {
           request = JSON.parse(data);
+          logger.debug('Retrieved pending auth from Redis', { authId });
         }
       } else {
         // Fallback to memory storage
+        logger.warn('Using memory storage to retrieve pending auth - Redis not available', {
+          authId,
+          redisStatus: this.redis?.status || 'null'
+        });
         request = this.memoryStore.get(authId) || null;
       }
 

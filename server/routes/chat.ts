@@ -110,7 +110,7 @@ chatRoutes.post('/stream', async (req: any, res: any) => {
         isEnabled: true,
         functionId: "chat-tool-calling"
       },
-      maxSteps: 10, // Allow multiple tool calls in sequence
+      maxSteps: 10, // CRITICAL: Enable multi-step tool calling
       messages,
       system: `You are a helpful AI assistant for a software development task management application. You can help users create and manage their projects, tasks, and subtasks using the available tools.
 

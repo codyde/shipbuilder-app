@@ -68,7 +68,7 @@ This is a full-stack project management application built with React + TypeScrip
 
 ### AI Integration
 - **Default Provider**: Anthropic Claude Sonnet 4 (`claude-sonnet-4-20250514`) via Vercel AI SDK
-- **OpenAI Hybrid**: o3-mini for reasoning + GPT-4o-mini for tool calling with automatic fallback
+- **OpenAI Hybrid**: gpt-5 for reasoning + GPT-4o-mini for tool calling with automatic fallback
 - **Chat Interface**: Streaming tool calls with real-time UI updates
 - **MVP Builder**: Two-step AI-powered project generation
 

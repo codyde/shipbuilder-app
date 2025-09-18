@@ -9,7 +9,7 @@ const { logger } = Sentry;
 export const createTaskTools = (userId: string) => ({
   createProject: {
     description: 'Create a new project',
-    parameters: {
+    inputSchema: {
       type: 'object',
       properties: {
         name: {
@@ -46,7 +46,9 @@ export const createTaskTools = (userId: string) => ({
         return {
           success: true,
           data: project,
-          message: `Created project "${project.name}" with ID ${project.id}`
+          message: `✅ STEP 1 COMPLETE: Created project "${project.name}" with ID ${project.id}. 
+NEXT STEPS REQUIRED: You must now create ALL ${(globalThis as any).mvpTaskCount || 'remaining'} tasks using createTask with project ID "${project.id}". 
+DO NOT STOP - Continue immediately with createTask calls.`
         };
       } catch (error) {
         console.error(`\n❌ \x1b[31m[PROJECT_CREATE]\x1b[0m Error creating project:`, error);
@@ -68,7 +70,7 @@ export const createTaskTools = (userId: string) => ({
 
   createTask: {
     description: 'Create a new task within a project',
-    parameters: {
+    inputSchema: {
       type: 'object',
       properties: {
         projectId: {
@@ -184,7 +186,7 @@ export const createTaskTools = (userId: string) => ({
 
   updateTaskStatus: {
     description: 'Update the status of a task',
-    parameters: {
+    inputSchema: {
       type: 'object',
       properties: {
         projectId: {
@@ -230,7 +232,7 @@ export const createTaskTools = (userId: string) => ({
 
   listProjects: {
     description: 'Get a list of all projects with their tasks',
-    parameters: {
+    inputSchema: {
       type: 'object',
       properties: {},
       required: []
@@ -255,7 +257,7 @@ export const createTaskTools = (userId: string) => ({
 
   getProject: {
     description: 'Get details of a specific project including all its tasks',
-    parameters: {
+    inputSchema: {
       type: 'object',
       properties: {
         projectId: {
@@ -292,7 +294,7 @@ export const createTaskTools = (userId: string) => ({
 
   deleteTask: {
     description: 'Delete a task from a project',
-    parameters: {
+    inputSchema: {
       type: 'object',
       properties: {
         projectId: {
@@ -344,7 +346,7 @@ export const createTaskTools = (userId: string) => ({
 
   generateMVPPlan: {
     description: 'Generate an MVP plan for a project idea without creating anything',
-    parameters: {
+    inputSchema: {
       type: 'object',
       properties: {
         projectIdea: {

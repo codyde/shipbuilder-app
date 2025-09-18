@@ -1,4 +1,4 @@
-import { useChat, UseChatOptions } from 'ai/react';
+import { useChat, UseChatOptions } from '@ai-sdk/react';
 import { useState, useCallback, useRef } from 'react';
 import { StatusMessage } from '@/components/ui/tool-status-display';
 

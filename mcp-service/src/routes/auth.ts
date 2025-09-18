@@ -213,7 +213,10 @@ router.post('/consent', async (req: any, res: any) => {
     // Get pending authorization
     const pendingAuth = await pendingAuthService.getPendingAuth(auth_id);
     if (!pendingAuth) {
-      logger.error('Pending authorization not found or expired', { auth_id });
+      logger.error('Pending authorization not found or expired', {
+        auth_id,
+        hasRedis: !!process.env.REDIS_URL
+      });
       return res.status(400).json({
         error: 'invalid_request',
         error_description: 'Invalid or expired authorization request'

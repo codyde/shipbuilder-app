@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useChat } from 'ai/react';
+import { useChat } from '@ai-sdk/react';
 import { useProjects } from '@/context/ProjectContext';
 import { useAuth } from '@/context/AuthContext';
 import { ToolInvocation } from '@/types/types';
@@ -389,12 +389,23 @@ export function AIAssistant({ onClose, open = true, onOpenChange, initialTab = '
 
       try {
         let cleanedText = fullText.trim();
+        
+        // Remove markdown code blocks
         if (cleanedText.startsWith('```json')) {
           cleanedText = cleanedText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
         } else if (cleanedText.startsWith('```')) {
           cleanedText = cleanedText.replace(/^```\s*/, '').replace(/\s*```$/, '');
         }
+        
+        // Try to extract JSON from text that might have additional content
+        const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          cleanedText = jsonMatch[0];
+        }
+        
         cleanedText = cleanedText.trim();
+        
+        console.log('Attempting to parse MVP plan:', cleanedText.substring(0, 200) + '...');
         
         const mvpPlan = JSON.parse(cleanedText);
         
@@ -415,8 +426,10 @@ export function AIAssistant({ onClose, open = true, onOpenChange, initialTab = '
         setMvpPlan(planWithIds);
         setProjectName(mvpPlan.projectName);
         setGenerationText('');
-      } catch {
-        throw new Error('Failed to parse MVP plan from AI response');
+      } catch (parseError) {
+        console.error('Failed to parse MVP plan:', parseError);
+        console.error('Raw response:', fullText);
+        throw new Error(`Failed to parse MVP plan from AI response: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`);
       }
 
     } catch (err) {
@@ -461,7 +474,7 @@ export function AIAssistant({ onClose, open = true, onOpenChange, initialTab = '
           tools: {
             suggestProjectName: {
               description: 'Generate a suggested project name based on a project description',
-              parameters: {
+              inputSchema: {
                 type: 'object',
                 properties: {
                   description: {
@@ -1089,7 +1102,7 @@ export function AIAssistant({ onClose, open = true, onOpenChange, initialTab = '
 
                   {isMobile ? (
                     // Simple summary for mobile
-                    <Card className="p-3">
+                    (<Card className="p-3">
                       <div className="text-sm space-y-2">
                         <div>
                           <span className="font-medium text-primary">Features:</span>
@@ -1100,10 +1113,10 @@ export function AIAssistant({ onClose, open = true, onOpenChange, initialTab = '
                           <span className="text-muted-foreground ml-1">{getSelectedTasksCount()}/{mvpPlan.tasks.length} tasks selected</span>
                         </div>
                       </div>
-                    </Card>
+                    </Card>)
                   ) : (
                     // Full accordions for desktop
-                    <>
+                    (<>
                       <Accordion 
                         title="Core Features" 
                         count={mvpPlan.features.length}
@@ -1119,7 +1132,6 @@ export function AIAssistant({ onClose, open = true, onOpenChange, initialTab = '
                           ))}
                         </ul>
                       </Accordion>
-
                       <Accordion 
                         title="Development Tasks" 
                         count={mvpPlan.tasks.length}
@@ -1236,7 +1248,7 @@ export function AIAssistant({ onClose, open = true, onOpenChange, initialTab = '
                           </div>
                         </div>
                       </Accordion>
-                    </>
+                    </>)
                   )}
 
                   {!isCreating ? (
