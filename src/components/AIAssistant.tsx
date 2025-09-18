@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useChat } from 'ai/react';
 import { useProjects } from '@/context/ProjectContext';
 import { useAuth } from '@/context/AuthContext';
@@ -128,6 +128,8 @@ export function AIAssistant({ onClose, open = true, onOpenChange, initialTab = '
   const [activeTab, setActiveTab] = useState<'mvp' | 'chat'>(initialTab);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const streamingTextRef = useRef<HTMLDivElement>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isMountedRef = useRef(true);
 
   // MVP Builder state
   const [projectIdea, setProjectIdea] = useState('');
@@ -585,15 +587,25 @@ export function AIAssistant({ onClose, open = true, onOpenChange, initialTab = '
       refreshProjects();
       setIsComplete(true);
       
-      setTimeout(() => {
-        setProjectIdea('');
-        setMvpPlan(null);
-        setProjectName('');
-        setSuccessMessage(null);
-        setGenerationText('');
-        setIsComplete(false);
-        setIsCreating(false);
-        onClose?.();
+      // Clear any existing timeout
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      
+      // Set a new timeout with proper cleanup
+      timeoutRef.current = setTimeout(() => {
+        // Only proceed if component is still mounted
+        if (isMountedRef.current) {
+          setProjectIdea('');
+          setMvpPlan(null);
+          setProjectName('');
+          setSuccessMessage(null);
+          setGenerationText('');
+          setIsComplete(false);
+          setIsCreating(false);
+          safeClose();
+        }
+        timeoutRef.current = null;
       }, 3000);
       
     } catch (err) {
@@ -603,6 +615,11 @@ export function AIAssistant({ onClose, open = true, onOpenChange, initialTab = '
         setError(err instanceof Error ? err.message : 'Failed to create MVP project. Please try again.');
       }
       setIsCreating(false);
+      // Clear timeout on error
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
     }
   };
 
@@ -735,6 +752,25 @@ export function AIAssistant({ onClose, open = true, onOpenChange, initialTab = '
     if (!mvpPlan) return 0;
     return mvpPlan.tasks.filter(task => task.selected).length;
   };
+
+  // Cleanup effect to handle component unmounting
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+    };
+  }, []);
+
+  // Safe close handler that checks if component is still mounted
+  const safeClose = useCallback(() => {
+    if (isMountedRef.current && onClose) {
+      onClose();
+    }
+  }, [onClose]);
 
   // Handle open/close state
   const handleOpenChange = (newOpen: boolean) => {
@@ -1253,6 +1289,11 @@ export function AIAssistant({ onClose, open = true, onOpenChange, initialTab = '
                       <Button
                         variant="outline"
                         onClick={() => {
+                          // Clear any pending timeout
+                          if (timeoutRef.current) {
+                            clearTimeout(timeoutRef.current);
+                            timeoutRef.current = null;
+                          }
                           setMvpPlan(null);
                           setProjectName('');
                           setError(null);
