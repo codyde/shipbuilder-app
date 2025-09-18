@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense, lazy } from 'react'
 import { ProjectProvider } from '@/context/ProjectContext'
 import { ThemeProvider } from '@/context/ThemeContext'
 import { AuthProvider, useAuth } from '@/context/AuthContext'
@@ -6,22 +6,25 @@ import { SidebarProvider } from '@/components/ui/sidebar'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { AppSidebar } from '@/components/app-sidebar'
 import { ProjectView } from '@/components/project-view'
-import { TaskView } from '@/components/task-view'
-import { AllTasksView } from '@/components/all-tasks-view'
-import { ComponentsView } from '@/components/components-view'
-import { SettingsView } from '@/components/settings-view'
-import { AIAssistant } from '@/components/AIAssistant'
-import { CommandMenu } from '@/components/command-menu'
 import { LoginScreen } from '@/components/LoginScreen'
 import { LoadingAnimation } from '@/components/ui/loading-animation'
+import { AppSkeleton } from '@/components/ui/app-skeleton'
 import { SidebarInset } from '@/components/ui/sidebar'
-import { MCPConsentScreen } from '@/pages/MCPConsentScreen'
-import { MCPConsentPage } from '@/pages/MCPConsentPage'
+
+// Lazy load non-critical components
+const TaskView = lazy(() => import('@/components/task-view').then(m => ({ default: m.TaskView })));
+const AllTasksView = lazy(() => import('@/components/all-tasks-view').then(m => ({ default: m.AllTasksView })));
+const ComponentsView = lazy(() => import('@/components/components-view').then(m => ({ default: m.ComponentsView })));
+const SettingsView = lazy(() => import('@/components/settings-view').then(m => ({ default: m.SettingsView })));
+import { LazyAIAssistant } from '@/components/LazyAIAssistant';
+import { LazyCommandMenu } from '@/components/LazyCommandMenu';
+const MCPConsentScreen = lazy(() => import('@/pages/MCPConsentScreen').then(m => ({ default: m.MCPConsentScreen })));
+const MCPConsentPage = lazy(() => import('@/pages/MCPConsentPage').then(m => ({ default: m.MCPConsentPage })));
 
 type View = 'all-issues' | 'active' | 'backlog' | 'archived' | 'project' | 'tasks' | 'all-tasks' | 'components' | 'settings'
 
 function AppContent() {
-  const { user, loading } = useAuth();
+  const { user, loading, initialLoadComplete } = useAuth();
   const [currentView, setCurrentView] = useState<View>('all-issues')
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [commandMenuOpen, setCommandMenuOpen] = useState(false)
@@ -162,13 +165,21 @@ function AppContent() {
 
   // Show loading animation while checking authentication
   if (loading) {
+    // If this is first load and user is not yet known, show app skeleton for better UX
+    if (!initialLoadComplete && !user) {
+      return <AppSkeleton />;
+    }
     return <LoadingAnimation />;
   }
 
 
   // Show new MCP consent page if this is the new MCP flow
   if (isMCPConsent) {
-    return <MCPConsentPage />;
+    return (
+      <Suspense fallback={<LoadingAnimation />}>
+        <MCPConsentPage />
+      </Suspense>
+    );
   }
 
   // Show old MCP consent screen if this is the old MCP OAuth flow
@@ -177,7 +188,11 @@ function AppContent() {
     if (!user) {
       return <LoginScreen />;
     }
-    return <MCPConsentScreen />;
+    return (
+      <Suspense fallback={<LoadingAnimation />}>
+        <MCPConsentScreen />
+      </Suspense>
+    );
   }
 
   // Show login screen if not authenticated
@@ -202,34 +217,36 @@ function AppContent() {
             onNewProject={handleNewProject}
           />
           <SidebarInset>
-            {currentView === 'tasks' && selectedProjectId ? (
-              <TaskView 
-                projectId={selectedProjectId} 
-                onBack={() => handleViewChange('all-issues')} 
-              />
-            ) : currentView === 'all-tasks' ? (
-              <AllTasksView onProjectSelect={handleProjectSelect} />
-            ) : currentView === 'components' ? (
-              <ComponentsView />
-            ) : currentView === 'settings' ? (
-              <SettingsView />
-            ) : (
-              <ProjectView 
-                view={currentView} 
-                onProjectSelect={handleProjectSelect}
-                newProjectDialogOpen={newProjectDialogOpen}
-                onNewProjectDialogChange={setNewProjectDialogOpen}
-              />
-            )}
+            <Suspense fallback={<div className="flex items-center justify-center h-64"><LoadingAnimation /></div>}>
+              {currentView === 'tasks' && selectedProjectId ? (
+                <TaskView 
+                  projectId={selectedProjectId} 
+                  onBack={() => handleViewChange('all-issues')} 
+                />
+              ) : currentView === 'all-tasks' ? (
+                <AllTasksView onProjectSelect={handleProjectSelect} />
+              ) : currentView === 'components' ? (
+                <ComponentsView />
+              ) : currentView === 'settings' ? (
+                <SettingsView />
+              ) : (
+                <ProjectView 
+                  view={currentView} 
+                  onProjectSelect={handleProjectSelect}
+                  newProjectDialogOpen={newProjectDialogOpen}
+                  onNewProjectDialogChange={setNewProjectDialogOpen}
+                />
+              )}
+            </Suspense>
           </SidebarInset>
         </div>
-        <AIAssistant
+        <LazyAIAssistant
           open={aiAssistantOpen}
           onOpenChange={setAiAssistantOpen}
           onClose={() => setAiAssistantOpen(false)}
           initialTab={initialTab}
         />
-        <CommandMenu 
+        <LazyCommandMenu 
           open={commandMenuOpen} 
           onOpenChange={setCommandMenuOpen} 
         />

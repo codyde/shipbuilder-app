@@ -7,18 +7,21 @@ interface AuthState {
   user: User | null;
   loading: boolean;
   error: string | null;
+  initialLoadComplete: boolean;
 }
 
 type AuthAction =
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_ERROR'; payload: string | null }
   | { type: 'SET_USER'; payload: User | null }
+  | { type: 'SET_INITIAL_LOAD_COMPLETE'; payload: boolean }
   | { type: 'LOGOUT' };
 
 const initialState: AuthState = {
   user: null,
   loading: true,
   error: null,
+  initialLoadComplete: false,
 };
 
 function authReducer(state: AuthState, action: AuthAction): AuthState {
@@ -29,6 +32,8 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
       return { ...state, error: action.payload };
     case 'SET_USER':
       return { ...state, user: action.payload, error: null };
+    case 'SET_INITIAL_LOAD_COMPLETE':
+      return { ...state, initialLoadComplete: action.payload };
     case 'LOGOUT':
       return { ...state, user: null };
     default:
@@ -129,6 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
+      dispatch({ type: 'SET_INITIAL_LOAD_COMPLETE', payload: true });
     }
   }, []);
 
@@ -252,6 +258,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return true;
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
+      dispatch({ type: 'SET_INITIAL_LOAD_COMPLETE', payload: true });
       
       // Clean up URL parameters after OAuth callback
       if (success || error) {
@@ -317,6 +324,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error('Auth initialization error:', error);
         // Ensure loading is set to false even if there's an error
         dispatch({ type: 'SET_LOADING', payload: false });
+        dispatch({ type: 'SET_INITIAL_LOAD_COMPLETE', payload: true });
       }
     };
     
