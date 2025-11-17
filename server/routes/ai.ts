@@ -71,7 +71,7 @@ function buildProjectDescription(plan: MVPPlanPayload): string {
 
   if (Array.isArray(plan.features) && plan.features.length > 0) {
     const featureList = plan.features.map((feature) => `- ${feature}`).join('\n');
-  sections.push(`Core Features:\n${featureList}`);
+    sections.push(`Core Features:\n${featureList}`);
   }
 
   if (Array.isArray(plan.tasks) && plan.tasks.length > 0) {

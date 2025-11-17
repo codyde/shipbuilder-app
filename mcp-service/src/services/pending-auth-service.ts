@@ -26,6 +26,8 @@ export class PendingAuthService {
   private readonly defaultTTL = 600; // 10 minutes - sufficient with Redis persistence
 
   constructor() {
+    // Initialize Redis asynchronously - methods will check redis.status before using
+    // and gracefully fall back to memory storage if Redis is not ready
     this.initializeRedis();
   }
 
