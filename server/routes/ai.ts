@@ -302,7 +302,7 @@ aiRoutes.post('/create-mvp-project', async (req: any, res: any) => {
   let userId: string | undefined;
   let userProvider: AIProvider = 'anthropic';
   let statusStreamer: StatusStreamer | null = null;
-  let mvpPlan: MVPPlanPayload;
+  let mvpPlan: MVPPlanPayload | undefined;
 
   try {
     const rawPlan = req.body.mvpPlan as MVPPlanPayload | undefined;
