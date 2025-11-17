@@ -301,6 +301,46 @@ export function AIAssistant({ onClose, open = true, onOpenChange, initialTab = '
   }, [messages]);
 
   // MVP Builder functions
+  const extractJsonObject = (text: string): string | null => {
+    const startIndex = text.indexOf('{');
+    if (startIndex === -1) return null;
+
+    let depth = 0;
+    let inString = false;
+    let isEscaped = false;
+
+    for (let i = startIndex; i < text.length; i++) {
+      const char = text[i];
+
+      if (inString) {
+        if (isEscaped) {
+          isEscaped = false;
+        } else if (char === '\\') {
+          isEscaped = true;
+        } else if (char === '"') {
+          inString = false;
+        }
+        continue;
+      }
+
+      if (char === '"') {
+        inString = true;
+        continue;
+      }
+
+      if (char === '{') {
+        depth += 1;
+      } else if (char === '}') {
+        depth -= 1;
+        if (depth === 0) {
+          return text.slice(startIndex, i + 1);
+        }
+      }
+    }
+
+    return null;
+  };
+
   const handleGenerateMVP = async () => {
     if (!user) {
       setError('Please log in to use the MVP Builder');
@@ -390,24 +430,21 @@ export function AIAssistant({ onClose, open = true, onOpenChange, initialTab = '
       try {
         let cleanedText = fullText.trim();
         
-        // Remove markdown code blocks
-        if (cleanedText.startsWith('```json')) {
-          cleanedText = cleanedText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-        } else if (cleanedText.startsWith('```')) {
-          cleanedText = cleanedText.replace(/^```\s*/, '').replace(/\s*```$/, '');
+        // Remove markdown code fences anywhere in the string
+        cleanedText = cleanedText
+          .replace(/^```json\s*/i, '')
+          .replace(/^```\s*/i, '')
+          .replace(/```$/i, '')
+          .trim();
+
+        const extractedJson = extractJsonObject(cleanedText);
+        if (!extractedJson) {
+          throw new Error('Could not locate a valid JSON object in the response');
         }
         
-        // Try to extract JSON from text that might have additional content
-        const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          cleanedText = jsonMatch[0];
-        }
+        console.log('Attempting to parse MVP plan:', extractedJson.substring(0, 200) + '...');
         
-        cleanedText = cleanedText.trim();
-        
-        console.log('Attempting to parse MVP plan:', cleanedText.substring(0, 200) + '...');
-        
-        const mvpPlan = JSON.parse(cleanedText);
+        const mvpPlan = JSON.parse(extractedJson);
         
         if (!mvpPlan.projectName || !mvpPlan.description || !Array.isArray(mvpPlan.features) || !mvpPlan.techStack || !Array.isArray(mvpPlan.tasks)) {
           throw new Error('Generated MVP plan has invalid structure');

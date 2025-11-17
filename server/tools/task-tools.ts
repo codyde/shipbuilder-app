@@ -423,7 +423,6 @@ CRITICAL: Your response must be ONLY the JSON object, with no markdown formattin
           },
           system: systemPrompt,
           prompt: `Create an MVP plan for: ${args.projectIdea}`,
-          maxTokens: 2000,
           ...(Object.keys(providerOptions).length > 0 && { providerOptions })
         });
 

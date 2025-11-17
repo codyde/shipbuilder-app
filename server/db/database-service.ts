@@ -72,6 +72,10 @@ class DatabaseService {
     return Math.abs(hash);
   }
 
+  private normalizeAIProvider(provider?: string | null): 'anthropic' | 'openai' {
+    return provider === 'openai' ? 'openai' : 'anthropic';
+  }
+
   // Users
   async createUser(email: string, name: string, provider?: string, providerId?: string, avatar?: string): Promise<User> {
     const [user] = await db.insert(users)
@@ -89,7 +93,7 @@ class DatabaseService {
       provider: user.provider || undefined,
       providerId: user.providerId || undefined,
       avatar: user.avatar || undefined,
-      aiProvider: user.aiProvider as 'anthropic' | 'openai' | 'xai',
+      aiProvider: this.normalizeAIProvider(user.aiProvider),
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString(),
     };
@@ -107,7 +111,7 @@ class DatabaseService {
       provider: user.provider || undefined,
       providerId: user.providerId || undefined,
       avatar: user.avatar || undefined,
-      aiProvider: user.aiProvider as 'anthropic' | 'openai' | 'xai',
+      aiProvider: this.normalizeAIProvider(user.aiProvider),
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString(),
     };
@@ -125,7 +129,7 @@ class DatabaseService {
       provider: user.provider || undefined,
       providerId: user.providerId || undefined,
       avatar: user.avatar || undefined,
-      aiProvider: user.aiProvider as 'anthropic' | 'openai' | 'xai',
+      aiProvider: this.normalizeAIProvider(user.aiProvider),
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString(),
     };
@@ -152,7 +156,7 @@ class DatabaseService {
     };
   }
 
-  async updateUserAIProvider(id: string, aiProvider: 'anthropic' | 'openai' | 'xai'): Promise<User | null> {
+  async updateUserAIProvider(id: string, aiProvider: 'anthropic' | 'openai'): Promise<User | null> {
     const [updated] = await db.update(users)
       .set({
         aiProvider,
@@ -168,7 +172,7 @@ class DatabaseService {
       provider: updated.provider || undefined,
       providerId: updated.providerId || undefined,
       avatar: updated.avatar || undefined,
-      aiProvider: updated.aiProvider as 'anthropic' | 'openai' | 'xai',
+      aiProvider: this.normalizeAIProvider(updated.aiProvider),
       createdAt: updated.createdAt.toISOString(),
       updatedAt: updated.updatedAt.toISOString(),
     };

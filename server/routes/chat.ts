@@ -105,7 +105,6 @@ chatRoutes.post('/stream', async (req: any, res: any) => {
 
     const result = streamText({
       model,
-      maxTokens: 1000,
       experimental_telemetry: {
         isEnabled: true,
         functionId: "chat-tool-calling"
