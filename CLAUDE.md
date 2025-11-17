@@ -67,8 +67,8 @@ This is a full-stack project management application built with React + TypeScrip
 - **Database Migrations**: Handled via `npx drizzle-kit push` with schema-driven migrations in `/drizzle/`
 
 ### AI Integration
-- **Default Provider**: Anthropic Claude Sonnet 4 (`claude-sonnet-4-20250514`) via Vercel AI SDK
-- **OpenAI Hybrid**: gpt-5 for reasoning + GPT-4o-mini for tool calling with automatic fallback
+- **Default Provider**: Anthropic Claude Sonnet 4.5 (`claude-sonnet-4-5-20250929`) via Vercel AI SDK
+- **OpenAI GPT-5.1**: Unified reasoning + tool calling without hybrid fallback
 - **Chat Interface**: Streaming tool calls with real-time UI updates
 - **MVP Builder**: Two-step AI-powered project generation
 

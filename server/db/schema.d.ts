@@ -1,7 +1,7 @@
 export declare const taskStatusEnum: import("drizzle-orm/pg-core").PgEnum<["backlog", "in_progress", "completed"]>;
 export declare const projectStatusEnum: import("drizzle-orm/pg-core").PgEnum<["active", "backlog", "completed", "archived"]>;
 export declare const priorityEnum: import("drizzle-orm/pg-core").PgEnum<["low", "medium", "high"]>;
-export declare const aiProviderEnum: import("drizzle-orm/pg-core").PgEnum<["anthropic", "openai", "xai"]>;
+export declare const aiProviderEnum: import("drizzle-orm/pg-core").PgEnum<["anthropic", "openai"]>;
 export declare const users: import("drizzle-orm/pg-core").PgTableWithColumns<{
     name: "users";
     schema: undefined;
@@ -113,14 +113,14 @@ export declare const users: import("drizzle-orm/pg-core").PgTableWithColumns<{
             tableName: "users";
             dataType: "string";
             columnType: "PgEnumColumn";
-            data: "anthropic" | "openai" | "xai";
+            data: "anthropic" | "openai";
             driverParam: string;
             notNull: true;
             hasDefault: true;
             isPrimaryKey: false;
             isAutoincrement: false;
             hasRuntimeDefault: false;
-            enumValues: ["anthropic", "openai", "xai"];
+            enumValues: ["anthropic", "openai"];
             baseColumn: never;
             identity: undefined;
             generated: undefined;

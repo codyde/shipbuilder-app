@@ -1,7 +1,7 @@
 import { Label } from '@/components/ui/label'
 import { useTheme, Theme } from '@/context/ThemeContext'
 import { useAuth } from '@/context/AuthContext'
-import { Palette, Moon, Sun, Waves, Sunset, Star, Monitor, Check, Bug, Sparkles, Brain, AlertCircle, Zap } from 'lucide-react'
+import { Palette, Moon, Sun, Waves, Sunset, Star, Monitor, Check, Bug, Sparkles, Brain, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useEffect, useState, useCallback } from 'react'
 import { getApiUrl } from '@/lib/api-config'
@@ -65,28 +65,21 @@ const aiProviderOptions = [
     label: 'Anthropic Claude',
     icon: Brain,
     description: 'Advanced reasoning with robust tool calling',
-    models: ['Claude 4 Sonnet']
+    models: ['Claude 4.5 Sonnet']
   },
   {
     value: 'openai',
-    label: 'OpenAI Hybrid',
+    label: 'OpenAI GPT-5.1',
     icon: Sparkles,
-    description: 'gpt-5 for reasoning + gpt-5 for tool calling',
-    models: ['gpt-5 (Detailed Reasoning)', 'gpt-5 (Tool Calling)']
-  },
-  {
-    value: 'xai',
-    label: 'xAI Grok',
-    icon: Zap,
-    description: 'Fast reasoning with integrated tool support',
-    models: ['Grok-4']
+    description: 'gpt-5.1 for unified reasoning and tool calling',
+    models: ['gpt-5.1 (Reasoning + Tools)']
   }
 ] as const
 
 export function SettingsView() {
   const { theme, setTheme } = useTheme()
   const { user } = useAuth()
-  const [aiProvider, setAiProvider] = useState<'anthropic' | 'openai' | 'xai'>('anthropic')
+  const [aiProvider, setAiProvider] = useState<'anthropic' | 'openai'>('anthropic')
   const [availableProviders, setAvailableProviders] = useState<string[]>([])
   const [loadingProviders, setLoadingProviders] = useState(true)
   const [updatingProvider, setUpdatingProvider] = useState(false)
@@ -135,7 +128,7 @@ export function SettingsView() {
     setTheme(value as Theme)
   }
 
-  const handleAIProviderChange = async (provider: 'anthropic' | 'openai' | 'xai') => {
+  const handleAIProviderChange = async (provider: 'anthropic' | 'openai') => {
     const token = localStorage.getItem('authToken')
 
     if (!token) {
@@ -351,7 +344,7 @@ export function SettingsView() {
                       return (
                         <button
                           key={option.value}
-                          onClick={() => isAvailable && handleAIProviderChange(option.value as 'anthropic' | 'openai' | 'xai')}
+                          onClick={() => isAvailable && handleAIProviderChange(option.value as 'anthropic' | 'openai')}
                           disabled={!isAvailable || updatingProvider}
                           className={cn(
                             "relative group flex flex-col items-start p-4 rounded-lg border-2 text-left transition-all duration-200",

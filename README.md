@@ -53,8 +53,8 @@ A modern, full-stack project management application with AI-powered task creatio
 - **Swagger** - API documentation
 
 ### AI & Integrations
-- **Anthropic Claude Sonnet 4 & Opus 4** - Advanced AI capabilities
-- **OpenAI GPT-4o & GPT-4o Mini** - Alternative AI model options
+- **Anthropic Claude Sonnet 4.5** - Advanced AI capabilities
+- **OpenAI GPT-5.1** - Unified reasoning and tool calling
 - **Tool Calling** - Structured AI function execution
 - **Natural Language Processing** - Convert text to structured data
 - **Provider Switching** - Choose between Anthropic and OpenAI models in settings
@@ -90,7 +90,7 @@ A modern, full-stack project management application with AI-powered task creatio
    ```env
    # Choose one or both AI providers
    ANTHROPIC_API_KEY=your_anthropic_api_key_here  # For Claude models
-   OPENAI_API_KEY=your_openai_api_key_here        # For gpt-5 + GPT-4o-mini hybrid
+   OPENAI_API_KEY=your_openai_api_key_here        # For gpt-5.1 unified reasoning + tools
    ```
    
    Create `server/.env`:
@@ -323,15 +323,10 @@ ShipBuilder now supports multiple AI providers with intelligent model selection.
 ### Supported Models
 
 **Anthropic:**
-- Claude 4 Sonnet - Advanced reasoning with robust tool calling support
+- Claude 4.5 Sonnet - Advanced reasoning with robust tool calling support
 
-**OpenAI Hybrid:**
-- gpt-5 - Superior reasoning for text generation and MVP planning
-- GPT-4o-mini - Reliable tool calling for project/task creation
-- Automatic model switching based on task type
-
-**xAI:**
-- Grok-4 - Fast reasoning with integrated tool support
+**OpenAI:**
+- gpt-5.1 - Unified reasoning and tool calling for both planning and execution
 
 ### Switching Providers
 

@@ -48,10 +48,10 @@ export function ProjectHoverCard({ project, children }: ProjectHoverCardProps) {
       </TooltipTrigger>
       <TooltipContent 
         side="right" 
-        className="bg-background text-foreground border shadow-lg p-0 w-80 max-w-80"
+        className="bg-background text-foreground border shadow-lg p-0 w-[32rem] max-w-[90vw] pointer-events-auto"
         sideOffset={10}
       >
-        <div className="p-4 space-y-3">
+        <div className="max-h-[70vh] overflow-y-auto p-4 pr-5 space-y-3">
           {/* Title */}
           <div>
             <h4 className={cn(

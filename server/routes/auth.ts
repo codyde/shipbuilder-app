@@ -602,13 +602,13 @@ router.put('/ai-provider', authenticateUser, async (req: any, res: any) => {
 
     const { provider } = req.body;
     
-    if (!provider || !['anthropic', 'openai', 'xai'].includes(provider)) {
-      return res.status(400).json({ error: 'Invalid AI provider. Must be "anthropic", "openai", or "xai"' });
+    if (!provider || !['anthropic', 'openai'].includes(provider)) {
+      return res.status(400).json({ error: 'Invalid AI provider. Must be "anthropic" or "openai"' });
     }
 
     // Update user's AI provider preference
     const { AIProviderService } = await import('../services/ai-provider.js');
-    await AIProviderService.updateUserProvider(userId, provider as 'anthropic' | 'openai' | 'xai');
+    await AIProviderService.updateUserProvider(userId, provider as 'anthropic' | 'openai');
 
     res.json({ success: true, provider });
   } catch (error) {
@@ -625,10 +625,10 @@ router.get('/ai-providers', authenticateUser, async (req: any, res: any) => {
     const availableProviders = AIProviderService.getAvailableProviders();
     
     // Get user's current provider preference if authenticated
-    let currentProvider = null;
+    let currentProvider: 'anthropic' | 'openai' | null = null;
     if (req.user?.id) {
       const user = await databaseService.getUserById(req.user.id);
-      currentProvider = user?.aiProvider || 'anthropic';
+      currentProvider = user?.aiProvider === 'openai' ? 'openai' : 'anthropic';
     }
     
     res.json({ 
