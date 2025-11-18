@@ -305,6 +305,11 @@ aiRoutes.post('/create-mvp-project', async (req: any, res: any) => {
   let mvpPlan: MVPPlanPayload | undefined;
 
   try {
+    req.setTimeout?.(0);
+    res.setTimeout?.(0);
+    req.socket?.setTimeout?.(0);
+    req.socket?.setKeepAlive?.(true, 10_000);
+
     const rawPlan = req.body.mvpPlan as MVPPlanPayload | undefined;
     if (!rawPlan) {
       return res.status(400).json({ error: 'MVP plan is required' });
@@ -329,10 +334,10 @@ aiRoutes.post('/create-mvp-project', async (req: any, res: any) => {
 
     console.log(`
 
-🎆 [35m[MVP_CREATE][0m Starting MVP creation
-   📝 Project: [33m${mvpPlan.projectName}[0m
-   🗺️ Tasks: [36m${mvpPlan.tasks.length}[0m
-   ⚙️ Execution: [32mDeterministic server flow[0m
+đ [35m[MVP_CREATE][0m Starting MVP creation
+   đ Project: [33m${mvpPlan.projectName}[0m
+   đşď¸ Tasks: [36m${mvpPlan.tasks.length}[0m
+   âď¸ Execution: [32mDeterministic server flow[0m
 `);
     logger.info('Starting MVP creation (deterministic flow)', {
       userId,
@@ -354,7 +359,7 @@ aiRoutes.post('/create-mvp-project', async (req: any, res: any) => {
       taskCount: mvpPlan.tasks.length
     }, false);
 
-    statusStreamer.sendProgressUpdate(`🚀 Starting MVP creation for "${mvpPlan.projectName}" with ${mvpPlan.tasks.length} tasks`);
+    statusStreamer.sendProgressUpdate(`đ Starting MVP creation for "${mvpPlan.projectName}" with ${mvpPlan.tasks.length} tasks`);
 
     const { createTaskTools } = await import('../tools/task-tools.js');
     const taskTools = createTaskTools(userId);
@@ -394,9 +399,9 @@ aiRoutes.post('/create-mvp-project', async (req: any, res: any) => {
       statusStreamer.sendProgressUpdate(`Progress: ${createdTasks}/${mvpPlan.tasks.length} tasks created`);
     }
 
-    statusStreamer.sendCompletion(`🎉 MVP "${mvpPlan.projectName}" created successfully with ${mvpPlan.tasks.length} tasks!`);
+    statusStreamer.sendCompletion(`đ MVP "${mvpPlan.projectName}" created successfully with ${mvpPlan.tasks.length} tasks!`);
     console.log(`
-✨ [32m[MVP_CREATE][0m Completed deterministic flow for project: [33m${mvpPlan.projectName}[0m
+â¨ [32m[MVP_CREATE][0m Completed deterministic flow for project: [33m${mvpPlan.projectName}[0m
 ${'='.repeat(60)}
 `);
     logger.info('MVP creation completed (deterministic flow)', {
@@ -408,7 +413,7 @@ ${'='.repeat(60)}
     });
   } catch (error) {
     console.error(`
-🚨 [31m[MVP_CREATE][0m Error during MVP creation:`, error);
+đ¨ [31m[MVP_CREATE][0m Error during MVP creation:`, error);
     logger.error('MVP creation failed (deterministic flow)', {
       userId: userId || 'unknown',
       provider: userProvider,
@@ -422,7 +427,7 @@ ${'='.repeat(60)}
       statusStreamer.sendStatus({
         type: 'tool-error',
         status: 'error',
-        message: `❌ MVP creation failed: ${errorMessage}`,
+        message: `â MVP creation failed: ${errorMessage}`,
         data: { error: errorMessage }
       });
     } else if (!res.headersSent) {
