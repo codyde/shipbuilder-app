@@ -20,10 +20,13 @@ export interface StreamingContext {
   taskCount?: number;
 }
 
+const HEARTBEAT_INTERVAL_MS = 25_000;
+
 export class StatusStreamer {
   private res: Response;
   private context: StreamingContext;
   private closed: boolean = false;
+  private heartbeatInterval: NodeJS.Timeout | null = null;
 
   constructor(res: Response, context: StreamingContext, setHeaders: boolean = true) {
     this.res = res;
@@ -37,6 +40,8 @@ export class StatusStreamer {
       this.res.setHeader('Connection', 'keep-alive');
       this.res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
     }
+
+    this.startHeartbeat();
   }
 
   private formatMessage(message: StatusMessage): string {
@@ -185,11 +190,43 @@ export class StatusStreamer {
   public close(): void {
     if (!this.closed && !this.res.destroyed) {
       this.closed = true;
+      this.stopHeartbeat();
       try {
         this.res.end();
       } catch (error) {
         console.error('Error closing status stream:', error);
       }
+    }
+  }
+
+  private startHeartbeat(): void {
+    if (this.heartbeatInterval) {
+      return;
+    }
+
+    this.heartbeatInterval = setInterval(() => {
+      if (this.closed || this.res.destroyed) {
+        this.stopHeartbeat();
+        return;
+      }
+
+      try {
+        const heartbeatPayload = {
+          type: 'heartbeat',
+          timestamp: new Date().toISOString()
+        };
+        this.res.write(`data: ${JSON.stringify(heartbeatPayload)}\n\n`);
+      } catch (error) {
+        console.error('Error sending heartbeat:', error);
+        this.stopHeartbeat();
+      }
+    }, HEARTBEAT_INTERVAL_MS);
+  }
+
+  private stopHeartbeat(): void {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
     }
   }
 
