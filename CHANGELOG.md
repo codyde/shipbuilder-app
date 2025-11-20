@@ -44,6 +44,10 @@ All notable changes to the ShipBuilder project will be documented in this file.
   - Enhanced slug generation with collision detection and length limits
   - Updated AI tools to work seamlessly with new ID structure
   - Comprehensive API documentation with realistic examples
+- **AI MVP Task Creation Flow**:
+  - Duplicate-task detection now uses a single targeted lookup instead of loading full project graphs
+  - Eliminates the N+1 `getProject` calls that previously hammered `/api/ai` requests with redundant queries
+  - Significantly reduces latency when creating large MVP plans (17+ tasks) in one request
 
 ### Removed
 - Unused `/api/ai/generate-mvp` route (redundant with streaming version)

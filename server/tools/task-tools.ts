@@ -104,14 +104,8 @@ DO NOT STOP - Continue immediately with createTask calls.`
           hasDescription: !!args.description,
         });
 
-        // Check for existing task with same title in project (prevent duplicates)
-        const existingProject = await databaseService.getProject(args.projectId, userId);
-        console.log(`   \x1b[36m→\x1b[0m Found project: \x1b[32m${existingProject ? 'Yes' : 'No'}\x1b[0m, existing tasks: \x1b[33m${existingProject?.tasks?.length || 0}\x1b[0m`);
-        
-        if (existingProject?.tasks) {
-          const duplicateTask = existingProject.tasks.find(t => 
-            t.title.toLowerCase().trim() === args.title.toLowerCase().trim()
-          );
+          // Check for existing task with same title in project (prevent duplicates)
+          const duplicateTask = await databaseService.findTaskByTitle(args.projectId, userId, args.title);
           
           if (duplicateTask) {
             console.log(`   ⚠️  \x1b[33m[TASK_CREATE]\x1b[0m Duplicate task found, returning existing: \x1b[35m${duplicateTask.id}\x1b[0m`);
@@ -128,7 +122,6 @@ DO NOT STOP - Continue immediately with createTask calls.`
               message: `Task "${args.title}" already exists in project with ID ${duplicateTask.id}`
             };
           }
-        }
 
         console.log(`   \x1b[36m→\x1b[0m Calling databaseService.createTask...`);
         const task = await databaseService.createTask(args, userId);
