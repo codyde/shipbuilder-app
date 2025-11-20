@@ -439,6 +439,38 @@ class DatabaseService {
     throw lastError || new Error('Failed to create task after multiple attempts');
   }
 
+  async findTaskByTitle(projectId: string, userId: string, rawTitle: string): Promise<Task | null> {
+    const normalizedTitle = rawTitle.trim();
+    if (!normalizedTitle) return null;
+
+    const taskWithProject = await db.query.tasks.findFirst({
+      where: and(
+        eq(tasks.projectId, projectId),
+        sql`LOWER(${tasks.title}) = LOWER(${normalizedTitle})`
+      ),
+      with: {
+        project: true,
+      },
+    });
+
+    if (!taskWithProject || taskWithProject.project.userId !== userId) {
+      return null;
+    }
+
+    const { project, ...task } = taskWithProject;
+
+    return {
+      ...task,
+      status: task.status as TaskStatus,
+      priority: task.priority as Priority,
+      description: task.description || undefined,
+      details: task.details || undefined,
+      comments: [],
+      createdAt: task.createdAt.toISOString(),
+      updatedAt: task.updatedAt.toISOString(),
+    };
+  }
+
   async getTask(projectId: string, taskId: string, userId: string): Promise<Task | null> {
     // First verify project belongs to user
     const project = await db.query.projects.findFirst({
