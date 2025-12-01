@@ -1,7 +1,7 @@
 import { Label } from '@/components/ui/label'
 import { useTheme, Theme } from '@/context/ThemeContext'
 import { useAuth } from '@/context/AuthContext'
-import { Palette, Moon, Sun, Waves, Sunset, Star, Monitor, Check, Bug, Sparkles, Brain, AlertCircle } from 'lucide-react'
+import { Palette, Moon, Sun, Waves, Sunset, Star, Monitor, Check, Bug, Sparkles, Brain, AlertCircle, Package } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useEffect, useState, useCallback } from 'react'
 import { getApiUrl } from '@/lib/api-config'
